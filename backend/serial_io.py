@@ -71,7 +71,7 @@ class SerialManager:
             try:
                 # Initialize with the general long timeout.
                 ser = serial.Serial(port, BAUD, timeout=TIMEOUT)
-                time.sleep(0.5) # Allow device to settle after port opening.
+                time.sleep(1.5) # Allow device to settle after port opening.
                 
                 original_port_timeout = ser.timeout
                 ser.timeout = DISCOVERY_TIMEOUT # Set short timeout for WHO sequence
