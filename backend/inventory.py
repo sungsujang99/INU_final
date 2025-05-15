@@ -5,8 +5,8 @@
 """
 
 import sqlite3, datetime
-from db import DB_NAME
-from task_queue import enqueue_task          # ← 큐 모듈 import
+from .db import DB_NAME
+from .task_queue import enqueue_task          # ← 큐 모듈 import
 from flask import current_app # Added for logging
 
 
