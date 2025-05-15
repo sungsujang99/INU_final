@@ -1,7 +1,7 @@
 # task_queue.py  ─────────────────────────────────────────────
-import queue, threading, time
+import queue, threading, time, logging
 from typing import Optional
-from serial_io import serial_mgr
+from .serial_io import serial_mgr
 from flask import current_app
 
 io = None                           # SocketIO 인스턴스 홀더
