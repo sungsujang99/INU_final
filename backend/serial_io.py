@@ -68,55 +68,46 @@ class SerialManager:
 
         for port in candidates:
             ser = None 
-            found_rack_id = None
             try:
                 # Initialize with the general long timeout.
                 ser = serial.Serial(port, BAUD, timeout=TIMEOUT)
-                time.sleep(1) # Shorter sleep, as WHO itself has a sleep/timeout now.
+                time.sleep(1) # Allow device to settle after port opening.
                 
                 original_port_timeout = ser.timeout
-                ser.timeout = DISCOVERY_TIMEOUT
+                ser.timeout = DISCOVERY_TIMEOUT # Set short timeout for WHO sequence
 
-                for attempt in range(1, 3): # Try WHO command twice
-                    ser.reset_input_buffer() # Clear buffer before each WHO attempt
-                    print(f"INFO: Port {port}: Sending WHO command (Attempt {attempt}/2).")
-                    ser.write(WHO_CMD)
-                    reply_bytes = ser.readline() # Read with the shorter discovery timeout
-
-                    if reply_bytes:
-                        decoded_reply = reply_bytes.decode("utf-8", "ignore").strip().upper()
-                        if decoded_reply in RACKS:
-                            if decoded_reply not in self.ports:
-                                found_rack_id = decoded_reply
-                                print(f"INFO: Port {port} (Attempt {attempt}): Received valid new rack ID '{found_rack_id}'.")
-                                break # Success, exit attempts loop
-                            else:
-                                print(f"⚠️ Port {port} (Attempt {attempt}): Rack '{decoded_reply}' already discovered and mapped. Ignoring this port.")
-                                found_rack_id = None # Ensure this port isn't used
-                                break # Stop trying on this port
-                        else:
-                            print(f"⚠️ Port {port} (Attempt {attempt}): Received unknown reply '{decoded_reply}'.")
-                    else:
-                        print(f"⚠️ Port {port} (Attempt {attempt}): No reply to WHO command (timeout: {DISCOVERY_TIMEOUT}s).")
-                    
-                    if attempt == 1 and not found_rack_id: # If first attempt failed and didn't find a rack yet
-                        print(f"INFO: Port {port}: Pausing briefly before WHO attempt 2/2.")
-                        time.sleep(0.5) # Small pause before retry
+                ser.reset_input_buffer() # Clear buffer before sending
+                print(f"INFO: Port {port}: Sending WHO command (1/2).")
+                ser.write(WHO_CMD) # First WHO
+                print(f"INFO: Port {port}: Sending WHO command (2/2) immediately.")
+                ser.write(WHO_CMD) # Second WHO, sent immediately after the first
+                
+                # Now attempt to read a reply to one of the WHO commands
+                print(f"INFO: Port {port}: Listening for WHO reply (timeout: {DISCOVERY_TIMEOUT}s).")
+                reply_bytes = ser.readline() 
 
                 # IMPORTANT: Restore the original long timeout.
-                # This needs to happen whether WHO succeeded or failed,
-                # for the case where the port object 'ser' might be used by other parts if not closed.
-                # However, if found_rack_id is None, ser will be closed.
                 ser.timeout = original_port_timeout
 
-                if found_rack_id: # A valid, non-duplicate rack ID was found from one of the attempts
+                found_rack_id = None
+                if reply_bytes:
+                    decoded_reply = reply_bytes.decode("utf-8", "ignore").strip().upper()
+                    if decoded_reply in RACKS:
+                        if decoded_reply not in self.ports:
+                            found_rack_id = decoded_reply
+                            print(f"INFO: Port {port}: Received valid new rack ID '{found_rack_id}'.")
+                        else:
+                            print(f"⚠️ Port {port}: Rack '{decoded_reply}' already discovered and mapped. Ignoring this port.")
+                    else:
+                        print(f"⚠️ Port {port}: Received unknown reply '{decoded_reply}'.")
+                else:
+                    print(f"⚠️ Port {port}: No reply to WHO commands (timeout: {DISCOVERY_TIMEOUT}s).")
+
+                if found_rack_id: 
                     self.ports[found_rack_id] = {"ser": ser, "mutex": threading.Lock()}
-                    # The 'ser' object stored in self.ports now correctly has its timeout
-                    # set back to the original TIMEOUT (120s) for future send() calls.
                     print(f"🔌 Rack {found_rack_id} → {port}")
                 else:
-                    # If found_rack_id is still None, all attempts failed, or it was a duplicate of an existing rack
-                    print(f"INFO: Port {port}: Did not identify a valid new rack after 2 attempts or rack already mapped. Closing port.")
+                    print(f"INFO: Port {port}: Did not identify a valid new rack or rack already mapped. Closing port.")
                     if ser and ser.is_open:
                         ser.close()
 
