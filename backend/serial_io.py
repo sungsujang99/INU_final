@@ -77,12 +77,9 @@ class SerialManager:
                 ser.timeout = DISCOVERY_TIMEOUT # Set short timeout for WHO sequence
 
                 ser.reset_input_buffer() # Clear buffer before sending
-                print(f"INFO: Port {port}: Sending WHO command (1/2).")
-                ser.write(WHO_CMD) # First WHO
-                print(f"INFO: Port {port}: Sending WHO command (2/2) immediately.")
-                ser.write(WHO_CMD) # Second WHO, sent immediately after the first
+                print(f"INFO: Port {port}: Sending WHO command.")
+                ser.write(WHO_CMD) # Send WHO once
                 
-                # Now attempt to read a reply to one of the WHO commands
                 print(f"INFO: Port {port}: Listening for WHO reply (timeout: {DISCOVERY_TIMEOUT}s).")
                 reply_bytes = ser.readline() 
 
@@ -101,7 +98,7 @@ class SerialManager:
                     else:
                         print(f"⚠️ Port {port}: Received unknown reply '{decoded_reply}'.")
                 else:
-                    print(f"⚠️ Port {port}: No reply to WHO commands (timeout: {DISCOVERY_TIMEOUT}s).")
+                    print(f"⚠️ Port {port}: No reply to WHO command (timeout: {DISCOVERY_TIMEOUT}s).")
 
                 if found_rack_id: 
                     self.ports[found_rack_id] = {"ser": ser, "mutex": threading.Lock()}
