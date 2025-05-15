@@ -55,11 +55,17 @@ init_db()
 
 # Configure serial manager based on app config BEFORE starting workers
 serial_mgr.configure_and_discover(app.config)
-# task_queue.initialize_queues_and_workers( # Temporarily commented out as it's not yet implemented
-#     serial_mgr.get_discovered_rack_names(), 
-#     app.config, 
-#     serial_mgr
-# )
+
+# ---- Reset racks if serial communication is enabled ----
+if app.config.get('SERIAL_COMMUNICATION_ENABLED', True): # Check the same config key
+    if serial_mgr.ports: # Check if any ports were actually discovered
+        app.logger.info("Attempting to reset discovered racks...")
+        serial_mgr.reset_all_racks()
+        app.logger.info("Finished reset attempt for discovered racks.")
+    else:
+        app.logger.info("SERIAL_COMMUNICATION_ENABLED but no racks discovered. Skipping reset.")
+else:
+    app.logger.info("SERIAL_COMMUNICATION_DISABLED. Skipping reset of racks.")
 
 # Start rack workers (ensure this uses the task_queue module's function)
 task_queue.start_rack_workers()

@@ -178,5 +178,31 @@ class SerialManager:
                  serial_instance.timeout = original_timeout
             return None
 
+    def reset_all_racks(self, reset_cmd_code="99", done_token_reset=b"done"):
+        """Sends a reset command to all connected and discovered racks."""
+        if not self.enabled:
+            print("INFO: SerialManager.reset_all_racks called but serial is DISABLED. Skipping reset.")
+            return
+
+        if not self.ports:
+            print("INFO: SerialManager.reset_all_racks called but no racks are currently discovered/connected. Skipping reset.")
+            return
+
+        print("INFO: Attempting to reset all connected racks...")
+        for rack_id in self.ports.keys(): # Iterate over a copy of keys if modifying self.ports, but here it's just sending
+            print(f"INFO: Sending reset command '{reset_cmd_code}' to Rack {rack_id}...")
+            try:
+                # Leveraging the existing send method's wait_done logic
+                result = self.send(rack_id, reset_cmd_code, wait_done=True, done_token=done_token_reset)
+                if result.get("status") == "done":
+                    print(f"SUCCESS: Rack {rack_id} reset successfully and responded 'done'.")
+                elif result.get("status") == "timeout":
+                    print(f"WARNING: Rack {rack_id} timed out after reset command. Did not receive 'done'.")
+                else:
+                    print(f"WARNING: Rack {rack_id} responded with status '{result.get('status')}' after reset command.")
+            except Exception as e:
+                print(f"ERROR: Failed to send reset command to Rack {rack_id}: {e}")
+        print("INFO: Finished attempting to reset all connected racks.")
+
 # ───── 전역 인스턴스 (모듈 import 시 1번만 생성) ─────
 serial_mgr = SerialManager()
