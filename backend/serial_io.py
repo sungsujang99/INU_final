@@ -4,6 +4,7 @@ from flask import current_app
 
 BAUD = 9600
 TIMEOUT = 120 # Increased timeout to 120 seconds (2 minutes)
+DISCOVERY_TIMEOUT = 2 # Specific timeout for WHO command during discovery
 WHO_CMD = b"WHO\n"
 RACKS   = {"A", "B", "C"}
 
@@ -66,19 +67,48 @@ class SerialManager:
             print(f"Serial port discovery: Platform '{platform}', Candidate ports: {candidates}")
 
         for port in candidates:
+            ser = None # Initialize ser to None to handle potential errors before assignment
             try:
+                # Initialize with the general long timeout. This will be the port's default.
                 ser = serial.Serial(port, BAUD, timeout=TIMEOUT)
-                time.sleep(2)
+                time.sleep(2) # Allow device to settle after port opening
                 ser.reset_input_buffer()
+
+                # Temporarily set a shorter timeout for the WHO command
+                original_port_timeout = ser.timeout
+                ser.timeout = DISCOVERY_TIMEOUT
+                
                 ser.write(WHO_CMD)
-                reply = ser.readline().decode("utf-8", "ignore").strip().upper()
-                if reply in RACKS and reply not in self.ports:
+                reply_bytes = ser.readline() # Read with the shorter discovery timeout
+
+                # IMPORTANT: Restore the original long timeout for all subsequent operations on this port
+                ser.timeout = original_port_timeout
+
+                reply = reply_bytes.decode("utf-8", "ignore").strip().upper()
+
+                if reply_bytes and reply in RACKS and reply not in self.ports:
                     self.ports[reply] = {"ser": ser, "mutex": threading.Lock()}
+                    # The 'ser' object stored in self.ports now correctly has its timeout
+                    # set back to the original TIMEOUT (120s) for future send() calls.
                     print(f"🔌 Rack {reply} → {port}")
                 else:
+                    # If WHO failed, timed out (reply_bytes is empty), or was invalid/duplicate, close the port.
+                    if reply_bytes and reply not in RACKS:
+                        print(f"⚠️ Port {port}: Received unknown reply '{reply}' to WHO command. Closing port.")
+                    elif reply_bytes and reply in self.ports:
+                        print(f"⚠️ Port {port}: Rack '{reply}' already discovered. Ignoring duplicate. Closing port.")
+                    elif not reply_bytes:
+                        print(f"⚠️ Port {port}: No reply to WHO command (timeout: {DISCOVERY_TIMEOUT}s). Closing port.")
+                    ser.close()
+
+            except serial.SerialException as se:
+                print(f"⚠️ {port}: Serial error during discovery: {se}")
+                if ser and ser.is_open:
                     ser.close()
             except Exception as e:
-                print(f"⚠️ {port}: {e}")
+                print(f"⚠️ {port}: Unexpected error during discovery: {e}")
+                if ser and ser.is_open:
+                    ser.close()
 
         missing = RACKS - self.ports.keys()
         if missing:
