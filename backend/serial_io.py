@@ -155,6 +155,14 @@ class SerialManager:
         with mutex:
             ser.reset_input_buffer()
             ser.write((code + "\n").encode())
+            
+            # Check for immediate reply after write
+            time.sleep(0.1) # Wait a brief moment for a very fast reply
+            if app_logger:
+                app_logger.debug(f"{log_prefix}: Bytes available immediately after write and 0.1s delay: {ser.in_waiting}")
+            else:
+                print(f"DEBUG: {log_prefix}: Bytes available immediately after write and 0.1s delay: {ser.in_waiting}")
+
             if not wait_done:
                 return {"status": "sent"}
 
