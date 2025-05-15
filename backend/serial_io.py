@@ -3,7 +3,7 @@ import serial, glob, time, threading, sys
 from flask import current_app
 
 BAUD = 9600
-TIMEOUT = 2
+TIMEOUT = 120 # Increased timeout to 120 seconds (2 minutes)
 WHO_CMD = b"WHO\n"
 RACKS   = {"A", "B", "C"}
 
