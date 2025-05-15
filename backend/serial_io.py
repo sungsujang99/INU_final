@@ -2,7 +2,7 @@
 import serial, glob, time, threading, sys
 from flask import current_app
 
-BAUD = 9600
+BAUD = 19200
 TIMEOUT = 120 # Increased timeout to 120 seconds (2 minutes)
 DISCOVERY_TIMEOUT = 3 # Specific timeout for WHO command during discovery
 WHO_CMD = b"WHO\n"
@@ -78,7 +78,7 @@ class SerialManager:
 
                 ser.reset_input_buffer() # Clear buffer before sending
                 print(f"INFO: Port {port}: Sending WHO command.")
-                # ser.write(WHO_CMD) # Send WHO once
+                ser.write(WHO_CMD) # Send WHO once
                 time.sleep(0.5)
                 ser.write(WHO_CMD)
                 print(f"INFO: Port {port}: Listening for WHO reply (timeout: {DISCOVERY_TIMEOUT}s).")
