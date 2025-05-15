@@ -8,12 +8,12 @@ import uuid
 import io # Standard io module for StringIO
 import csv # Standard csv module
 
-from auth import authenticate, token_required
-from db import DB_NAME, init_db
-from inventory import add_records
-from stats import fetch_logs, logs_to_csv
-from serial_io import serial_mgr
-import task_queue
+from .auth import authenticate, token_required
+from .db import DB_NAME, init_db
+from .inventory import add_records
+from .stats import fetch_logs, logs_to_csv
+from .serial_io import serial_mgr
+from . import task_queue
 
 # Define SECRET_KEY for the application
 # This should be a long, random, and secret string in production
