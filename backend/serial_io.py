@@ -83,7 +83,7 @@ class SerialManager:
                 
                 print(f"INFO: Port {port}: Listening for WHO reply (timeout: {DISCOVERY_TIMEOUT}s).")
                 reply_bytes = ser.readline() 
-
+                print(f"DEBUG: Port {port}: Raw reply_bytes: {reply_bytes}")
                 # IMPORTANT: Restore the original long timeout.
                 ser.timeout = original_port_timeout
 
