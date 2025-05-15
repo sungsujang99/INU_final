@@ -1,6 +1,6 @@
 # stats.py
 import sqlite3, csv, io, datetime as dt
-from db import DB_NAME
+from .db import DB_NAME
 
 def _parse(dstr:str, end=False):
     d = dt.datetime.strptime(dstr, "%Y-%m-%d")
