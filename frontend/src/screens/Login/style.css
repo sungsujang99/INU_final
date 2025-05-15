@@ -1,0 +1,149 @@
+.login {
+  background-color: #eff6fe;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+}
+
+.login .login-box-wrapper {
+  background-color: var(--variable-collection-bg01);
+  height: 1080px;
+  width: 1920px;
+}
+
+.login .login-box {
+  height: 653px;
+  left: 663px;
+  position: relative;
+  top: 213px;
+  width: 598px;
+}
+
+.login .overlap-group-3 {
+  background-color: #ffffff;
+  border: 1px solid;
+  border-color: var(--variable-collection-grayscale-02);
+  border-radius: 50px;
+  height: 653px;
+  position: relative;
+  width: 594px;
+}
+
+.login .div-4 {
+  color: var(--variable-collection-gray-color05);
+  font-family: "Pretendard-SemiBold", Helvetica;
+  font-size: 28px;
+  font-weight: 600;
+  left: 159px;
+  letter-spacing: -0.56px;
+  line-height: 24px;
+  position: absolute;
+  text-align: center;
+  top: 164px;
+  white-space: nowrap;
+}
+
+.login .text-wrapper-23 {
+  color: #5c6a75;
+  letter-spacing: -0.16px;
+}
+
+.login .text-wrapper-24 {
+  color: #1e2327;
+  letter-spacing: -0.16px;
+}
+
+.login .text-wrapper-25 {
+  color: var(--variable-collection-gray-color05);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 220px;
+  letter-spacing: -0.32px;
+  line-height: 24px;
+  position: absolute;
+  text-align: center;
+  top: 200px;
+  white-space: nowrap;
+}
+
+.login .logo-2 {
+  border-radius: 50px;
+  height: 56px;
+  left: 213px;
+  position: absolute;
+  top: 71px;
+  width: 166px;
+}
+
+.login .INU-logistics-2 {
+  height: 25px;
+  left: 0;
+  position: absolute;
+  top: 30px;
+  width: 166px;
+}
+
+.login .group-7 {
+  height: 16px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 56px;
+}
+
+.login .ellipse-10 {
+  background-color: #0177fb;
+  border-radius: 8.09px;
+  height: 16px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 16px;
+}
+
+.login .ellipse-11 {
+  background-color: #ffffff;
+  border: 2.74px solid;
+  border-color: #0177fb;
+  border-radius: 8.09px;
+  height: 16px;
+  left: 20px;
+  position: absolute;
+  top: 0;
+  width: 16px;
+}
+
+.login .ellipse-12 {
+  background-color: #0177fb;
+  border-radius: 8.09px;
+  height: 16px;
+  left: 40px;
+  position: absolute;
+  top: 0;
+  width: 16px;
+}
+
+.login .field-btn {
+  align-items: flex-start;
+  border-radius: 50px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  left: 39px;
+  position: absolute;
+  top: 288px;
+  width: 514px;
+}
+
+.login .design-component-instance-node {
+  align-self: stretch !important;
+  width: 100% !important;
+}
+
+.login .ic-32-2tone-2 {
+  height: 32px !important;
+  position: relative !important;
+  width: 32px !important;
+}

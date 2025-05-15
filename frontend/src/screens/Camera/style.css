@@ -1,0 +1,856 @@
+.camera {
+  background-color: #eff6fe;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+}
+
+.camera .div-5 {
+  background-color: var(--variable-collection-bg01);
+  height: 1080px;
+  position: relative;
+  width: 1920px;
+}
+
+.camera .container-2 {
+  background-color: #ffffff;
+  border: 1px solid;
+  border-color: #eaeaea;
+  border-radius: 30px;
+  height: 1020px;
+  left: 256px;
+  overflow: hidden;
+  position: absolute;
+  top: 30px;
+  width: 1648px;
+}
+
+.camera .text-wrapper-30 {
+  color: #061438;
+  font-family: "Poppins", Helvetica;
+  font-size: 22px;
+  font-weight: 600;
+  left: 250px;
+  letter-spacing: 0;
+  line-height: normal;
+  position: absolute;
+  top: 31px;
+}
+
+.camera .frame-15 {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px 11px;
+  left: 250px;
+  position: absolute;
+  top: 98px;
+  width: 574px;
+}
+
+.camera .frame-wrapper {
+  background-color: #F5F6F8;
+  height: 574px;
+  position: relative;
+  width: 574px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.camera .frame-16 {
+  align-items: center;
+  background-color: var(--variable-collection-main-01);
+  border-radius: 30px;
+  display: inline-flex;
+  gap: 11px;
+  justify-content: center;
+  left: 24px;
+  padding: 16px 24px;
+  position: relative;
+  top: 24px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.camera .text-wrapper-31 {
+  color: var(--variable-collection-line-01);
+  font-family: "Pretendard-ExtraBold", Helvetica;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.54px;
+  line-height: 16px;
+  margin-top: -1.00px;
+  position: relative;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.camera .rectangle-28 {
+  display: none;
+}
+
+.camera .frame-17 {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 24px;
+  height: 800px;
+  left: 848px;
+  overflow-y: scroll;
+  position: absolute;
+  top: 98px;
+  width: 582px;
+  padding: 5px;
+  box-sizing: border-box;
+  justify-content: flex-start;
+}
+
+.camera .frame-17::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}
+
+.camera .group-10 {
+  min-height: 150px;
+  position: relative;
+  width: 279px;
+  margin-bottom: 24px;
+  background-color: #ffffff;
+  border: 1px solid var(--variable-collection-grayscale-01);
+  border-radius: 30px;
+  box-shadow: 4px 4px 16px #3c476614;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.camera .overlap-6 {
+  width: 100%;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.camera .group-11 {
+  width: 100%;
+  position: relative;
+  background-color: #f0f0f0;
+}
+
+.camera .overlap-group-6 {
+  min-height: 40px;
+  height: auto;
+  position: relative;
+  width: 100%;
+  padding: 10px 15px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.camera .rectangle-5 {
+  display: none;
+}
+
+.camera .log-title {
+  color: var(--variable-collection-grayscale-08);
+  font-family: "Pretendard-SemiBold", Helvetica;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: normal;
+  white-space: normal;
+  width: 100%;
+  text-align: left;
+}
+
+.camera .log-times-container {
+  padding: 15px 15px 10px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.camera .log-time-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: #333;
+}
+
+.camera .log-time-label {
+  color: #555;
+}
+
+.camera .log-time-value {
+  font-weight: 500;
+}
+
+.camera .log-download-button-container {
+  padding: 10px 15px 15px 15px;
+  margin-top: auto;
+}
+
+.camera .log-download-button {
+  width: 100%;
+  padding: 10px 15px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--variable-collection-main-01);
+  background-color: #ffffff;
+  border: 1.5px solid var(--variable-collection-main-01);
+  border-radius: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.camera .log-download-button:hover {
+  background-color: var(--variable-collection-main-01-light);
+  color: #ffffff;
+}
+
+.camera .download-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.camera .group-12 {
+  height: 48px;
+  left: 15px;
+  position: absolute;
+  top: 163px;
+  width: 233px;
+}
+
+.camera .text-wrapper-33 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 39px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  top: 87px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-34 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 39px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  top: 123px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-35 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 145px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  text-align: right;
+  top: 87px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-36 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 145px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  text-align: right;
+  top: 123px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-37 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 39px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  top: 235px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-38 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 39px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  top: 271px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-39 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 145px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  text-align: right;
+  top: 235px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-40 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 145px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  text-align: right;
+  top: 271px;
+  white-space: nowrap;
+}
+
+.camera .group-15 {
+  left: 15px !important;
+  position: absolute !important;
+  top: 311px !important;
+}
+
+.camera .group-13 {
+  height: 376px;
+  margin-right: -16.00px;
+  position: relative;
+  width: 279px;
+}
+
+.camera .group-14 {
+  height: 376px;
+  margin-right: -16.00px;
+  position: relative;
+  width: 566px;
+}
+
+.camera .div-6 {
+  height: 376px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 279px;
+}
+
+.camera .rectangle-6 {
+  background-color: #ffffff;
+  border: 1px solid;
+  border-color: var(--variable-collection-grayscale-01);
+  border-radius: 30px;
+  box-shadow: 4px 4px 16px #3c476614;
+  height: 376px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 263px;
+}
+
+.camera .group-16 {
+  height: 48px;
+  left: 16px;
+  position: absolute;
+  top: 16px;
+  width: 233px;
+}
+
+.camera .group-17 {
+  height: 48px;
+  left: 16px;
+  position: absolute;
+  top: 164px;
+  width: 233px;
+}
+
+.camera .text-wrapper-41 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 40px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  top: 88px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-42 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 40px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  top: 124px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-43 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 146px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  text-align: right;
+  top: 88px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-44 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 146px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  text-align: right;
+  top: 124px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-45 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 40px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  top: 236px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-46 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 40px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  top: 272px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-47 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 146px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  text-align: right;
+  top: 236px;
+  white-space: nowrap;
+}
+
+.camera .text-wrapper-48 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 146px;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: absolute;
+  text-align: right;
+  top: 272px;
+  white-space: nowrap;
+}
+
+.camera .group-instance {
+  left: 16px !important;
+  position: absolute !important;
+  top: 312px !important;
+}
+
+.camera .group-18 {
+  height: 376px;
+  left: 287px;
+  position: absolute;
+  top: 0;
+  width: 279px;
+}
+
+.camera .text-6 {
+  color: var(--variable-collection-grayscale-06);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 18px;
+  font-weight: 400;
+  left: 74px;
+  letter-spacing: 0;
+  line-height: normal;
+  position: absolute;
+  top: 1018px;
+  white-space: nowrap;
+}
+
+.camera .devider {
+  height: 1px;
+  left: 36px;
+  object-fit: cover;
+  position: absolute;
+  top: 988px;
+  width: 192px;
+}
+
+.camera .logo-5 {
+  border-radius: 50px;
+  height: 42px;
+  left: 66px;
+  position: absolute;
+  top: 58px;
+  width: 124px;
+}
+
+.camera .INU-logistics-5 {
+  height: 19px;
+  left: 0;
+  position: absolute;
+  top: 23px;
+  width: 123px;
+}
+
+.camera .group-19 {
+  height: 10px;
+  left: 0;
+  position: absolute;
+  top: 1px;
+  width: 36px;
+}
+
+.camera .ellipse-19 {
+  background-color: #0177fb;
+  border-radius: 5.12px;
+  height: 10px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 10px;
+}
+
+.camera .ellipse-20 {
+  background-color: #ffffff;
+  border: 2.74px solid;
+  border-color: #0177fb;
+  border-radius: 5.12px;
+  height: 10px;
+  left: 13px;
+  position: absolute;
+  top: 0;
+  width: 10px;
+}
+
+.camera .ellipse-21 {
+  background-color: #0177fb;
+  border-radius: 5.12px;
+  height: 10px;
+  left: 25px;
+  position: absolute;
+  top: 0;
+  width: 10px;
+}
+
+.camera .devider-2 {
+  background-color: var(--variable-collection-grayscale-03);
+  border: 1px solid;
+  border-color: var(--variable-collection-grayscale-02);
+  height: 1px;
+  left: 16px;
+  position: absolute;
+  top: 140px;
+  width: 224px;
+}
+
+.camera .user-profile-2 {
+  height: 30px;
+  left: 36px;
+  object-fit: cover;
+  position: absolute;
+  top: 1015px;
+  width: 30px;
+}
+
+.camera .left-menu-2 {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  left: 16px;
+  position: absolute;
+  top: 163px;
+  width: 224px;
+}
+
+.camera .menu-2 {
+  align-self: stretch !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+}
+
+.camera .ic-3 {
+  height: 16px !important;
+  position: relative !important;
+  width: 16px !important;
+}
+
+/* Style for selected camera */
+.camera-selected {
+  background-color: var(--variable-collection-main-01, #0177FB) !important;
+}
+
+.camera-selected .text-wrapper-31,
+.camera-selected .text {
+  color: white !important;
+}
+
+/* Camera content container */
+.camera-view-container {
+  width: 100%;
+  height: 500px;
+  background-color: #F5F6F8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  margin-top: 20px;
+}
+
+.camera-content {
+  font-size: 24px;
+  color: #333;
+  padding: 20px;
+  text-align: center;
+}
+
+/* Add a new camera display area */
+.camera-display {
+  width: 100%;
+  height: calc(100% - 64px);
+  background-image: 
+    linear-gradient(45deg, #f5f5f5 25%, transparent 25%), 
+    linear-gradient(-45deg, #f5f5f5 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #f5f5f5 75%), 
+    linear-gradient(-45deg, transparent 75%, #f5f5f5 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  border-radius: 0 0 10px 10px;
+}
+
+.camera-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Small camera buttons */
+.small-camera-wrapper {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.small-camera-button {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  background-color: #4498ff;
+  border-radius: 30px;
+  padding: 8px 16px;
+  margin: 10px;
+}
+
+.small-camera-text {
+  color: white;
+  font-family: "Pretendard-ExtraBold", Helvetica;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.small-camera-display {
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(45deg, #f5f5f5 25%, transparent 25%), 
+    linear-gradient(-45deg, #f5f5f5 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #f5f5f5 75%), 
+    linear-gradient(-45deg, transparent 75%, #f5f5f5 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  border-radius: 10px;
+}
+
+/* This assumes .dashboard-on and .div-2 from DashboardOn/style.css 
+   already set up the main page flexbox/grid for sidebar and content.
+   We are styling the specific content area for the camera page. */
+
+.camera-page-main-content-card {
+  background-color: #ffffff; /* White card background */
+  border-radius: 20px;     /* Rounded corners from Figma */
+  padding: 24px;           /* Inner padding for the card - adjusted to look like Figma */
+  box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.08); /* Subtle shadow - adjusted */
+  
+  /* Positioning and Sizing:
+     These will heavily depend on the parent (.div-2) styles from DashboardOn/style.css
+     Assuming .div-2 in DashboardOn/style.css handles the main layout (e.g., positioning next to .left-menu)
+     This card should then fill the available content space.
+  */
+  flex-grow: 1; 
+  margin: 20px; /* Overall margin around the card within its allocated space */
+                /* This might need fine-tuning based on how .div-2 is styled in DashboardOn.css */
+
+  display: flex; 
+  flex-direction: row; 
+  gap: 24px; /* Space between CameraGrid and LogSidebar - adjusted */
+  /* overflow: hidden; If content shouldn't scroll within the card itself, but rather the grid/sidebar inside it */
+  /* min-height: 0; Fix for flex children overflowing */
+}
+
+/* Adjust CameraGrid.tsx's container if it's inside this card */
+/* This selector targets .camera-grid-container when it's a child of .camera-page-main-content-card */
+.camera-page-main-content-card > .camera-grid-container {
+  flex: 3; /* CameraGrid takes more space, e.g., ~70-75% */
+  background-color: transparent; 
+  padding: 0; 
+  height: 100%; /* Make it fill the height of the card */
+  /* The CameraGrid.css already has display:flex and flex-direction: column, which is good */
+}
+
+/* Styles for the future LogSidebar (placeholder) */
+.camera-page-main-content-card .log-sidebar-placeholder { /* Renamed for clarity */
+  flex: 1; /* LogSidebar takes less space, e.g., ~25-30% */
+  background-color: #f0f0f0; /* Example background for the log sidebar placeholder */
+  padding: 15px;
+  border-radius: 10px;
+  height: 100%; /* Make it fill the height of the card */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #777;
+  font-style: italic;
+}
+
+/* Ensure the overall screen takes full height if not already */
+/* This might be in DashboardOn/style.css for .dashboard-on */
+/*
+.dashboard-on {
+  min-height: 100vh;
+  display: flex;
+}
+.dashboard-on .div-2 {
+  display: flex;
+  flex-grow: 1;
+  position: relative; // For absolute positioning of logo/user profile etc. if needed
+}
+*/
+
+.camera .batch-internal-jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* Space between individual job items */
+  padding: 0 15px; /* Horizontal padding if needed */
+  margin-bottom: 15px; /* Space before the main download button */
+  max-height: 250px; /* Example: Max height before scrolling starts, adjust as needed */
+  overflow-y: auto; /* Enable vertical scroll if content exceeds max-height */
+}
+
+/* Custom scrollbar styling for the internal list (optional, WebKit browsers) */
+.camera .batch-internal-jobs-list::-webkit-scrollbar {
+  width: 6px; /* Width of the scrollbar */
+}
+
+.camera .batch-internal-jobs-list::-webkit-scrollbar-track {
+  background: #f1f1f1; /* Track color */
+  border-radius: 10px;
+}
+
+.camera .batch-internal-jobs-list::-webkit-scrollbar-thumb {
+  background: #ccc; /* Thumb color */
+  border-radius: 10px;
+}
+
+.camera .batch-internal-jobs-list::-webkit-scrollbar-thumb:hover {
+  background: #aaa; /* Thumb color on hover */
+}
+
+.camera .individual-job-item {
+  /* Maybe a light border or nothing, depending on desired separation */
+  /* padding-bottom: 10px; */
+  /* border-bottom: 1px solid #eee; */ /* If you want separators */
+}
+
+/* Styling for the title bar of an INDIVIDUAL job item */
+.camera .individual-job-item .group-11 {
+  background-color: #f0f0f0; /* Light grey background for each job's title bar */
+  /* Add specific padding, border-radius for this title bar */
+  border-radius: 15px; /* Example, might be less than main card */
+  margin-bottom: 8px; /* Space between job title bar and its times */
+}
+
+.camera .individual-job-item .overlap-group-6 {
+  padding: 8px 12px; /* Adjust padding for job title */
+  min-height: auto; /* Let text define height */
+}
+
+.camera .individual-job-item .log-title {
+  font-size: 15px; /* Slightly smaller font for job titles */
+  /* Other specific styles for job titles */
+}
+
+/* Styling for the times container of an INDIVIDUAL job item */
+.camera .individual-job-times {
+  padding: 0 12px 8px 12px; /* Padding for times under a job title */
+  gap: 5px; /* Smaller gap for job times */
+}
+.camera .individual-job-times .log-time-entry {
+  font-size: 13px; /* Smaller font for job times */
+}

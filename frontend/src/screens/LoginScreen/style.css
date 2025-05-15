@@ -1,0 +1,159 @@
+.login-screen {
+  background-color: #eff6fe;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+}
+
+.login-screen .login-2 {
+  background-color: var(--variable-collection-bg01);
+  height: 1080px;
+  width: 1920px;
+}
+
+.login-screen .login-box-2 {
+  height: 653px;
+  left: 663px;
+  position: relative;
+  top: 214px;
+  width: 598px;
+}
+
+.login-screen .overlap-group-4 {
+  background-color: #ffffff;
+  border: 1px solid;
+  border-color: var(--variable-collection-grayscale-02);
+  border-radius: 50px;
+  height: 653px;
+  position: relative;
+  width: 594px;
+}
+
+.login-screen .text-2 {
+  color: var(--variable-collection-gray-color05);
+  font-family: "Pretendard-SemiBold", Helvetica;
+  font-size: 28px;
+  font-weight: 600;
+  left: 159px;
+  letter-spacing: -0.56px;
+  line-height: 24px;
+  position: absolute;
+  text-align: center;
+  top: 164px;
+  white-space: nowrap;
+}
+
+.login-screen .text-wrapper-26 {
+  color: #5c6a75;
+  letter-spacing: -0.16px;
+}
+
+.login-screen .text-wrapper-27 {
+  color: #1e2327;
+  letter-spacing: -0.16px;
+}
+
+.login-screen .text-3 {
+  color: var(--variable-collection-gray-color05);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 214px;
+  letter-spacing: -0.32px;
+  line-height: 24px;
+  position: absolute;
+  text-align: center;
+  top: 200px;
+  white-space: nowrap;
+}
+
+.login-screen .logo-3 {
+  border-radius: 50px;
+  height: 56px;
+  left: 213px;
+  position: absolute;
+  top: 71px;
+  width: 166px;
+}
+
+.login-screen .INU-logistics-3 {
+  height: 25px;
+  left: 0;
+  position: absolute;
+  top: 30px;
+  width: 166px;
+}
+
+.login-screen .group-8 {
+  height: 16px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 56px;
+}
+
+.login-screen .ellipse-13 {
+  background-color: #0177fb;
+  border-radius: 8.09px;
+  height: 16px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 16px;
+}
+
+.login-screen .ellipse-14 {
+  background-color: #ffffff;
+  border: 2.74px solid;
+  border-color: #0177fb;
+  border-radius: 8.09px;
+  height: 16px;
+  left: 20px;
+  position: absolute;
+  top: 0;
+  width: 16px;
+}
+
+.login-screen .ellipse-15 {
+  background-color: #0177fb;
+  border-radius: 8.09px;
+  height: 16px;
+  left: 40px;
+  position: absolute;
+  top: 0;
+  width: 16px;
+}
+
+.login-screen .field-btn-2 {
+  align-items: flex-start;
+  border-radius: 50px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  left: 39px;
+  position: absolute;
+  top: 288px;
+  width: 514px;
+}
+
+.login-screen .input-field-ic-instance {
+  gap: 10px !important;
+  justify-content: unset !important;
+}
+
+.login-screen .design-component-instance-node-2 {
+  align-self: stretch !important;
+  width: 100% !important;
+}
+
+.login-screen .property-1-password {
+  height: 32px !important;
+  position: relative !important;
+  width: 32px !important;
+}
+
+.login-screen .btn-instance {
+  margin-left: -6.00px !important;
+  margin-right: -6.00px !important;
+}

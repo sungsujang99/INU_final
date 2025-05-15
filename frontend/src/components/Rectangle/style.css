@@ -1,0 +1,40 @@
+.rectangle {
+  background-position: 50% 50%;
+  background-size: cover;
+  height: 186px;
+  width: 184px;
+}
+
+.rectangle .element-wrapper {
+  align-items: center;
+  background-color: var(--variable-collection-sub-01);
+  border-radius: 30px;
+  display: inline-flex;
+  gap: 11px;
+  justify-content: center;
+  left: 16px;
+  padding: 10px 12px;
+  position: relative;
+  top: 16px;
+}
+
+.rectangle .element {
+  color: var(--variable-collection-line-01);
+  font-family: "Pretendard-ExtraBold", Helvetica;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  margin-top: -1.00px;
+  position: relative;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.rectangle.property-1-1-default {
+  background-image: url(../../../static/img/rectangle-28.png);
+}
+
+.rectangle.property-1-1-variant-2 {
+  background-image: url(../../../static/img/rectangle-28-1.png);
+}

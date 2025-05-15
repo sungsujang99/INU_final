@@ -1,0 +1,19 @@
+.off-button {
+  background-color: #ff0000;  /* Red background */
+  color: #000000;  /* Black text */
+  border: none;
+  border-radius: 10px;
+  padding: 10px 30px;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.off-button:hover {
+  background-color: #cc0000;  /* Darker red on hover */
+}
+
+.off-button:active {
+  background-color: #990000;  /* Even darker red when clicked */
+} 

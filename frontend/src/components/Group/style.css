@@ -1,0 +1,46 @@
+.group {
+  border: 2px solid;
+  border-color: var(--variable-collection-main-01);
+  border-radius: 30px;
+  height: 48px;
+  width: 231px;
+}
+
+.group .frame-4 {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  left: 73px;
+  position: relative;
+  top: 12px;
+}
+
+.group .icons {
+  height: 20px !important;
+  position: relative !important;
+  width: 20px !important;
+}
+
+.group .text-wrapper-2 {
+  font-family: "Pretendard-Medium", Helvetica;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.48px;
+  line-height: 16px;
+  position: relative;
+  text-align: center;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.group.variant-2 {
+  background-color: var(--variable-collection-main-01);
+}
+
+.group.default .text-wrapper-2 {
+  color: var(--variable-collection-main-01);
+}
+
+.group.variant-2 .text-wrapper-2 {
+  color: #ffffff;
+}

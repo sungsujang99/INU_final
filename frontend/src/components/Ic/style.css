@@ -1,0 +1,13 @@
+.ic {
+  background-color: #d9d9d9;
+  height: 24px;
+  width: 24px;
+}
+
+.ic .property {
+  height: 24px !important;
+  left: 0 !important;
+  position: absolute !important;
+  top: 0 !important;
+  width: 24px !important;
+}

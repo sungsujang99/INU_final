@@ -1,0 +1,177 @@
+.div-wrapper {
+  background-color: #eff6fe;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+}
+
+.div-wrapper .login-3 {
+  background-color: var(--variable-collection-bg01);
+  height: 1080px;
+  width: 1920px;
+}
+
+.div-wrapper .overlap-5 {
+  height: 653px;
+  left: 663px;
+  position: relative;
+  top: 214px;
+  width: 598px;
+}
+
+.div-wrapper .login-box-3 {
+  height: 653px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 598px;
+}
+
+.div-wrapper .overlap-group-5 {
+  background-color: #ffffff;
+  border: 1px solid;
+  border-color: var(--variable-collection-grayscale-02);
+  border-radius: 50px;
+  height: 653px;
+  position: relative;
+  width: 594px;
+}
+
+.div-wrapper .text-4 {
+  color: var(--variable-collection-gray-color05);
+  font-family: "Pretendard-SemiBold", Helvetica;
+  font-size: 28px;
+  font-weight: 600;
+  left: 159px;
+  letter-spacing: -0.56px;
+  line-height: 24px;
+  position: absolute;
+  text-align: center;
+  top: 164px;
+  white-space: nowrap;
+}
+
+.div-wrapper .text-wrapper-28 {
+  color: #5c6a75;
+  letter-spacing: -0.16px;
+}
+
+.div-wrapper .text-wrapper-29 {
+  color: #1e2327;
+  letter-spacing: -0.16px;
+}
+
+.div-wrapper .text-5 {
+  color: var(--variable-collection-gray-color05);
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+  font-weight: 400;
+  left: 220px;
+  letter-spacing: -0.32px;
+  line-height: 24px;
+  position: absolute;
+  text-align: center;
+  top: 200px;
+  white-space: nowrap;
+}
+
+.div-wrapper .logo-4 {
+  border-radius: 50px;
+  height: 56px;
+  left: 213px;
+  position: absolute;
+  top: 71px;
+  width: 166px;
+}
+
+.div-wrapper .INU-logistics-4 {
+  height: 25px;
+  left: 0;
+  position: absolute;
+  top: 30px;
+  width: 166px;
+}
+
+.div-wrapper .group-9 {
+  height: 16px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 56px;
+}
+
+.div-wrapper .ellipse-16 {
+  background-color: #0177fb;
+  border-radius: 8.09px;
+  height: 16px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 16px;
+}
+
+.div-wrapper .ellipse-17 {
+  background-color: #ffffff;
+  border: 2.74px solid;
+  border-color: #0177fb;
+  border-radius: 8.09px;
+  height: 16px;
+  left: 20px;
+  position: absolute;
+  top: 0;
+  width: 16px;
+}
+
+.div-wrapper .ellipse-18 {
+  background-color: #0177fb;
+  border-radius: 8.09px;
+  height: 16px;
+  left: 40px;
+  position: absolute;
+  top: 0;
+  width: 16px;
+}
+
+.div-wrapper .field-btn-3 {
+  align-items: flex-start;
+  border-radius: 50px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  left: 39px;
+  position: absolute;
+  top: 288px;
+  width: 514px;
+}
+
+.div-wrapper .input-field-ic-2 {
+  align-self: stretch !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+}
+
+.div-wrapper .property-1-id {
+  height: 32px !important;
+  position: relative !important;
+  width: 32px !important;
+}
+
+.div-wrapper .btn-2 {
+  align-self: stretch !important;
+  width: 100% !important;
+}
+
+.div-wrapper .text-error {
+  color: var(--variable-collection-main-03);
+  font-family: "Pretendard-Medium", Helvetica;
+  font-size: 18px;
+  font-weight: 500;
+  left: 46px;
+  letter-spacing: -0.36px;
+  line-height: 24px;
+  position: absolute;
+  text-align: center;
+  top: 470px;
+  white-space: nowrap;
+}

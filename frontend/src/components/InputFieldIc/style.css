@@ -1,0 +1,115 @@
+.input-field-ic {
+  align-items: flex-start;
+  border: 1px solid;
+  border-radius: 61px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 32px;
+  position: relative;
+  width: 514px;
+}
+
+.input-field-ic .frame-2 {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  margin-right: -1.00px;
+  position: relative;
+  width: 451px;
+}
+
+.input-field-ic .frame-3 {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 12px;
+  position: relative;
+}
+
+.input-field-ic .login-id {
+  font-family: "Poppins", Helvetica;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 24px;
+  position: relative;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.input-field-ic .text-wrapper {
+  color: var(--variable-collection-grayscale-08);
+  font-family: "Poppins", Helvetica;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 24px;
+  position: relative;
+  text-align: right;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.input-field-ic .ic-32-2tone {
+  position: relative !important;
+}
+
+.input-field-ic.property-1-disalbe {
+  background-color: var(--variable-collection-grayscale-01);
+  border-color: var(--variable-collection-grayscale-03);
+  height: 72px;
+}
+
+.input-field-ic.property-1-focus {
+  background-color: #ffffff;
+  border-color: var(--variable-collection-grayscale-04);
+  height: 72px;
+}
+
+.input-field-ic.property-1-active {
+  background-color: #ffffff;
+  border-color: var(--variable-collection-grayscale-04);
+  height: 72px;
+}
+
+.input-field-ic.property-1-default {
+  background-color: #ffffff;
+  border-color: var(--variable-collection-grayscale-02);
+  height: 72px;
+}
+
+.input-field-ic.property-1-error {
+  background-color: #ffffff;
+  border-color: var(--variable-collection-main-03);
+}
+
+.input-field-ic.property-1-disalbe .login-id {
+  color: var(--variable-collection-grayscale-03);
+}
+
+.input-field-ic.property-1-focus .login-id {
+  color: var(--variable-collection-grayscale-03);
+}
+
+.input-field-ic.property-1-active .login-id {
+  color: var(--variable-collection-grayscale-07);
+}
+
+.input-field-ic.property-1-default .login-id {
+  color: var(--variable-collection-grayscale-03);
+}
+
+.input-field-ic.property-1-error .login-id {
+  color: var(--variable-collection-grayscale-07);
+}
+
+.input-field {
+  border: none;
+  background: none;
+  width: 100%;
+  outline: none;
+  font-size: inherit;
+  color: inherit;
+}

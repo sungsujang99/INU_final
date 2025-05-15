@@ -1,0 +1,92 @@
+/* frontend/src/components/CameraGrid.css */
+
+.camera-grid-container {
+  /* background-color: #f8f9fa; */ /* Removed as parent card will have background */
+  /* font-family: 'Arial', sans-serif; */ /* Inherit from parent */
+  height: 100%; /* Fill height of parent card */
+  display: flex;
+  flex-direction: column;
+  /* padding: 20px; */ /* Removed as parent card will have padding */
+}
+
+.camera-grid-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.camera-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* Space between primary and secondary rows */
+  flex-grow: 1; /* Allow camera layout to fill the container */
+}
+
+.primary-camera-wrapper {
+  flex-basis: 65%; /* Primary camera takes up more vertical space */
+  display: flex;
+  min-height: 0; /* Prevent overflow issues in flex children */
+}
+
+.secondary-cameras-wrapper {
+  flex-basis: 35%; /* Secondary cameras take up less */
+  display: flex;
+  gap: 20px; /* Space between secondary camera feeds */
+  min-height: 0; /* Prevent overflow issues in flex children */
+}
+
+.camera-feed {
+  background-color: #e0e0e0; /* Placeholder background */
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Dashed border for the checkered look - can be enhanced with SVG/image */
+  border: 2px dashed #cccccc; 
+}
+
+.camera-feed.primary {
+  width: 100%;
+  height: 100%;
+}
+
+.camera-feed.secondary {
+  flex: 1; /* Each secondary camera takes equal width */
+  height: 100%;
+}
+
+.feed-placeholder-content {
+  width: 100%;
+  height: 100%;
+  /* Simple checkered pattern with CSS gradients */
+  background-image: 
+    linear-gradient(45deg, #ccc 25%, transparent 25%), 
+    linear-gradient(-45deg, #ccc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ccc 75%),
+    linear-gradient(-45deg, transparent 75%, #ccc 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+
+.camera-label {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background-color: #007bff; /* Blue badge color */
+  color: white;
+  padding: 5px 15px;
+  border-radius: 15px; /* Pill shape */
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 1;
+}
+
+/* If you want the secondary labels to be smaller */
+.camera-feed.secondary .camera-label {
+  font-size: 12px;
+  padding: 4px 10px;
+} 

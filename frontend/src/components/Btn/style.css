@@ -1,0 +1,37 @@
+.btn {
+  all: unset;
+  align-items: center;
+  border-radius: 61px;
+  box-sizing: border-box;
+  display: flex;
+  gap: 8px;
+  height: 72px;
+  justify-content: space-around;
+  padding: 24px 230px;
+  position: relative;
+  width: 514px;
+}
+
+.btn .next {
+  color: #ffffff;
+  font-family: "Poppins", Helvetica;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 24px;
+  margin-left: -0.50px;
+  margin-right: -0.50px;
+  margin-top: -1.00px;
+  position: relative;
+  text-align: center;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.btn.deactive {
+  background-color: var(--variable-collection-grayscale-03);
+}
+
+.btn.active {
+  background-color: var(--variable-collection-main-01);
+}
