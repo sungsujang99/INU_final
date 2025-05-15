@@ -237,31 +237,20 @@ class SerialManager:
             print("INFO: SerialManager.reset_all_racks called but no racks are currently discovered/connected. Skipping reset.")
             return
 
-        print("INFO: Attempting to reset all connected racks (sending command twice per rack)...")
-        for rack_id in self.ports.keys(): # Iterate over a copy of keys if modifying self.ports, but here it's just sending
+        print("INFO: Attempting to reset all connected racks...")
+        for rack_id in self.ports.keys(): 
+            print(f"INFO: Sending reset command '{reset_cmd_code}' to Rack {rack_id}...")
             try:
-                # First attempt
-                print(f"INFO: Sending reset command '{reset_cmd_code}' to Rack {rack_id} (Attempt 1/2)...")
-                result1 = self.send(rack_id, reset_cmd_code, wait_done=True, done_token=done_token_reset)
-                if result1.get("status") == "done":
-                    print(f"SUCCESS: Rack {rack_id} (Attempt 1/2) reset successfully and responded 'done'.")
-                elif result1.get("status") == "timeout":
-                    print(f"WARNING: Rack {rack_id} (Attempt 1/2) timed out after reset command. Did not receive 'done'.")
+                # Leveraging the existing send method's wait_done logic
+                result = self.send(rack_id, reset_cmd_code, wait_done=True, done_token=done_token_reset)
+                if result.get("status") == "done":
+                    print(f"SUCCESS: Rack {rack_id} reset successfully and responded 'done'.")
+                elif result.get("status") == "timeout":
+                    print(f"WARNING: Rack {rack_id} timed out after reset command. Did not receive 'done'.")
                 else:
-                    print(f"WARNING: Rack {rack_id} (Attempt 1/2) responded with status '{result1.get('status')}' after reset command.")
-
-                # Second attempt
-                print(f"INFO: Sending reset command '{reset_cmd_code}' to Rack {rack_id} (Attempt 2/2)...")
-                result2 = self.send(rack_id, reset_cmd_code, wait_done=True, done_token=done_token_reset)
-                if result2.get("status") == "done":
-                    print(f"SUCCESS: Rack {rack_id} (Attempt 2/2) reset successfully and responded 'done'.")
-                elif result2.get("status") == "timeout":
-                    print(f"WARNING: Rack {rack_id} (Attempt 2/2) timed out after reset command. Did not receive 'done'.")
-                else:
-                    print(f"WARNING: Rack {rack_id} (Attempt 2/2) responded with status '{result2.get('status')}' after reset command.")
-
+                    print(f"WARNING: Rack {rack_id} responded with status '{result.get('status')}' after reset command.")
             except Exception as e:
-                print(f"ERROR: Failed to send reset command sequence to Rack {rack_id}: {e}")
+                print(f"ERROR: Failed to send reset command to Rack {rack_id}: {e}")
         print("INFO: Finished attempting to reset all connected racks.")
 
 # ───── 전역 인스턴스 (모듈 import 시 1번만 생성) ─────
