@@ -78,7 +78,7 @@ class SerialManager:
 
                 ser.reset_input_buffer() # Clear buffer before sending
                 print(f"INFO: Port {port}: Sending WHO command.")
-                ser.write(WHO_CMD) # Send WHO once
+                # ser.write(WHO_CMD) # Send WHO once
                 time.sleep(0.5)
                 ser.write(WHO_CMD)
                 print(f"INFO: Port {port}: Listening for WHO reply (timeout: {DISCOVERY_TIMEOUT}s).")
