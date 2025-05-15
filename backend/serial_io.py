@@ -145,6 +145,13 @@ class SerialManager:
         entry = self.ports[rack]
         ser, mutex = entry["ser"], entry["mutex"]
 
+        app_logger = None
+        try:
+            if current_app:
+                app_logger = current_app.logger
+        except RuntimeError:
+            app_logger = None # Explicitly set to None if current_app is not available
+
         with mutex:
             ser.reset_input_buffer()
             ser.write((code + "\n").encode())
@@ -153,17 +160,34 @@ class SerialManager:
 
             start = time.time()
             buf = bytearray()
-            current_app.logger.debug(f"SEND rack '{rack}', code '{code}': Waiting for '{done_token}'") # New log
+            log_prefix = f"SEND rack '{rack}', code '{code}'"
+            
+            if app_logger:
+                app_logger.debug(f"{log_prefix}: Waiting for '{done_token}'")
+            else:
+                print(f"INFO: {log_prefix}: Waiting for '{done_token}'")
+
             while time.time() - start < TIMEOUT:
                 if ser.in_waiting:
                     read_data = ser.read(ser.in_waiting)
                     buf.extend(read_data)
-                    current_app.logger.debug(f"SEND rack '{rack}', code '{code}': Read data: {read_data}, Current buffer: {buf}") # New Log
+                    if app_logger:
+                        app_logger.debug(f"{log_prefix}: Read data: {read_data}, Current buffer: {buf}")
+                    else:
+                        print(f"DEBUG: {log_prefix}: Read data: {read_data}, Current buffer: {buf}")
+                    
                     if done_token in buf.lower():
-                        current_app.logger.debug(f"SEND rack '{rack}', code '{code}': Found '{done_token}' in buffer.") # New log
+                        if app_logger:
+                            app_logger.debug(f"{log_prefix}: Found '{done_token}' in buffer.")
+                        else:
+                            print(f"DEBUG: {log_prefix}: Found '{done_token}' in buffer.")
                         return {"status": "done"}
                 time.sleep(0.01)
-            current_app.logger.warning(f"SEND rack '{rack}', code '{code}': Timeout waiting for '{done_token}'. Final buffer: {buf}") # New log
+            
+            if app_logger:
+                app_logger.warning(f"{log_prefix}: Timeout waiting for '{done_token}'. Final buffer: {buf}")
+            else:
+                print(f"WARNING: {log_prefix}: Timeout waiting for '{done_token}'. Final buffer: {buf}")
             return {"status": "timeout"}
 
     def _get_rack_logical_name(self, serial_instance, port_name):
