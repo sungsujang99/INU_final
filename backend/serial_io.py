@@ -182,7 +182,7 @@ class SerialManager:
                         else:
                             print(f"DEBUG: {log_prefix}: Found '{done_token}' in buffer.")
                         return {"status": "done"}
-                time.sleep(0.01)
+                time.sleep(0.05) # Increased sleep duration from 0.01
             
             if app_logger:
                 app_logger.warning(f"{log_prefix}: Timeout waiting for '{done_token}'. Final buffer: {buf}")
