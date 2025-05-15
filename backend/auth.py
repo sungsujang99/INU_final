@@ -3,7 +3,7 @@ import datetime, sqlite3, jwt
 from functools import wraps
 from flask import request, jsonify
 from passlib.hash import bcrypt
-from db import DB_NAME
+from .db import DB_NAME
 
 SECRET = "ChangeThisSecret!"  # 환경변수로 바꾸길 권장
 
