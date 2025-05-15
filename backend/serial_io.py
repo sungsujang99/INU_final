@@ -71,16 +71,14 @@ class SerialManager:
             try:
                 # Initialize with the general long timeout.
                 ser = serial.Serial(port, BAUD, timeout=TIMEOUT)
-                time.sleep(1) # Allow device to settle after port opening.
+                time.sleep(0.5) # Allow device to settle after port opening.
                 
                 original_port_timeout = ser.timeout
                 ser.timeout = DISCOVERY_TIMEOUT # Set short timeout for WHO sequence
 
                 ser.reset_input_buffer() # Clear buffer before sending
                 print(f"INFO: Port {port}: Sending WHO command.")
-                ser.write() # Send WHO once
-                time.sleep(0.5)
-                ser.write(WHO_CMD)
+                ser.write(WHO_CMD) # Send WHO once
                 print(f"INFO: Port {port}: Listening for WHO reply (timeout: {DISCOVERY_TIMEOUT}s).")
                 reply_bytes = ser.readline() 
                 print(f"DEBUG: Port {port}: Raw reply_bytes: {reply_bytes}")
