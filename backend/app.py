@@ -22,7 +22,7 @@ from . import task_queue
 FLASK_APP_SECRET_KEY = secrets.token_hex(16) 
 
 # Configuration for enabling/disabling serial communication
-SERIAL_COMMUNICATION_ENABLED = False # Set to False for development without hardware
+SERIAL_COMMUNICATION_ENABLED = True # Set to False for development without hardware
 
 # Initialize Flask app
 app = Flask(__name__)
