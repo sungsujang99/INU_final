@@ -68,7 +68,7 @@ class SerialManager:
         for port in candidates:
             try:
                 ser = serial.Serial(port, BAUD, timeout=TIMEOUT)
-                time.sleep(1)
+                time.sleep(2)
                 ser.reset_input_buffer()
                 ser.write(WHO_CMD)
                 reply = ser.readline().decode("utf-8", "ignore").strip().upper()
