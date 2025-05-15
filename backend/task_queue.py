@@ -20,6 +20,7 @@ class RackWorker(threading.Thread):
         while True:
             task = self.q.get()
             if task is None: break
+            current_app.logger.info(f"RackWorker [{self.rack}]: Picked up task {task.code} for rack {task.rack}.")
             
             status = "unknown"
             try:
@@ -46,7 +47,9 @@ class RackWorker(threading.Thread):
                 
                 # Serial is enabled and port was found - proceed with actual send
                 else:
+                    current_app.logger.info(f"RackWorker [{self.rack}]: Attempting to send task {task.code} to serial_mgr.")
                     res = serial_mgr.send(task.rack, task.code, wait_done=task.wait)
+                    current_app.logger.info(f"RackWorker [{self.rack}]: serial_mgr.send for task {task.code} returned: {res}")
                     status = res["status"]
                     if current_app:
                         current_app.logger.info(f"RackWorker [{self.rack}]: Task {task.code} sent. Status: {status}")

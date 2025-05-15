@@ -71,7 +71,9 @@ class SerialManager:
             try:
                 # Initialize with the general long timeout.
                 ser = serial.Serial(port, BAUD, timeout=TIMEOUT)
-                time.sleep(1.5) # Allow device to settle after port opening.
+                time.sleep(2.0) # Increased settle time
+                ser.reset_input_buffer()  # Explicitly clear buffers before discovery attempts
+                ser.reset_output_buffer() # Explicitly clear buffers before discovery attempts
                 
                 original_port_timeout = ser.timeout
                 found_rack_id = None
@@ -151,12 +153,17 @@ class SerialManager:
 
             start = time.time()
             buf = bytearray()
+            current_app.logger.debug(f"SEND rack '{rack}', code '{code}': Waiting for '{done_token}'") # New log
             while time.time() - start < TIMEOUT:
                 if ser.in_waiting:
-                    buf.extend(ser.read(ser.in_waiting))
+                    read_data = ser.read(ser.in_waiting)
+                    buf.extend(read_data)
+                    current_app.logger.debug(f"SEND rack '{rack}', code '{code}': Read data: {read_data}, Current buffer: {buf}") # New Log
                     if done_token in buf.lower():
+                        current_app.logger.debug(f"SEND rack '{rack}', code '{code}': Found '{done_token}' in buffer.") # New log
                         return {"status": "done"}
                 time.sleep(0.01)
+            current_app.logger.warning(f"SEND rack '{rack}', code '{code}': Timeout waiting for '{done_token}'. Final buffer: {buf}") # New log
             return {"status": "timeout"}
 
     def _get_rack_logical_name(self, serial_instance, port_name):
