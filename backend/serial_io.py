@@ -82,7 +82,7 @@ class SerialManager:
                 original_port_timeout = ser.timeout
                 found_rack_id = None
 
-                for attempt in range(1, 4): # Try up to 3 times
+                for attempt in range(1, 10): # Try up to 3 times
                     ser.timeout = DISCOVERY_TIMEOUT # Set short timeout for this WHO attempt's readline
                     ser.reset_input_buffer() # Clear buffer before each attempt
                     
