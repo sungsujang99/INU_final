@@ -3,8 +3,9 @@ import serial, glob, time, threading, sys
 from flask import current_app
 
 BAUD = 19200
-TIMEOUT = 120 # Increased timeout to 120 seconds (2 minutes)
+TIMEOUT = 120 # Timeout for waiting for 'done'
 DISCOVERY_TIMEOUT = 3 # Specific timeout for WHO command during discovery
+ECHO_TIMEOUT = 5 # Timeout for waiting for command echo
 WHO_CMD = b"WHO\n"
 RACKS   = {"A", "B", "C"}
 
@@ -150,54 +151,92 @@ class SerialManager:
             if current_app:
                 app_logger = current_app.logger
         except RuntimeError:
-            app_logger = None # Explicitly set to None if current_app is not available
+            app_logger = None 
 
-        log_prefix = f"SEND rack '{rack}', code '{code}'" # Define log_prefix earlier
+        log_prefix = f"SEND rack '{rack}', code '{code}'"
 
         with mutex:
             ser.reset_input_buffer()
-            ser.write((code + "\n").encode())
-            
-            # Check for immediate reply after write
-            time.sleep(0.1) # Wait a brief moment for a very fast reply
-            if app_logger:
-                app_logger.debug(f"{log_prefix}: Bytes available immediately after write and 0.1s delay: {ser.in_waiting}")
-            else:
-                print(f"DEBUG: {log_prefix}: Bytes available immediately after write and 0.1s delay: {ser.in_waiting}")
-
-            if not wait_done:
-                return {"status": "sent"}
-
-            start = time.time()
-            buf = bytearray()
+            ser.write((code + "\n").encode()) # Send the command
             
             if app_logger:
-                app_logger.debug(f"{log_prefix}: Waiting for '{done_token}'")
+                app_logger.debug(f"{log_prefix}: Command sent. Now waiting for echo...")
             else:
-                print(f"INFO: {log_prefix}: Waiting for '{done_token}'")
+                print(f"INFO: {log_prefix}: Command sent. Now waiting for echo...")
 
-            while time.time() - start < TIMEOUT:
+            # 1. Wait for echo
+            echo_received_correctly = False
+            echo_start_time = time.time()
+            echo_buf = bytearray()
+            expected_echo = (code + "\r\n").encode() # Arduinos often send \r\n with println
+
+            while time.time() - echo_start_time < ECHO_TIMEOUT:
                 if ser.in_waiting:
                     read_data = ser.read(ser.in_waiting)
-                    buf.extend(read_data)
+                    echo_buf.extend(read_data)
                     if app_logger:
-                        app_logger.debug(f"{log_prefix}: Read data: {read_data}, Current buffer: {buf}")
+                        app_logger.debug(f"{log_prefix}: Echo read data: {read_data}, Current echo_buf: {echo_buf}")
                     else:
-                        print(f"DEBUG: {log_prefix}: Read data: {read_data}, Current buffer: {buf}")
+                        print(f"DEBUG: {log_prefix}: Echo read data: {read_data}, Current echo_buf: {echo_buf}")
                     
-                    if done_token in buf.lower():
-                        if app_logger:
-                            app_logger.debug(f"{log_prefix}: Found '{done_token}' in buffer.")
-                        else:
-                            print(f"DEBUG: {log_prefix}: Found '{done_token}' in buffer.")
-                        return {"status": "done"}
-                time.sleep(0.05) # Increased sleep duration from 0.01
+                    # Check if the exact echo is present. Trim for safety.
+                    # Arduino println might add \r\n. We expect the command string itself.
+                    if code.encode() in echo_buf: # Check if the core command is in the buffer
+                        # More robust check: see if buffer starts with expected echo (trimmed)
+                        # Or if the last received line matches.
+                        # For now, simple check for `code` in `echo_buf` after stripping newlines from echo_buf
+                        processed_echo_buf = echo_buf.decode(errors='ignore').strip()
+                        if processed_echo_buf == code: # Exact match of the command string
+                            echo_received_correctly = True
+                            if app_logger:
+                                app_logger.debug(f"{log_prefix}: Correct echo '{code}' received.")
+                            else:
+                                print(f"INFO: {log_prefix}: Correct echo '{code}' received.")
+                            break 
+                time.sleep(0.05)
+
+            if not echo_received_correctly:
+                if app_logger:
+                    app_logger.warning(f"{log_prefix}: Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
+                else:
+                    print(f"WARNING: {log_prefix}: Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
+                return {"status": "echo_error"} 
+
+            # If echo was successful, and we don't need to wait for "done", return status "sent_echo_confirmed"
+            if not wait_done:
+                return {"status": "sent_echo_confirmed"}
+
+            # 2. Wait for "done" token
+            start_done_time = time.time()
+            done_buf = bytearray() # Use a new buffer for "done" to avoid confusion with echo_buf contents
             
             if app_logger:
-                app_logger.warning(f"{log_prefix}: Timeout waiting for '{done_token}'. Final buffer: {buf}")
+                app_logger.debug(f"{log_prefix}: Echo confirmed. Waiting for '{done_token}'")
             else:
-                print(f"WARNING: {log_prefix}: Timeout waiting for '{done_token}'. Final buffer: {buf}")
-            return {"status": "timeout"}
+                print(f"INFO: {log_prefix}: Echo confirmed. Waiting for '{done_token}'")
+
+            while time.time() - start_done_time < TIMEOUT: # Use the main TIMEOUT for done
+                if ser.in_waiting:
+                    read_data = ser.read(ser.in_waiting)
+                    done_buf.extend(read_data)
+                    if app_logger:
+                        app_logger.debug(f"{log_prefix}: Done read data: {read_data}, Current done_buf: {done_buf}")
+                    else:
+                        print(f"DEBUG: {log_prefix}: Done read data: {read_data}, Current done_buf: {done_buf}")
+                    
+                    if done_token in done_buf.lower():
+                        if app_logger:
+                            app_logger.debug(f"{log_prefix}: Found '{done_token}' in done_buf.")
+                        else:
+                            print(f"DEBUG: {log_prefix}: Found '{done_token}' in done_buf.")
+                        return {"status": "done"}
+                time.sleep(0.05)
+            
+            if app_logger:
+                app_logger.warning(f"{log_prefix}: Timeout waiting for '{done_token}' after echo. Final done_buf: {done_buf}")
+            else:
+                print(f"WARNING: {log_prefix}: Timeout waiting for '{done_token}' after echo. Final done_buf: {done_buf}")
+            return {"status": "timeout_after_echo"}
 
     def _get_rack_logical_name(self, serial_instance, port_name):
         """
