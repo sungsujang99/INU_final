@@ -321,32 +321,21 @@ class SerialManager:
             return None
 
     def reset_all_racks(self, reset_cmd_code="99", done_token_reset=b"done"):
-        """Sends a reset command to all connected and discovered racks with increased echo retries."""
-        logger = print # Default to print
-        try:
-            if current_app and hasattr(current_app, 'logger') and current_app.logger:
-                logger = current_app.logger.info
-            else: # For startup messages or if app_logger not available
-                # Redefine logger to be a function that prints with INFO prefix for consistency
-                def print_logger(msg): print(f"INFO: {msg}")
-                logger = print_logger
-        except RuntimeError: # current_app not available
-            def print_logger_runtime(msg): print(f"INFO: {msg}")
-            logger = print_logger_runtime
-
-
+        """Sends a reset command to all connected and discovered racks with increased echo retries.
+           Uses print for logging as it runs during startup, potentially outside Flask app context.
+        """
         if not self.enabled:
-            logger("SerialManager.reset_all_racks called but serial is DISABLED. Skipping reset.")
+            print("INFO: SerialManager.reset_all_racks called but serial is DISABLED. Skipping reset.")
             return
 
         if not self.ports:
-            logger("SerialManager.reset_all_racks called but no racks are currently discovered/connected. Skipping reset.")
+            print("INFO: SerialManager.reset_all_racks called but no racks are currently discovered/connected. Skipping reset.")
             return
 
-        logger(f"Attempting to reset all connected racks with command '{reset_cmd_code}' (echo attempts: {RESET_COMMAND_MAX_ECHO_ATTEMPTS})...")
+        print(f"INFO: Attempting to reset all connected racks with command '{reset_cmd_code}' (echo attempts: {RESET_COMMAND_MAX_ECHO_ATTEMPTS})...")
         
         for rack_id in self.ports.keys(): 
-            logger(f"Rack {rack_id}: Sending reset command '{reset_cmd_code}'...")
+            print(f"INFO: Rack {rack_id}: Sending reset command '{reset_cmd_code}'...")
             try:
                 result = self.send(
                     rack_id, 
@@ -358,26 +347,21 @@ class SerialManager:
                 status = result.get("status")
 
                 if status == "done":
-                    # Use .info for success if actual Flask logger, else it's handled by print_logger
-                    if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.info(f"SUCCESS: Rack {rack_id}: Reset command '{reset_cmd_code}' COMPLETED. Arduino responded '{done_token_reset.decode(errors='ignore')}'.")
-                    else: print(f"SUCCESS: Rack {rack_id}: Reset command '{reset_cmd_code}' COMPLETED. Arduino responded '{done_token_reset.decode(errors='ignore')}'.")
+                    print(f"SUCCESS: Rack {rack_id}: Reset command '{reset_cmd_code}' COMPLETED. Arduino responded '{done_token_reset.decode(errors='ignore')}'.")
                 elif status == "echo_error_max_retries":
-                    # Use .error for errors if actual Flask logger
-                    if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.error(f"ERROR: Rack {rack_id}: Failed to get echo for reset command '{reset_cmd_code}' after {RESET_COMMAND_MAX_ECHO_ATTEMPTS} attempts.")
-                    else: print(f"ERROR: Rack {rack_id}: Failed to get echo for reset command '{reset_cmd_code}' after {RESET_COMMAND_MAX_ECHO_ATTEMPTS} attempts.")
+                    print(f"ERROR: Rack {rack_id}: Failed to get echo for reset command '{reset_cmd_code}' after {RESET_COMMAND_MAX_ECHO_ATTEMPTS} attempts.")
                 elif status == "timeout_after_echo":
-                    if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.error(f"ERROR: Rack {rack_id}: Reset command '{reset_cmd_code}' echo OK, but TIMEOUT waiting for '{done_token_reset.decode(errors='ignore')}'.")
-                    else: print(f"ERROR: Rack {rack_id}: Reset command '{reset_cmd_code}' echo OK, but TIMEOUT waiting for '{done_token_reset.decode(errors='ignore')}'.")
+                    print(f"ERROR: Rack {rack_id}: Reset command '{reset_cmd_code}' echo OK, but TIMEOUT waiting for '{done_token_reset.decode(errors='ignore')}'.")
                 else: 
-                    if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.warning(f"WARNING: Rack {rack_id}: Reset command '{reset_cmd_code}' resulted in unexpected status: '{status}'.")
-                    else: print(f"WARNING: Rack {rack_id}: Reset command '{reset_cmd_code}' resulted in unexpected status: '{status}'.")
+                    print(f"WARNING: Rack {rack_id}: Reset command '{reset_cmd_code}' resulted in unexpected status: '{status}'.")
             except RuntimeError as re:
-                 if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.error(f"ERROR: Rack {rack_id}: Runtime error during reset: {re} - rack might be disconnected.")
-                 else: print(f"ERROR: Rack {rack_id}: Runtime error during reset: {re} - rack might be disconnected.")
+                 print(f"ERROR: Rack {rack_id}: Runtime error during reset: {re} - rack might be disconnected.")
             except Exception as e:
-                if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.error(f"ERROR: Rack {rack_id}: Exception during reset command '{reset_cmd_code}': {e}", exc_info=True)
-                else: print(f"ERROR: Rack {rack_id}: Exception during reset command '{reset_cmd_code}': {e}")
-        logger("Finished attempting to reset all connected racks.")
+                # Consider printing full traceback for unexpected errors during startup
+                import traceback
+                print(f"ERROR: Rack {rack_id}: Exception during reset command '{reset_cmd_code}': {e}")
+                # traceback.print_exc() # Uncomment if more detail is needed here
+        print("INFO: Finished attempting to reset all connected racks.")
 
 # ───── 전역 인스턴스 (모듈 import 시 1번만 생성) ─────
 serial_mgr = SerialManager()
