@@ -1,7 +1,7 @@
 # task_queue.py  ─────────────────────────────────────────────
 import queue, threading, time, logging
 from typing import Optional
-from .serial_io import serial_mgr
+from .serial_io import serial_mgr, RESET_COMMAND_MAX_ECHO_ATTEMPTS
 from flask import current_app
 
 io = None                           # SocketIO 인스턴스 홀더
@@ -47,9 +47,23 @@ class RackWorker(threading.Thread):
                 
                 # Serial is enabled and port was found - proceed with actual send
                 else:
-                    current_app.logger.info(f"RackWorker [{self.rack}]: Sending task {task.code} (command: '{str(task.code)}') to serial_mgr for rack {task.rack}. Waiting for completion: {task.wait}")
-                    res = serial_mgr.send(task.rack, str(task.code), wait_done=task.wait)
+                    current_app.logger.info(f"RackWorker [{self.rack}]: Sending task {task.code} (command: '{str(task.code)}') to serial_mgr for rack {self.rack}. Waiting for completion: {task.wait}. Echo attempts: {RESET_COMMAND_MAX_ECHO_ATTEMPTS}")
+                    res = serial_mgr.send(
+                        task.rack, 
+                        str(task.code), 
+                        wait_done=task.wait,
+                        custom_max_echo_attempts=RESET_COMMAND_MAX_ECHO_ATTEMPTS
+                    )
                     status = res["status"]
+                    
+                    # New debug lines for echo outcome:
+                    current_app.logger.debug(f"RackWorker [{self.rack}]: Task {task.code} - serial_mgr.send returned status: {status}")
+                    if status == "echo_error_max_retries":
+                        current_app.logger.debug(f"RackWorker [{self.rack}]: Task {task.code} - Echo debug: Failed to receive/confirm echo after {RESET_COMMAND_MAX_ECHO_ATTEMPTS} attempts.")
+                    elif status == "timeout_after_echo": # Echo was OK, but 'done' timed out
+                        current_app.logger.debug(f"RackWorker [{self.rack}]: Task {task.code} - Echo debug: Echo was successful, but 'done' signal timed out.")
+                    elif status in ["done", "sent_echo_confirmed"]: # Echo was OK
+                        current_app.logger.debug(f"RackWorker [{self.rack}]: Task {task.code} - Echo debug: Echo was successful.")
                     
                     if status == "done":
                         current_app.logger.info(f"RackWorker [{self.rack}]: Task {task.code} (command: '{str(task.code)}') successfully COMPLETED by Arduino. Status: {status}")
