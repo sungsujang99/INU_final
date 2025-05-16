@@ -115,7 +115,7 @@ def add_records(records: list[dict], batch_id: str = None):
             if mv == "OUT":
                 cmd_val *= -1 # Prepend '-' for OUT operations
             logger.debug("add_records: Enqueuing task for record %d: rack=%s, cmd_val=%s", i, rack, str(cmd_val))
-            enqueue_task(rack, str(cmd_val), wait=True)
+            enqueue_task(rack, cmd_val, wait=True) # Pass cmd_val as int
             logger.debug("add_records: Task enqueued for record %d.", i)
 
         logger.debug("add_records: All records processed. Attempting to commit.")

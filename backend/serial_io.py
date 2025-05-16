@@ -152,6 +152,8 @@ class SerialManager:
         except RuntimeError:
             app_logger = None # Explicitly set to None if current_app is not available
 
+        log_prefix = f"SEND rack '{rack}', code '{code}'" # Define log_prefix earlier
+
         with mutex:
             ser.reset_input_buffer()
             ser.write((code + "\n").encode())
@@ -168,7 +170,6 @@ class SerialManager:
 
             start = time.time()
             buf = bytearray()
-            log_prefix = f"SEND rack '{rack}', code '{code}'"
             
             if app_logger:
                 app_logger.debug(f"{log_prefix}: Waiting for '{done_token}'")

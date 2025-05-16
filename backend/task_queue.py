@@ -9,7 +9,7 @@ def set_socketio(sock):             # app.py 가 주입
     global io; io = sock
 
 class Task:
-    def __init__(self, rack:str, code:str, wait=True):
+    def __init__(self, rack:str, code:int, wait=True):
         self.rack, self.code, self.wait = rack.upper(), code, wait
 
 class RackWorker(threading.Thread):
@@ -47,8 +47,8 @@ class RackWorker(threading.Thread):
                 
                 # Serial is enabled and port was found - proceed with actual send
                 else:
-                    current_app.logger.info(f"RackWorker [{self.rack}]: Attempting to send task {task.code} to serial_mgr.")
-                    res = serial_mgr.send(task.rack, task.code, wait_done=task.wait)
+                    current_app.logger.info(f"RackWorker [{self.rack}]: Attempting to send task {task.code} (as string: '{str(task.code)}') to serial_mgr.")
+                    res = serial_mgr.send(task.rack, str(task.code), wait_done=task.wait)
                     current_app.logger.info(f"RackWorker [{self.rack}]: serial_mgr.send for task {task.code} returned: {res}")
                     status = res["status"]
                     if current_app:
@@ -90,5 +90,5 @@ def start_rack_workers():
             w.start()
     print("RackWorker threads started.")
 
-def enqueue_task(rack:str, code:str, wait=True):
+def enqueue_task(rack:str, code:int, wait=True):
     RACK_TASK_QUEUES[rack.upper()].put(Task(rack, code, wait))
