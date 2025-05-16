@@ -154,68 +154,76 @@ class SerialManager:
             app_logger = None 
 
         log_prefix = f"SEND rack '{rack}', code '{code}'"
+        max_echo_attempts = 6 # 1 initial + 5 retries
+        echo_received_correctly = False
 
         with mutex:
-            ser.reset_input_buffer()
-            ser.write((code + "\n").encode()) # Send the command
-            
-            if app_logger:
-                app_logger.debug(f"{log_prefix}: Command sent. Now waiting for echo...")
-            else:
-                print(f"INFO: {log_prefix}: Command sent. Now waiting for echo...")
+            for attempt in range(1, max_echo_attempts + 1):
+                ser.reset_input_buffer() # Reset buffer at the start of each command send attempt
+                ser.write((code + "\n").encode()) # Send the command
+                
+                if app_logger:
+                    app_logger.debug(f"{log_prefix} (Attempt {attempt}/{max_echo_attempts}): Command sent. Waiting for echo...")
+                else:
+                    print(f"INFO: {log_prefix} (Attempt {attempt}/{max_echo_attempts}): Command sent. Waiting for echo...")
 
-            # 1. Wait for echo
-            echo_received_correctly = False
-            echo_start_time = time.time()
-            echo_buf = bytearray()
-            expected_echo = (code + "\r\n").encode() # Arduinos often send \r\n with println
+                # 1. Wait for echo for this attempt
+                echo_start_time = time.time()
+                echo_buf = bytearray()
+                # expected_echo = (code + "\r\n").encode() # Not used directly in this revised logic
 
-            while time.time() - echo_start_time < ECHO_TIMEOUT:
-                if ser.in_waiting:
-                    read_data = ser.read(ser.in_waiting)
-                    echo_buf.extend(read_data)
-                    if app_logger:
-                        app_logger.debug(f"{log_prefix}: Echo read data: {read_data}, Current echo_buf: {echo_buf}")
-                    else:
-                        print(f"DEBUG: {log_prefix}: Echo read data: {read_data}, Current echo_buf: {echo_buf}")
-                    
-                    # Check if the exact echo is present. Trim for safety.
-                    # Arduino println might add \r\n. We expect the command string itself.
-                    if code.encode() in echo_buf: # Check if the core command is in the buffer
-                        # More robust check: see if buffer starts with expected echo (trimmed)
-                        # Or if the last received line matches.
-                        # For now, simple check for `code` in `echo_buf` after stripping newlines from echo_buf
+                while time.time() - echo_start_time < ECHO_TIMEOUT:
+                    if ser.in_waiting:
+                        read_data = ser.read(ser.in_waiting)
+                        echo_buf.extend(read_data)
+                        if app_logger:
+                            app_logger.debug(f"{log_prefix} (Attempt {attempt}): Echo read data: {read_data}, Current echo_buf: {echo_buf}")
+                        else:
+                            print(f"DEBUG: {log_prefix} (Attempt {attempt}): Echo read data: {read_data}, Current echo_buf: {echo_buf}")
+                        
                         processed_echo_buf = echo_buf.decode(errors='ignore').strip()
                         if processed_echo_buf == code: # Exact match of the command string
                             echo_received_correctly = True
                             if app_logger:
-                                app_logger.debug(f"{log_prefix}: Correct echo '{code}' received.")
+                                app_logger.debug(f"{log_prefix} (Attempt {attempt}): Correct echo '{code}' received.")
                             else:
-                                print(f"INFO: {log_prefix}: Correct echo '{code}' received.")
-                            break 
-                time.sleep(0.05)
+                                print(f"INFO: {log_prefix} (Attempt {attempt}): Correct echo '{code}' received.")
+                            break # Break from inner echo-reading loop
+                    time.sleep(0.05)
+                
+                if echo_received_correctly:
+                    break # Break from outer command-sending attempt loop
+                else:
+                    if app_logger:
+                        app_logger.warning(f"{log_prefix} (Attempt {attempt}/{max_echo_attempts}): Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
+                    else:
+                        print(f"WARNING: {log_prefix} (Attempt {attempt}/{max_echo_attempts}): Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
+                    if attempt < max_echo_attempts:
+                        time.sleep(0.5) # Pause before retrying command send
+                        if app_logger:
+                            app_logger.info(f"{log_prefix}: Retrying command send and echo wait...")
+                        else:
+                            print(f"INFO: {log_prefix}: Retrying command send and echo wait...")
+            # End of echo attempt loop
 
             if not echo_received_correctly:
-                if app_logger:
-                    app_logger.warning(f"{log_prefix}: Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
-                else:
-                    print(f"WARNING: {log_prefix}: Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
-                return {"status": "echo_error"} 
+                # All attempts to get echo failed
+                return {"status": "echo_error_max_retries"} 
 
             # If echo was successful, and we don't need to wait for "done", return status "sent_echo_confirmed"
             if not wait_done:
                 return {"status": "sent_echo_confirmed"}
 
-            # 2. Wait for "done" token
+            # 2. Wait for "done" token (only if echo was successful)
             start_done_time = time.time()
-            done_buf = bytearray() # Use a new buffer for "done" to avoid confusion with echo_buf contents
+            done_buf = bytearray() 
             
             if app_logger:
                 app_logger.debug(f"{log_prefix}: Echo confirmed. Waiting for '{done_token}'")
             else:
                 print(f"INFO: {log_prefix}: Echo confirmed. Waiting for '{done_token}'")
 
-            while time.time() - start_done_time < TIMEOUT: # Use the main TIMEOUT for done
+            while time.time() - start_done_time < TIMEOUT: 
                 if ser.in_waiting:
                     read_data = ser.read(ser.in_waiting)
                     done_buf.extend(read_data)
