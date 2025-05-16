@@ -20,7 +20,7 @@ class RackWorker(threading.Thread):
         while True:
             task = self.q.get()
             if task is None: break
-            current_app.logger.info(f"RackWorker [{self.rack}]: Picked up task {task.code} for rack {task.rack}.")
+            current_app.logger.info(f"RackWorker [{self.rack}]: Picked up task with code {task.code} for rack {task.rack}.")
             
             status = "unknown"
             try:
@@ -47,14 +47,16 @@ class RackWorker(threading.Thread):
                 
                 # Serial is enabled and port was found - proceed with actual send
                 else:
-                    current_app.logger.info(f"RackWorker [{self.rack}]: Attempting to send task {task.code} (as string: '{str(task.code)}') to serial_mgr.")
+                    current_app.logger.info(f"RackWorker [{self.rack}]: Sending task {task.code} (command: '{str(task.code)}') to serial_mgr for rack {task.rack}. Waiting for completion: {task.wait}")
                     res = serial_mgr.send(task.rack, str(task.code), wait_done=task.wait)
-                    current_app.logger.info(f"RackWorker [{self.rack}]: serial_mgr.send for task {task.code} returned: {res}")
                     status = res["status"]
-                    if current_app:
-                        current_app.logger.info(f"RackWorker [{self.rack}]: Task {task.code} sent. Status: {status}")
+                    
+                    if status == "done":
+                        current_app.logger.info(f"RackWorker [{self.rack}]: Task {task.code} (command: '{str(task.code)}') successfully COMPLETED by Arduino. Status: {status}")
+                    elif status == "sent_echo_confirmed": # Handle case where wait_done=False but echo was good
+                        current_app.logger.info(f"RackWorker [{self.rack}]: Task {task.code} (command: '{str(task.code)}') sent and ECHO CONFIRMED by Arduino (wait_done=False). Status: {status}")
                     else:
-                        print(f"RackWorker [{self.rack}]: Task {task.code} sent. Status: {status}")
+                        current_app.logger.error(f"RackWorker [{self.rack}]: Task {task.code} (command: '{str(task.code)}') FAILED or did not complete as expected by Arduino. Serial status: {status}")
                         
             except Exception as e:
                 error_msg = f"RackWorker [{self.rack}]: Exception for code {task.code}: {e}"
@@ -66,6 +68,7 @@ class RackWorker(threading.Thread):
             
             if io:
                 io.emit("task_done", {"rack": task.rack, "code": task.code, "status": status})
+                current_app.logger.debug(f"RackWorker [{self.rack}]: Emitted 'task_done' via SocketIO for task {task.code}, status: {status}")
                 # Ensure qsize is fetched safely if tasks might be added/removed concurrently by other parts
                 current_qsize = 0
                 try:

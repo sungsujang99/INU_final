@@ -9,6 +9,9 @@ ECHO_TIMEOUT = 5 # Timeout for waiting for command echo
 WHO_CMD = b"WHO\n"
 RACKS   = {"A", "B", "C"}
 
+DEFAULT_MAX_ECHO_ATTEMPTS = 6    # Default number of attempts (1 initial + 5 retries) to get command echo
+RESET_COMMAND_MAX_ECHO_ATTEMPTS = 15 # More attempts for the critical reset command
+
 class SerialManager:
     def __init__(self):
         self.lock  = threading.Lock()
@@ -139,7 +142,7 @@ class SerialManager:
             print(f"⚠️ Missing racks: {', '.join(missing)}")
 
     # ──────────────────────────────
-    def send(self, rack:str, code:str, wait_done=True, done_token=b"done"):
+    def send(self, rack:str, code:str, wait_done=True, done_token=b"done", custom_max_echo_attempts: int = None):
         rack = rack.upper()
         if rack not in self.ports:
             raise RuntimeError(f"rack '{rack}' not mapped")
@@ -154,18 +157,19 @@ class SerialManager:
             app_logger = None 
 
         log_prefix = f"SEND rack '{rack}', code '{code}'"
-        max_echo_attempts = 6 # 1 initial + 5 retries
+        
+        active_max_echo_attempts = custom_max_echo_attempts if custom_max_echo_attempts is not None else DEFAULT_MAX_ECHO_ATTEMPTS
         echo_received_correctly = False
 
         with mutex:
-            for attempt in range(1, max_echo_attempts + 1):
+            for attempt in range(1, active_max_echo_attempts + 1):
                 ser.reset_input_buffer() # Reset buffer at the start of each command send attempt
                 ser.write((code + "\n").encode()) # Send the command
                 
                 if app_logger:
-                    app_logger.debug(f"{log_prefix} (Attempt {attempt}/{max_echo_attempts}): Command sent. Waiting for echo...")
+                    app_logger.debug(f"{log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent. Waiting for echo...")
                 else:
-                    print(f"INFO: {log_prefix} (Attempt {attempt}/{max_echo_attempts}): Command sent. Waiting for echo...")
+                    print(f"INFO: {log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent. Waiting for echo...")
 
                 # 1. Wait for echo for this attempt
                 echo_start_time = time.time()
@@ -177,17 +181,17 @@ class SerialManager:
                         read_data = ser.read(ser.in_waiting)
                         echo_buf.extend(read_data)
                         if app_logger:
-                            app_logger.debug(f"{log_prefix} (Attempt {attempt}): Echo read data: {read_data}, Current echo_buf: {echo_buf}")
+                            app_logger.debug(f"{log_prefix} (Echo Attempt {attempt}): Echo read data: {read_data}, Current echo_buf: {echo_buf}")
                         else:
-                            print(f"DEBUG: {log_prefix} (Attempt {attempt}): Echo read data: {read_data}, Current echo_buf: {echo_buf}")
+                            print(f"DEBUG: {log_prefix} (Echo Attempt {attempt}): Echo read data: {read_data}, Current echo_buf: {echo_buf}")
                         
                         processed_echo_buf = echo_buf.decode(errors='ignore').strip()
                         if processed_echo_buf == code: # Exact match of the command string
                             echo_received_correctly = True
                             if app_logger:
-                                app_logger.debug(f"{log_prefix} (Attempt {attempt}): Correct echo '{code}' received.")
+                                app_logger.debug(f"{log_prefix} (Echo Attempt {attempt}): Correct echo '{code}' received.")
                             else:
-                                print(f"INFO: {log_prefix} (Attempt {attempt}): Correct echo '{code}' received.")
+                                print(f"INFO: {log_prefix} (Echo Attempt {attempt}): Correct echo '{code}' received.")
                             break # Break from inner echo-reading loop
                     time.sleep(0.05)
                 
@@ -195,15 +199,15 @@ class SerialManager:
                     break # Break from outer command-sending attempt loop
                 else:
                     if app_logger:
-                        app_logger.warning(f"{log_prefix} (Attempt {attempt}/{max_echo_attempts}): Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
+                        app_logger.warning(f"{log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
                     else:
-                        print(f"WARNING: {log_prefix} (Attempt {attempt}/{max_echo_attempts}): Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
-                    if attempt < max_echo_attempts:
+                        print(f"WARNING: {log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
+                    if attempt < active_max_echo_attempts:
                         time.sleep(0.5) # Pause before retrying command send
                         if app_logger:
-                            app_logger.info(f"{log_prefix}: Retrying command send and echo wait...")
+                            app_logger.info(f"{log_prefix}: Retrying command send and echo wait (next attempt: {attempt+1})...")
                         else:
-                            print(f"INFO: {log_prefix}: Retrying command send and echo wait...")
+                            print(f"INFO: {log_prefix}: Retrying command send and echo wait (next attempt: {attempt+1})...")
             # End of echo attempt loop
 
             if not echo_received_correctly:
@@ -317,30 +321,63 @@ class SerialManager:
             return None
 
     def reset_all_racks(self, reset_cmd_code="99", done_token_reset=b"done"):
-        """Sends a reset command to all connected and discovered racks."""
+        """Sends a reset command to all connected and discovered racks with increased echo retries."""
+        logger = print # Default to print
+        try:
+            if current_app and hasattr(current_app, 'logger') and current_app.logger:
+                logger = current_app.logger.info
+            else: # For startup messages or if app_logger not available
+                # Redefine logger to be a function that prints with INFO prefix for consistency
+                def print_logger(msg): print(f"INFO: {msg}")
+                logger = print_logger
+        except RuntimeError: # current_app not available
+            def print_logger_runtime(msg): print(f"INFO: {msg}")
+            logger = print_logger_runtime
+
+
         if not self.enabled:
-            print("INFO: SerialManager.reset_all_racks called but serial is DISABLED. Skipping reset.")
+            logger("SerialManager.reset_all_racks called but serial is DISABLED. Skipping reset.")
             return
 
         if not self.ports:
-            print("INFO: SerialManager.reset_all_racks called but no racks are currently discovered/connected. Skipping reset.")
+            logger("SerialManager.reset_all_racks called but no racks are currently discovered/connected. Skipping reset.")
             return
 
-        print("INFO: Attempting to reset all connected racks...")
+        logger(f"Attempting to reset all connected racks with command '{reset_cmd_code}' (echo attempts: {RESET_COMMAND_MAX_ECHO_ATTEMPTS})...")
+        
         for rack_id in self.ports.keys(): 
-            print(f"INFO: Sending reset command '{reset_cmd_code}' to Rack {rack_id}...")
+            logger(f"Rack {rack_id}: Sending reset command '{reset_cmd_code}'...")
             try:
-                # Leveraging the existing send method's wait_done logic
-                result = self.send(rack_id, reset_cmd_code, wait_done=True, done_token=done_token_reset)
-                if result.get("status") == "done":
-                    print(f"SUCCESS: Rack {rack_id} reset successfully and responded 'done'.")
-                elif result.get("status") == "timeout":
-                    print(f"WARNING: Rack {rack_id} timed out after reset command. Did not receive 'done'.")
-                else:
-                    print(f"WARNING: Rack {rack_id} responded with status '{result.get('status')}' after reset command.")
+                result = self.send(
+                    rack_id, 
+                    reset_cmd_code, 
+                    wait_done=True, 
+                    done_token=done_token_reset, 
+                    custom_max_echo_attempts=RESET_COMMAND_MAX_ECHO_ATTEMPTS
+                )
+                status = result.get("status")
+
+                if status == "done":
+                    # Use .info for success if actual Flask logger, else it's handled by print_logger
+                    if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.info(f"SUCCESS: Rack {rack_id}: Reset command '{reset_cmd_code}' COMPLETED. Arduino responded '{done_token_reset.decode(errors='ignore')}'.")
+                    else: print(f"SUCCESS: Rack {rack_id}: Reset command '{reset_cmd_code}' COMPLETED. Arduino responded '{done_token_reset.decode(errors='ignore')}'.")
+                elif status == "echo_error_max_retries":
+                    # Use .error for errors if actual Flask logger
+                    if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.error(f"ERROR: Rack {rack_id}: Failed to get echo for reset command '{reset_cmd_code}' after {RESET_COMMAND_MAX_ECHO_ATTEMPTS} attempts.")
+                    else: print(f"ERROR: Rack {rack_id}: Failed to get echo for reset command '{reset_cmd_code}' after {RESET_COMMAND_MAX_ECHO_ATTEMPTS} attempts.")
+                elif status == "timeout_after_echo":
+                    if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.error(f"ERROR: Rack {rack_id}: Reset command '{reset_cmd_code}' echo OK, but TIMEOUT waiting for '{done_token_reset.decode(errors='ignore')}'.")
+                    else: print(f"ERROR: Rack {rack_id}: Reset command '{reset_cmd_code}' echo OK, but TIMEOUT waiting for '{done_token_reset.decode(errors='ignore')}'.")
+                else: 
+                    if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.warning(f"WARNING: Rack {rack_id}: Reset command '{reset_cmd_code}' resulted in unexpected status: '{status}'.")
+                    else: print(f"WARNING: Rack {rack_id}: Reset command '{reset_cmd_code}' resulted in unexpected status: '{status}'.")
+            except RuntimeError as re:
+                 if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.error(f"ERROR: Rack {rack_id}: Runtime error during reset: {re} - rack might be disconnected.")
+                 else: print(f"ERROR: Rack {rack_id}: Runtime error during reset: {re} - rack might be disconnected.")
             except Exception as e:
-                print(f"ERROR: Failed to send reset command to Rack {rack_id}: {e}")
-        print("INFO: Finished attempting to reset all connected racks.")
+                if hasattr(current_app, 'logger') and current_app.logger: current_app.logger.error(f"ERROR: Rack {rack_id}: Exception during reset command '{reset_cmd_code}': {e}", exc_info=True)
+                else: print(f"ERROR: Rack {rack_id}: Exception during reset command '{reset_cmd_code}': {e}")
+        logger("Finished attempting to reset all connected racks.")
 
 # ───── 전역 인스턴스 (모듈 import 시 1번만 생성) ─────
 serial_mgr = SerialManager()
