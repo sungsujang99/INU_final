@@ -335,15 +335,11 @@ export const WorkStatus = () => {
         movementText = "출고"; // Korean for OUT
         movementClassName = "task-bar-movement-out";
       } else { 
-        // Fallback for other statuses or if movement is not IN/OUT (considered as error for 'done' tasks)
-        iconComponent = <Ic242Tone2 className="ic-4 task-bar-icon" color="#FF0000" />; // Neutral box icon (placeholder for triangle), colored Red for ERROR
+        iconComponent = <Ic242Tone2 className="ic-4 task-bar-icon" color="#FF0000" />; 
         itemClassName = "task-bar task-item-error";
-        movementText = "오류"; // Korean for ERROR
+        movementText = "오류"; 
         movementClassName = "task-bar-movement-error";
       }
-      // If you have a specific 'error' status from backend for done tasks:
-      // if (task.status === 'error_on_complete') { ... override above ... }
-
       return { iconComponent, itemClassName, movementText, movementClassName };
     };
 
@@ -372,29 +368,40 @@ export const WorkStatus = () => {
 
   // Updated renderWaitingWorkStatus section
   const renderWaitingWorkStatus = () => (
-    <div className="frame-39"> {/* 작업 대기 섹션의 메인 프레임 */}
+    <div className="frame-39"> 
       <div className="text-wrapper-56">{selectedRack}랙 작업 대기</div>
-      <div className="frame-40"> {/* 작업 대기 내용 감싸는 프레임 */}
-        {pendingTasks.length === 0 && inProgressTasks.length === 0 ? (
+      <div className="frame-40"> 
+        {(pendingTasks.length === 0 && inProgressTasks.length === 0) ? (
           <p className="no-waiting-tasks">대기 중인 작업이 없습니다.</p>
         ) : (
           <>
-            {inProgressTasks.map((task) => (
-              <div key={task.id} className="waiting-task-item in-progress-task-item"> 
-                <Property1Variant5 className="ic-4 task-bar-icon" /> {/* Using a generic 'in-progress' icon */}
-                <p className="task-bar-text">
-                  랙 {task.rack}{task.slot} <span className="task-bar-movement-in">{task.movement} (진행중)</span>
-                </p>
-              </div>
-            ))}
-            {pendingTasks.map((task) => (
-              <div key={task.id} className="waiting-task-item pending-task-item"> 
-                <Ic242Tone2 className="ic-4 task-bar-icon" /> {/* Using a generic 'pending' icon */}
-                <p className="task-bar-text">
-                  랙 {task.rack}{task.slot} <span className="task-bar-movement-neutral">{task.movement} (대기)</span>
-                </p>
-              </div>
-            ))}
+            {inProgressTasks.map((task) => {
+              // Determine icon based on movement for in-progress tasks
+              const InProgressIcon = task.movement && task.movement.toUpperCase() === 'IN' ? 
+                                     Property1Variant5 : Ic242Tone6;
+              const iconColor = task.movement && task.movement.toUpperCase() === 'IN' ? "#0177FB" : "#00BB80";
+              const movementBaseText = task.movement && task.movement.toUpperCase() === 'IN' ? "입고" : "출고";
+
+              return (
+                <div key={task.id} className="waiting-task-item task-item-inprogress"> 
+                  <InProgressIcon className="ic-4 task-bar-icon" color={iconColor} />
+                  <p className="task-bar-text">
+                    랙 {task.rack}{task.slot} <span className={task.movement && task.movement.toUpperCase() === 'IN' ? "task-bar-movement-in" : "task-bar-movement-out" }>{movementBaseText} (진행중)</span>
+                  </p>
+                </div>
+              );
+            })}
+            {pendingTasks.map((task) => {
+              const movementBaseText = task.movement && task.movement.toUpperCase() === 'IN' ? "입고" : "출고";
+              return (
+                <div key={task.id} className="waiting-task-item task-item-pending"> 
+                  <Ic242Tone2 className="ic-4 task-bar-icon" color="#888888"/> 
+                  <p className="task-bar-text">
+                    랙 {task.rack}{task.slot} <span className="task-bar-movement-neutral">{movementBaseText} (대기)</span>
+                  </p>
+                </div>
+              );
+            })}
           </>
         )}
       </div>
