@@ -319,30 +319,30 @@ export const WorkStatus = () => {
   const renderCurrentWorkStatus = () => {
     // Helper to determine display properties based on task
     const getTaskDisplayProps = (task) => {
-      let iconColor = "#00BB80"; // Default for OUT (Green)
-      let itemClassName = "task-bar task-item-out"; // Default for OUT
-      let movementText = "출고"; // Default for OUT
-      let movementClassName = "task-bar-movement-out";
+      let iconComponent;
+      let itemClassName = "task-bar"; 
+      let movementText = task.movement;
+      let movementClassName = "";
 
       if (task.movement && task.movement.toUpperCase() === 'IN') {
-        iconColor = "#0177FB"; // Blue for IN
+        iconComponent = <Property1Variant5 className="ic-4 task-bar-icon" color="#0177FB" />; // Blue box for IN
         itemClassName = "task-bar task-item-in";
         movementText = "입고"; // Korean for IN
         movementClassName = "task-bar-movement-in";
       } else if (task.movement && task.movement.toUpperCase() === 'OUT') {
-        // Defaults are already set for OUT (Green icon, "출고" text)
+        iconComponent = <Ic242Tone6 className="ic-4 task-bar-icon" color="#00BB80" />; // Green box for OUT
+        itemClassName = "task-bar task-item-out";
+        movementText = "출고"; // Korean for OUT
+        movementClassName = "task-bar-movement-out";
       } else { 
         // Fallback for other statuses or if movement is not IN/OUT (considered as error for 'done' tasks)
-        iconColor = "#FF0000"; // Red for ERROR
+        iconComponent = <Ic242Tone2 className="ic-4 task-bar-icon" color="#FF0000" />; // Neutral box icon, colored Red for ERROR
         itemClassName = "task-bar task-item-error";
         movementText = "오류"; // Korean for ERROR
         movementClassName = "task-bar-movement-error";
       }
       // If you have a specific 'error' status from backend for done tasks:
-      // if (task.status === 'error_on_complete') { ... override iconColor, itemClassName, movementText, movementClassName ... }
-
-      // Use Property1Variant5 icon for all, just change its color
-      const iconComponent = <Property1Variant5 className="ic-4 task-bar-icon" color={iconColor} />;
+      // if (task.status === 'error_on_complete') { ... override above ... }
 
       return { iconComponent, itemClassName, movementText, movementClassName };
     };
