@@ -16,7 +16,7 @@ import { TotalRackProgress } from '../../components/TotalRackProgress/TotalRackP
 import { getInventory, pingBackend, getTaskQueues, getWorkTasksByStatus } from "../../lib/api"; // Assuming pingBackend and getTaskQueues will be added to api.jsx
 import io from 'socket.io-client';
 
-const socket = io('http://127.0.0.1:5001', { transports: ['websocket', 'polling'] }); // Changed to 127.0.0.1 and added transport options
+const socket = io('http://192.168.0.18:5001', { transports: ['websocket', 'polling'] }); // Changed to 127.0.0.1 and added transport options
 
 export const DashboardOn = () => {
   const navigate = useNavigate();
