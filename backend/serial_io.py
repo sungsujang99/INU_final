@@ -164,7 +164,18 @@ class SerialManager:
         with mutex:
             for attempt in range(1, active_max_echo_attempts + 1):
                 ser.reset_input_buffer() # Reset buffer at the start of each command send attempt
-                ser.write(f"{code}\n") # Send the command as string directly
+                
+                # Handle WHO command differently from numeric commands
+                if code.upper() == "WHO":
+                    ser.write(f"{code}\n".encode())
+                else:
+                    # Convert to integer and send as bytes
+                    try:
+                        cmd_int = int(code)
+                        ser.write(f"{cmd_int}\n".encode())
+                    except ValueError:
+                        # If conversion fails, send as is
+                        ser.write(f"{code}\n".encode())
                 
                 if app_logger:
                     app_logger.debug(f"{log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent. Waiting for echo...")
@@ -339,7 +350,7 @@ class SerialManager:
             try:
                 result = self.send(
                     rack_id, 
-                    reset_cmd_code.encode().decode(),  # Convert to bytes and back to string to ensure proper encoding
+                    reset_cmd_code,  # Send as string, encoding will be handled in send method
                     wait_done=True, 
                     done_token=done_token_reset, 
                     custom_max_echo_attempts=RESET_COMMAND_MAX_ECHO_ATTEMPTS
