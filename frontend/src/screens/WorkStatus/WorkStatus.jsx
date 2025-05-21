@@ -244,6 +244,7 @@ export const WorkStatus = () => {
 
   // Fetch all on mount and when rack changes
   useEffect(() => {
+    fetchInventoryData();
     fetchPendingTasks();
     fetchInProgressTasks();
     fetchDoneTasks();
@@ -254,12 +255,18 @@ export const WorkStatus = () => {
   useEffect(() => {
     const socket = io();
     socket.on("task_status_changed", (data) => {
+      // Refetch all data that could have changed
+      fetchInventoryData();
       fetchPendingTasks();
       fetchInProgressTasks();
       fetchDoneTasks();
     });
-    return () => socket.off("task_status_changed");
-  }, [selectedRack]);
+    // Clean up the socket listener when the component unmounts
+    return () => {
+      socket.off("task_status_changed");
+      socket.disconnect(); // Optional: explicitly disconnect the socket
+    };
+  }, []); // <-- REMOVED selectedRack from dependency array
 
   // Update renderRackGrid to show product info
   const renderRackGrid = () => {

@@ -132,7 +132,7 @@ def add_records(records: list[dict], batch_id: str = None):
                 'movement': mv,
                 'quantity': qty,
                 'cargo_owner': owner
-            })
+            }, conn=conn, cur=cur)  # Pass conn and cur
             logger.debug("add_records: Task enqueued for record %d.", i)
 
         logger.debug("add_records: All records processed. Attempting to commit.")

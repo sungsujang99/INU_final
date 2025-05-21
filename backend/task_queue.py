@@ -11,26 +11,35 @@ def set_socketio(sock):             # app.py 가 주입
     global io; io = sock
 
 # --- DB Task Management ---
-def enqueue_work_task(task):
+def enqueue_work_task(task, conn=None, cur=None):
     now = datetime.datetime.now().isoformat(timespec="seconds")
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO work_tasks
-        (rack, slot, product_code, product_name, movement, quantity, cargo_owner, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
-    """, (
-        task['rack'].upper(),
-        int(task['slot']),
-        task['product_code'],
-        task['product_name'],
-        task['movement'].upper(),
-        int(task['quantity']),
-        task.get('cargo_owner', ''),
-        now, now
-    ))
-    conn.commit()
-    conn.close()
+    
+    own_connection = False
+    if conn is None or cur is None:
+        conn = sqlite3.connect(DB_NAME)
+        cur = conn.cursor()
+        own_connection = True
+
+    try:
+        cur.execute("""
+            INSERT INTO work_tasks
+            (rack, slot, product_code, product_name, movement, quantity, cargo_owner, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+        """, (
+            task['rack'].upper(),
+            int(task['slot']),
+            task['product_code'],
+            task['product_name'],
+            task['movement'].upper(),
+            int(task['quantity']),
+            task.get('cargo_owner', ''),
+            now, now
+        ))
+        if own_connection:
+            conn.commit()
+    finally:
+        if own_connection:
+            conn.close()
 
 def set_task_status(task_id, status):
     now = datetime.datetime.now().isoformat(timespec="seconds")
