@@ -358,7 +358,7 @@
 }
 
 .work-status .frame-35 {
-  align-items: flex-start;
+  align-items: center;
   align-self: stretch;
   display: flex;
   flex: 0 0 auto;
@@ -649,4 +649,45 @@
 
 .rack-button .text-wrapper-51 {
   color: var(--variable-collection-main-01, #0177FB);
+}
+
+.task-bar {
+  padding: 10px 15px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.task-item-out {
+  background-color: #E6F7F1;
+}
+.task-bar-movement-out {
+  color: #00BB80;
+  font-weight: bold;
+}
+
+.task-item-in {
+  background-color: #E6F2FF;
+}
+.task-bar-movement-in {
+  color: #0177FB;
+  font-weight: bold;
+}
+
+.task-item-error {
+  background-color: #FFF0F0;
+}
+.task-bar-movement-error {
+  color: #FF4D4F;
+  font-weight: bold;
+}
+
+.task-bar .ic-4 {
+  flex-shrink: 0;
+}
+
+.task-bar .task-bar-text {
+  margin: 0;
 }

@@ -316,24 +316,58 @@ export const WorkStatus = () => {
   };
 
   // Render current work status section (Completed Jobs)
-  const renderCurrentWorkStatus = () => (
-    <div className="frame-34"> 
-      <div className="text-wrapper-56">{selectedRack}랙 작업 현황</div>
-      <div className="frame-35"> 
-        {doneTasks.length === 0 && (
-          <p className="no-current-tasks">완료된 작업이 없습니다.</p>
-        )}
-        {doneTasks.map((task) => (
-          <div key={task.id} className="frame-36 task-bar"> 
-            <Ic242Tone6 className="ic-4 task-bar-icon" color="#00BB80" />
-            <p className="task-bar-text">
-              랙 {task.rack}{task.slot} <span className="task-bar-movement-out">{task.movement}</span>
-            </p>
-          </div>
-        ))}
+  const renderCurrentWorkStatus = () => {
+    // Helper to determine display properties based on task
+    const getTaskDisplayProps = (task) => {
+      let iconComponent = <Ic242Tone6 className="ic-4 task-bar-icon" color="#00BB80" />; // Default for OUT
+      let itemClassName = "task-bar task-item-out"; // Default for OUT
+      let movementText = task.movement;
+      let movementClassName = "task-bar-movement-out";
+
+      if (task.movement && task.movement.toUpperCase() === 'IN') {
+        iconComponent = <Property1Variant5 className="ic-4 task-bar-icon" color="#0177FB" />; // Blue icon for IN
+        itemClassName = "task-bar task-item-in";
+        movementText = "입고"; // Korean for IN
+        movementClassName = "task-bar-movement-in";
+      } else if (task.movement && task.movement.toUpperCase() === 'OUT') {
+        movementText = "출고"; // Korean for OUT
+        // Defaults are already set for OUT
+      } else { 
+        // Fallback for other statuses or if movement is not IN/OUT (considered as error for 'done' tasks)
+        // Assuming you might add an error icon later e.g. <IcErrorTriangle className="ic-4 task-bar-icon" color="#FF0000" />
+        iconComponent = <Ic242Tone2 className="ic-4 task-bar-icon" color="#FF0000" />; // Placeholder Error Icon (Pending icon, but red)
+        itemClassName = "task-bar task-item-error";
+        movementText = "오류"; // Korean for ERROR
+        movementClassName = "task-bar-movement-error";
+      }
+      // If you have a specific 'error' status from backend for done tasks:
+      // if (task.status === 'error_on_complete') { ... override above ... }
+
+      return { iconComponent, itemClassName, movementText, movementClassName };
+    };
+
+    return (
+      <div className="frame-34"> 
+        <div className="text-wrapper-56">{selectedRack}랙 작업 현황</div>
+        <div className="frame-35"> 
+          {doneTasks.length === 0 && (
+            <p className="no-current-tasks">완료된 작업이 없습니다.</p>
+          )}
+          {doneTasks.map((task) => {
+            const { iconComponent, itemClassName, movementText, movementClassName } = getTaskDisplayProps(task);
+            return (
+              <div key={task.id} className={itemClassName}> 
+                {iconComponent}
+                <p className="task-bar-text">
+                  랙 {task.rack}{task.slot} <span className={movementClassName}>{movementText}</span>
+                </p>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Updated renderWaitingWorkStatus section
   const renderWaitingWorkStatus = () => (
