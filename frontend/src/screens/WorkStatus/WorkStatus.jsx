@@ -253,7 +253,7 @@ export const WorkStatus = () => {
 
   // Listen for real-time updates
   useEffect(() => {
-    const socket = io('http://127.0.0.1:5001'); // Changed to 127.0.0.1
+    const socket = io('http://127.0.0.1:5001', { transports: ['websocket', 'polling'] }); // Changed to 127.0.0.1 and added transport options
     socket.on("task_status_changed", (data) => {
       // Refetch all data that could have changed
       console.log("WorkStatus: Received task_status_changed", data); // Added log
