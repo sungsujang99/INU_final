@@ -1,33 +1,41 @@
 .login-screen {
   background-color: #eff6fe;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   justify-content: center;
+  align-items: center;
   width: 100%;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .login-screen .login-2 {
-  background-color: var(--variable-collection-bg01);
-  height: 1080px;
-  width: 1920px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
 }
 
 .login-screen .login-box-2 {
-  height: 653px;
-  left: 663px;
-  position: relative;
-  top: 214px;
-  width: 598px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
 }
 
 .login-screen .overlap-group-4 {
   background-color: #ffffff;
-  border: 1px solid;
-  border-color: var(--variable-collection-grayscale-02);
+  border: 1px solid var(--variable-collection-grayscale-02);
   border-radius: 50px;
-  height: 653px;
-  position: relative;
-  width: 594px;
+  width: 100%;
+  max-width: 550px;
+  padding: 40px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
 }
 
 .login-screen .text-2 {
@@ -35,12 +43,9 @@
   font-family: "Pretendard-SemiBold", Helvetica;
   font-size: 28px;
   font-weight: 600;
-  left: 159px;
   letter-spacing: -0.56px;
-  line-height: 24px;
-  position: absolute;
+  line-height: 1.2;
   text-align: center;
-  top: 164px;
   white-space: nowrap;
 }
 
@@ -59,29 +64,24 @@
   font-family: "Pretendard-Regular", Helvetica;
   font-size: 16px;
   font-weight: 400;
-  left: 214px;
   letter-spacing: -0.32px;
-  line-height: 24px;
-  position: absolute;
+  line-height: 1.5;
   text-align: center;
-  top: 200px;
   white-space: nowrap;
 }
 
 .login-screen .logo-3 {
   border-radius: 50px;
   height: 56px;
-  left: 213px;
-  position: absolute;
-  top: 71px;
   width: 166px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .login-screen .INU-logistics-3 {
-  height: 25px;
-  left: 0;
-  position: absolute;
-  top: 30px;
+  height: auto;
+  max-width: 100%;
   width: 166px;
 }
 
@@ -126,15 +126,12 @@
 }
 
 .login-screen .field-btn-2 {
-  align-items: flex-start;
+  align-items: stretch;
   border-radius: 50px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  left: 39px;
-  position: absolute;
-  top: 288px;
-  width: 514px;
+  width: 100%;
 }
 
 .login-screen .input-field-ic-instance {
@@ -156,4 +153,11 @@
 .login-screen .btn-instance {
   margin-left: -6.00px !important;
   margin-right: -6.00px !important;
+}
+
+.login-screen .error-message {
+  width: 100%;
+  text-align: center;
+  color: red;
+  margin-bottom: 10px;
 }
