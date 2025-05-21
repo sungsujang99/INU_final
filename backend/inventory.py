@@ -43,9 +43,21 @@ def add_records(records: list[dict], batch_id: str = None):
 
         # Track slots that will be emptied by OUT operations in this batch
         slots_to_be_emptied = set()
+        # Track slots that will be filled by IN operations in this batch
+        slots_to_be_filled = set()
+        
+        # First pass: collect all OUT and IN operations
         for rec in records:
+            rack = rec["rack"].upper()
+            slot = int(rec["slot"])
             if rec["movement"].upper() == "OUT":
-                slots_to_be_emptied.add((rec["rack"].upper(), int(rec["slot"])))
+                slots_to_be_emptied.add((rack, slot))
+            elif rec["movement"].upper() == "IN":
+                if (rack, slot) in slots_to_be_filled:
+                    error_msg = f"Multiple IN operations to slot {rack}-{slot} in the same batch are not allowed."
+                    logger.error("add_records: Validation failed: %s", error_msg)
+                    return False, error_msg
+                slots_to_be_filled.add((rack, slot))
 
         for i, rec in enumerate(records):
             logger.debug("add_records: Processing record %d: %s", i, rec)
