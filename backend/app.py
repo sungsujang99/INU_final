@@ -218,54 +218,36 @@ def upload_tasks_route():
     if not request.is_json:
         return jsonify({"error": "JSON body required"}), 400
 
-    tasks_data = request.get_json()
+    tasks_data = request.get_json() # tasks_data is the list of task objects from the frontend
     if not isinstance(tasks_data, list):
         return jsonify({"error": "Request body must be a JSON array of tasks"}), 400
 
-    app.logger.debug(f"--- PRE-LOOP: tasks_data type: {type(tasks_data)}, length: {len(tasks_data) if isinstance(tasks_data, list) else 'N/A'}, content: {tasks_data}") # NEW PRE-LOOP LOG
+    if not tasks_data: # Handle empty list of tasks
+        return jsonify({"message": "No tasks provided in the request.", "processed_count": 0, "errors": []}), 200 # Or 400 if empty list is an error
 
-    processed_count = 0
-    errors = []
-    rack_map = {'A': 1, 'B': 2, 'C': 3}
-    batch_id = str(uuid.uuid4()) # Generate a single batch_id for this upload
-
-    for index, task_item in enumerate(tasks_data):
-        app.logger.debug(f"--- LOOP START: Processing Task {index + 1} --- Data: {task_item}") # NEW TOP OF LOOP LOG
-        try:
-            # Basic validation (ensure essential fields are present for add_records)
-            # add_records will perform more detailed validation and error handling
-            if not all(k in task_item for k in ['product_code', 'product_name', 'rack', 'slot', 'movement', 'quantity']):
-                errors.append(f"Task {index+1}: Missing one or more required fields (product_code, product_name, rack, slot, movement, quantity). Data: {task_item}")
-                app.logger.warning(f"Task {index+1} validation failed: Missing required fields. Data: {task_item}")
-                continue
-
-            # Call add_records for each task_item
-            # add_records expects a list of records
-            success, message = add_records([task_item], batch_id) 
-
-            if success:
-                processed_count += 1
-                app.logger.info(f"Task {index+1}: Successfully processed by add_records. Item: {task_item}")
-            else:
-                errors.append(f"Task {index+1} ({task_item.get('product_code', 'N/A')}): Error from add_records - {message}")
-                app.logger.error(f"Task {index+1} ({task_item.get('product_code', 'N/A')}): Error calling add_records for item {task_item} - {message}")
-                # Continue to next task even if one fails
-
-        except Exception as e:
-            # This catch is for unexpected errors in the loop itself, not errors from add_records
-            errors.append(f"Task {index+1} ({task_item.get('product_code', 'N/A')}): Critical error processing - {str(e)}")
-            app.logger.error(f"Task {index+1} ({task_item.get('product_code', 'N/A')}): CRITICAL ERROR in upload_tasks_route loop for item: {task_item} - {str(e)}", exc_info=True)
-
-    if errors:
-        app.logger.warning(f"Finished /api/upload-tasks with {processed_count} successes and {len(errors)} errors. Errors: {errors}") # LOG 10
-        return jsonify({
-            "message": f"{processed_count} tasks processed. Some tasks had errors.", 
-            "processed_count": processed_count,
-            "errors": errors
-        }), 207
+    app.logger.debug(f"--- /api/upload-tasks: Received {len(tasks_data)} tasks. Processing as a single batch. ---")
     
-    app.logger.info(f"Finished /api/upload-tasks successfully. Processed {processed_count} tasks.") # LOG 11
-    return jsonify({"message": f"{processed_count} tasks successfully processed and queued."}), 200
+    batch_id = str(uuid.uuid4()) # Generate a single batch_id for this entire upload
+
+    # Call add_records ONCE with the entire list of tasks
+    success, message = add_records(tasks_data, batch_id) 
+
+    if success:
+        app.logger.info(f"--- /api/upload-tasks: Batch {batch_id} processed successfully. {len(tasks_data)} tasks queued. ---")
+        return jsonify({
+            "message": f"{len(tasks_data)} tasks successfully processed and queued.", 
+            "processed_count": len(tasks_data),
+            "errors": [],
+            "batch_id": batch_id # Optionally return batch_id
+        }), 200
+    else:
+        # add_records returns a single error message for the batch if validation fails
+        app.logger.error(f"--- /api/upload-tasks: Error processing batch {batch_id}: {message}. Attempted {len(tasks_data)} tasks. ---")
+        return jsonify({
+            "message": f"Error processing batch: {message}", 
+            "processed_count": 0, # Batch failed
+            "errors": [message]   # Present the single error message
+        }), 400 # Use 400 for client-side error (e.g., validation) or 500 for server-side
 
 @app.route("/api/download-batch-task/<batch_id>")
 @token_required # Assuming downloads also require authentication

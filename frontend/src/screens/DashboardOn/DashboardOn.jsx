@@ -14,9 +14,7 @@ import { RackBProgress } from '../../components/RackProgress/RackBProgress';
 import { RackCProgress } from '../../components/RackProgress/RackCProgress';
 import { TotalRackProgress } from '../../components/TotalRackProgress/TotalRackProgress';
 import { getInventory, pingBackend, getTaskQueues, getWorkTasksByStatus } from "../../lib/api"; // Assuming pingBackend and getTaskQueues will be added to api.jsx
-import io from 'socket.io-client';
-
-const socket = io('http://192.168.0.18:5001', { transports: ['websocket', 'polling'] }); // Changed to 127.0.0.1 and added transport options
+import { socket } from '../../socket'; // Add this line
 
 export const DashboardOn = () => {
   const navigate = useNavigate();

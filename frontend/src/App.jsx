@@ -6,7 +6,6 @@ import { DivWrapper } from "./screens/DivWrapper";
 import { Login } from "./screens/Login";
 import { LoginScreen } from "./screens/LoginScreen";
 import { WorkStatus } from "./screens/WorkStatus";
-import io from 'socket.io-client';
 
 const router = createBrowserRouter([
   {
@@ -38,8 +37,6 @@ const router = createBrowserRouter([
     element: <WorkStatus />,
   },
 ]);
-
-const socket = io();
 
 export const App = () => {
   return <RouterProvider router={router} />;

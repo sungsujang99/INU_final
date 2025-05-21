@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import addDocumentUrl from '../../icons/add-document.svg'; // Default import gives URL
 import inboxInUrl from '../../icons/inbox-in.svg';       // Default import gives URL
 import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs, getWorkTasksByStatus } from "../../lib/api";
-import io from 'socket.io-client';
+import { socket } from '../../socket'; // Add this line
 
 export const WorkStatus = () => {
   const navigate = useNavigate();
@@ -253,7 +253,6 @@ export const WorkStatus = () => {
 
   // Listen for real-time updates
   useEffect(() => {
-    const socket = io('http://192.168.0.18:5001', { transports: ['websocket', 'polling'] }); // Changed to 127.0.0.1 and added transport options
     socket.on("task_status_changed", (data) => {
       // Refetch all data that could have changed
       console.log("WorkStatus: Received task_status_changed", data); // Added log
@@ -265,7 +264,6 @@ export const WorkStatus = () => {
     // Clean up the socket listener when the component unmounts
     return () => {
       socket.off("task_status_changed");
-      socket.disconnect(); // Optional: explicitly disconnect the socket
     };
   }, []); // <-- REMOVED selectedRack from dependency array
 
