@@ -144,7 +144,7 @@ export const DashboardOn = () => {
       fetchData();
     }
 
-    const interval = setInterval(fetchData, 30000); 
+    const interval = setInterval(fetchData, 1000); 
     return () => clearInterval(interval);
   }, [fetchData]); // fetchData is now a stable dependency from useCallback
 
