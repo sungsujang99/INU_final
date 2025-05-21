@@ -30,25 +30,25 @@ def add_records(records: list[dict], batch_id: str = None):
       "cargo_owner":  "Acme"
     }
     """
-    logger = current_app.logger if current_app else logging.getLogger(__name__) # Use app logger if available
+    logger = current_app.logger if current_app else logging.getLogger(__name__)
     logger.debug("add_records: Called with %s records", len(records))
     
-    conn = None # Initialize conn to None for finally block safety
+    conn = None
     try:
         logger.debug("add_records: Connecting to DB: %s", DB_NAME)
-        conn = sqlite3.connect(DB_NAME, timeout=10) # Added timeout to connect
+        conn = sqlite3.connect(DB_NAME, timeout=10)
         logger.debug("add_records: DB Connected. Creating cursor.")
-        cur  = conn.cursor()
+        cur = conn.cursor()
         logger.debug("add_records: Cursor created.")
 
         for i, rec in enumerate(records):
             logger.debug("add_records: Processing record %d: %s", i, rec)
             # ---------- 파싱 ----------
             pc, name = rec["product_code"], rec["product_name"]
-            rack  = rec["rack"].upper()
-            slot  = int(rec["slot"])
-            mv    = rec["movement"].upper()         # 'IN' / 'OUT'
-            qty   = int(rec["quantity"])
+            rack = rec["rack"].upper()
+            slot = int(rec["slot"])
+            mv = rec["movement"].upper()         # 'IN' / 'OUT'
+            qty = int(rec["quantity"])
             owner = rec.get("cargo_owner", "")
             logger.debug("add_records: Parsed record %d: pc=%s, rack=%s, slot=%d, mv=%s, qty=%d", i, pc, rack, slot, mv, qty)
 
@@ -86,29 +86,8 @@ def add_records(records: list[dict], batch_id: str = None):
                   (product_code, product_name, rack, slot,
                    movement_type, quantity, cargo_owner, timestamp, batch_id)
                 VALUES (?,?,?,?,?,?,?,?,?)
-            """, (pc, name, rack, slot, mv, qty, owner, _now(), batch_id)) # Log 'qty' from CSV
+            """, (pc, name, rack, slot, mv, qty, owner, _now(), batch_id))
             logger.debug("add_records: Inserted into product_logs for record %d.", i)
-
-            # ---------- current_inventory UPDATE ----------
-            if mv == "IN":
-                # Logic for "IN": If validation passed, slot was empty. Insert new record.
-                logger.debug(f"Processing IN for {rack}-{slot}: product_code={pc}, quantity={qty}")
-                cur.execute("""
-                    INSERT INTO current_inventory
-                      (product_code, product_name, rack, slot,
-                       total_quantity, cargo_owner, last_update)
-                    VALUES (?,?,?,?,?,?,?)
-                """, (pc, name, rack, slot, qty, owner, _now())) # 'qty' from CSV is used as total_quantity
-                logger.debug(f"Inserted new record for IN at {rack}-{slot} with quantity {qty}")
-
-            elif mv == "OUT":
-                # Logic for "OUT": If validation passed, the item exists. Delete it.
-                inventory_item_id_to_delete = row_for_validation[0]
-                logger.debug(f"Processing OUT for {rack}-{slot}: product_code={pc}. Deleting inventory record id {inventory_item_id_to_delete}.")
-                cur.execute("DELETE FROM current_inventory WHERE id=?", (inventory_item_id_to_delete,))
-                logger.debug(f"Deleted record id {inventory_item_id_to_delete} for OUT at {rack}-{slot}")
-
-            logger.debug("add_records: DB operations for record %d completed.", i)
 
             # ---------- 장치 명령을 큐에 넣기 ----------
             cmd_val = slot  # Arduino expects the slot number directly
@@ -136,3 +115,41 @@ def add_records(records: list[dict], batch_id: str = None):
             logger.debug("add_records: DB connection closed.")
         else:
             logger.debug("add_records: No DB connection to close (was None).")
+
+def update_inventory_on_done(rack: str, slot: int, movement: str, product_code: str, product_name: str, quantity: int, cargo_owner: str):
+    """
+    Update the inventory database when a task is completed (done signal received)
+    """
+    logger = current_app.logger if current_app else logging.getLogger(__name__)
+    logger.debug("update_inventory_on_done: Updating inventory for rack=%s, slot=%d, movement=%s", rack, slot, movement)
+    
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10)
+        cur = conn.cursor()
+
+        if movement == "IN":
+            # Insert new record for IN operation
+            cur.execute("""
+                INSERT INTO current_inventory
+                  (product_code, product_name, rack, slot,
+                   total_quantity, cargo_owner, last_update)
+                VALUES (?,?,?,?,?,?,?)
+            """, (product_code, product_name, rack, slot, quantity, cargo_owner, _now()))
+            logger.debug("update_inventory_on_done: Inserted new record for IN at %s-%d", rack, slot)
+        elif movement == "OUT":
+            # Delete record for OUT operation
+            cur.execute("DELETE FROM current_inventory WHERE rack=? AND slot=?", (rack, slot))
+            logger.debug("update_inventory_on_done: Deleted record for OUT at %s-%d", rack, slot)
+
+        conn.commit()
+        logger.debug("update_inventory_on_done: Successfully updated inventory")
+        return True
+    except Exception as e:
+        logger.error("update_inventory_on_done: Exception occurred: %s", str(e), exc_info=True)
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()

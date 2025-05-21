@@ -1,8 +1,9 @@
 # task_queue.py  ─────────────────────────────────────────────
-import queue, threading, time, logging
+import queue, threading, time, logging, sqlite3
 from typing import Optional
 from .serial_io import serial_mgr, RESET_COMMAND_MAX_ECHO_ATTEMPTS
 from flask import current_app
+from .inventory import update_inventory_on_done
 
 io = None                           # SocketIO 인스턴스 홀더
 def set_socketio(sock):             # app.py 가 주입
@@ -14,8 +15,10 @@ class Task:
 
 class RackWorker(threading.Thread):
     def __init__(self, rack, q):
-        super().__init__(daemon=True)
-        self.rack, self.q = rack, q
+        super().__init__()
+        self.rack = rack.upper()
+        self.q = q
+        self.daemon = True  # Thread will exit when main program exits
         # Optional: Log worker creation
         print(f"DEBUG: RackWorker [{self.rack}] instance CREATED.")
 
@@ -73,6 +76,36 @@ class RackWorker(threading.Thread):
                     
                     if status == "done":
                         log_func(f"RackWorker [{self.rack}]: Task {task.code} (command: '{str(task.code)}') successfully COMPLETED by Arduino. Status: {status}")
+                        # Get the task details from the product_logs table
+                        conn = sqlite3.connect(DB_NAME)
+                        cur = conn.cursor()
+                        try:
+                            # Get the most recent log entry for this rack and slot
+                            slot = abs(task.code)  # Convert command code back to slot number
+                            cur.execute("""
+                                SELECT product_code, product_name, movement_type, quantity, cargo_owner
+                                FROM product_logs
+                                WHERE rack = ? AND slot = ?
+                                ORDER BY timestamp DESC
+                                LIMIT 1
+                            """, (task.rack, slot))
+                            row = cur.fetchone()
+                            if row:
+                                product_code, product_name, movement_type, quantity, cargo_owner = row
+                                # Update inventory only when we get the done signal
+                                update_inventory_on_done(
+                                    task.rack,
+                                    slot,
+                                    movement_type,
+                                    product_code,
+                                    product_name,
+                                    quantity,
+                                    cargo_owner
+                                )
+                        except Exception as e:
+                            error_func(f"RackWorker [{self.rack}]: Error updating inventory: {e}")
+                        finally:
+                            conn.close()
                     elif status == "sent_echo_confirmed": 
                         log_func(f"RackWorker [{self.rack}]: Task {task.code} (command: '{str(task.code)}') sent and ECHO CONFIRMED by Arduino (wait_done=False). Status: {status}")
                     else:
