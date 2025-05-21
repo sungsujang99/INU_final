@@ -3,7 +3,8 @@ import queue, threading, time, logging, sqlite3
 from typing import Optional
 from .serial_io import serial_mgr, RESET_COMMAND_MAX_ECHO_ATTEMPTS
 from flask import current_app
-from .inventory import update_inventory_on_done
+from .inventory_updater import update_inventory_on_done
+from .db import DB_NAME
 
 io = None                           # SocketIO 인스턴스 홀더
 def set_socketio(sock):             # app.py 가 주입
