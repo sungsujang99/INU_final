@@ -197,25 +197,17 @@ def record_inventory_and_queue_tasks():
     else:
         return jsonify({"success": False, "message": message}), 500
 
-# ---- Task Queues ----
-@app.route("/api/task-queues")
+# ---- New Work Tasks Endpoint ----
+@app.route("/api/work-tasks")
 @token_required
-def get_task_queues_route():
-    waiting_tasks = task_queue.get_waiting_tasks()
-    queues_as_lists = {'A': [], 'B': [], 'C': []}
-    for t in waiting_tasks:
-        queues_as_lists[t['rack']].append(t['code'])
-    return jsonify(queues_as_lists)
-
-@app.route("/api/done-tasks")
-@token_required
-def get_done_tasks_route():
-    done_tasks = task_queue.get_done_tasks()
-    # Group by rack for frontend compatibility
-    done_by_rack = {'A': [], 'B': [], 'C': []}
-    for t in done_tasks:
-        done_by_rack[t['rack']].append(t['code'])
-    return jsonify(done_by_rack)
+def get_work_tasks_route():
+    status = request.args.get("status")
+    try:
+        tasks = task_queue.get_work_tasks_by_status(status)
+        return jsonify(tasks), 200
+    except Exception as e:
+        current_app.logger.error(f"Error fetching work tasks: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch work tasks", "message": str(e)}), 500
 
 @app.route("/api/upload-tasks", methods=["POST"])
 @token_required
