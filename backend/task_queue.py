@@ -175,10 +175,16 @@ def start_global_worker():
 def get_work_tasks_by_status(status=None):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
+    
+    base_query = "SELECT wt.*, btl.batch_id FROM work_tasks wt LEFT JOIN batch_task_links btl ON wt.id = btl.task_id"
+    
     if status:
-        cur.execute("SELECT * FROM work_tasks WHERE status=? ORDER BY created_at ASC", (status,))
+        query = f"{base_query} WHERE wt.status=? ORDER BY wt.created_at ASC"
+        cur.execute(query, (status,))
     else:
-        cur.execute("SELECT * FROM work_tasks ORDER BY created_at ASC")
+        query = f"{base_query} ORDER BY wt.created_at ASC"
+        cur.execute(query)
+        
     rows = cur.fetchall()
     columns = [desc[0] for desc in cur.description]
     conn.close()
