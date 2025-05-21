@@ -358,17 +358,16 @@
 }
 
 .work-status .frame-35 {
-  align-items: center;
+  align-items: stretch;
   align-self: stretch;
+  background-color: #00bb8014;
+  border-radius: 24px;
   display: flex;
   flex: 0 0 auto;
-  flex-direction: column;
   gap: 8px;
-  justify-content: center;
+  padding: 8px 16px;
   position: relative;
   width: 100%;
-  max-height: 250px;
-  overflow-y: auto;
 }
 
 .work-status .frame-35::-webkit-scrollbar {
@@ -651,13 +650,15 @@
   color: var(--variable-collection-main-01, #0177FB);
 }
 
-.task-bar {
+.work-status .task-bar {
   padding: 10px 15px;
   margin-bottom: 8px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .task-item-out {
@@ -690,4 +691,26 @@
 
 .task-bar .task-bar-text {
   margin: 0;
+}
+
+/* Add styles for .waiting-task-item */
+.work-status .waiting-task-item {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 15px; /* Match .task-bar or adjust as needed */
+  margin-bottom: 8px; /* Match .task-bar or adjust as needed */
+  border-radius: 10px; /* Match .task-bar or adjust as needed */
+  display: flex;
+  align-items: center;
+  gap: 10px; /* Match .task-bar or adjust as needed */
+  /* Background colors will be handled by .pending-task-item and .in-progress-task-item if defined */
+}
+
+/* Optional: Define specific appearances for pending and in-progress items if not already done */
+.work-status .pending-task-item {
+  background-color: #f0f0f0; /* Example: Light grey for pending */
+}
+
+.work-status .in-progress-task-item {
+  background-color: #fffbe6; /* Example: Light yellow for in-progress */
 }
