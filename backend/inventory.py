@@ -41,6 +41,12 @@ def add_records(records: list[dict], batch_id: str = None):
         cur = conn.cursor()
         logger.debug("add_records: Cursor created.")
 
+        # Track slots that will be emptied by OUT operations in this batch
+        slots_to_be_emptied = set()
+        for rec in records:
+            if rec["movement"].upper() == "OUT":
+                slots_to_be_emptied.add((rec["rack"].upper(), int(rec["slot"])))
+
         for i, rec in enumerate(records):
             logger.debug("add_records: Processing record %d: %s", i, rec)
             # ---------- 파싱 ----------
@@ -63,7 +69,8 @@ def add_records(records: list[dict], batch_id: str = None):
             logger.debug("add_records: Validation SELECT for record %d. Row: %s", i, row_for_validation)
 
             if mv == "IN":
-                if row_for_validation: # Slot is occupied by ANY product
+                # For IN operations, check if slot will be empty (either already empty or emptied by a previous OUT in this batch)
+                if row_for_validation and (rack, slot) not in slots_to_be_emptied:
                     error_msg = f"Slot {rack}-{slot} is already occupied by product '{row_for_validation[1]}' (quantity: {row_for_validation[2]}). Slot must be empty for 'IN' operation."
                     logger.error("add_records: Validation failed for record %d: %s", i, error_msg)
                     return False, error_msg
