@@ -339,7 +339,7 @@ class SerialManager:
             try:
                 result = self.send(
                     rack_id, 
-                    reset_cmd_code, 
+                    reset_cmd_code.encode().decode(),  # Convert to bytes and back to string to ensure proper encoding
                     wait_done=True, 
                     done_token=done_token_reset, 
                     custom_max_echo_attempts=RESET_COMMAND_MAX_ECHO_ATTEMPTS
