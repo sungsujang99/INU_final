@@ -31,12 +31,34 @@ class GlobalWorker(threading.Thread):
                 if t['rack'] == task.rack and t['code'] == task.code and t['state'] == 'queued':
                     t['state'] = 'in_progress'
                     break
-            # TODO: Add your Arduino communication logic here
-            # When done:
-            for t in TASK_STATE:
-                if t['rack'] == task.rack and t['code'] == task.code and t['state'] == 'in_progress':
-                    t['state'] = 'done'
-                    break
+
+            # --- Arduino communication logic (copied from old RackWorker) ---
+            status = "unknown"
+            try:
+                if not serial_mgr.enabled:
+                    status = "done (simulated_disabled)"
+                elif task.rack not in serial_mgr.ports:
+                    # Optionally: requeue or skip
+                    status = "port_not_found"
+                else:
+                    res = serial_mgr.send(
+                        task.rack,
+                        str(task.code),
+                        wait_done=task.wait,
+                        custom_max_echo_attempts=RESET_COMMAND_MAX_ECHO_ATTEMPTS
+                    )
+                    status = res["status"]
+            except Exception as e:
+                status = f"error:{str(e)[:100]}"
+
+            # --- Mark as done only if status is 'done' ---
+            if status == "done":
+                for t in TASK_STATE:
+                    if t['rack'] == task.rack and t['code'] == task.code and t['state'] == 'in_progress':
+                        t['state'] = 'done'
+                        break
+            # Optionally: emit socket events, update inventory, etc.
+
             self.q.task_done()
 
 def enqueue_task(rack, code, wait=True):
