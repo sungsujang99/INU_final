@@ -696,10 +696,6 @@
   margin: 0;
 }
 
-.work-status .task-item-inprogress {
-  background-color: #FFFFE0; /* Light yellow */
-}
-
 /* Optional: Define specific appearances for pending and in-progress items if not already done */
 .work-status .pending-task-item {
   background-color: #f0f0f0; /* Example: Light grey for pending */
