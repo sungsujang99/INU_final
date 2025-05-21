@@ -427,27 +427,14 @@ export const WorkStatus = () => {
   );
 
   useEffect(() => {
-    // SocketIO listeners
-    const handleTaskDone = (data) => {
-      if (data.status === "done") {
-        fetchWaitingTasks();
-        fetchInventoryData(); // Optionally update inventory and completed jobs as well
-        fetchCompletedJobs();
-      }
-    };
-    const handleQueueSize = (data) => {
-      if (data.status === "done") {
-        fetchWaitingTasks();
-      }
-    };
     const socket = io();
-    socket.on('task_done', handleTaskDone);
-    socket.on('queue_size', handleQueueSize);
-    return () => {
-      socket.off('task_done', handleTaskDone);
-      socket.off('queue_size', handleQueueSize);
-    };
-  }, [selectedRack]); // Refetch when rack selection changes
+    socket.on('task_done', (data) => {
+      // Should trigger a UI update
+      fetchWaitingTasks();
+      fetchCompletedJobs();
+    });
+    return () => socket.off('task_done');
+  }, []);
 
   return (
     <div className="work-status">
