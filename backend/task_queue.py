@@ -20,6 +20,7 @@ def enqueue_work_task(task, conn=None, cur=None):
         cur = conn.cursor()
         own_connection = True
 
+    new_task_id = None
     try:
         cur.execute("""
             INSERT INTO work_tasks
@@ -35,8 +36,14 @@ def enqueue_work_task(task, conn=None, cur=None):
             task.get('cargo_owner', ''),
             now, now
         ))
+        new_task_id = cur.lastrowid # Get the ID of the newly inserted task
         if own_connection:
             conn.commit()
+        
+        # Emit event after successful insertion
+        if io and new_task_id:
+            io.emit("task_status_changed", {"id": new_task_id, "status": "pending", "action": "created"})
+
     finally:
         if own_connection:
             conn.close()
