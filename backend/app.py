@@ -7,6 +7,8 @@ import secrets
 import uuid
 import io # Standard io module for StringIO
 import csv # Standard csv module
+import eventlet
+eventlet.monkey_patch()
 
 from .auth import authenticate, token_required
 from .db import DB_NAME, init_db
@@ -329,5 +331,5 @@ def after_request(response):
 # ───── run ─────
 if __name__ == "__main__":
     print("Starting Flask-SocketIO server with eventlet on port 5001...")
-    socketio.run(app, host="0.0.0.0", port=5001, debug=True, use_reloader=False)
+    socketio.run(app, host="0.0.0.0", port=5001, debug=False, use_reloader=False)
     # allow_unsafe_werkzeug=True might be needed for newer Werkzeug versions if use_reloader=False and debug=True 
