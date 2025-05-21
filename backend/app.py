@@ -68,7 +68,7 @@ else:
     app.logger.info("SERIAL_COMMUNICATION_DISABLED. Skipping reset of racks.")
 
 # Start rack workers (ensure this uses the task_queue module's function)
-task_queue.start_rack_workers()
+task_queue.start_global_worker()
 
 # ───── routes ─────
 @app.route("/api/ping")
@@ -201,9 +201,7 @@ def record_inventory_and_queue_tasks():
 @app.route("/api/task-queues")
 @token_required
 def get_task_queues_route():
-    # Return the list of waiting tasks (queued or in_progress)
     waiting_tasks = task_queue.get_waiting_tasks()
-    # Group by rack for frontend compatibility
     queues_as_lists = {'A': [], 'B': [], 'C': []}
     for t in waiting_tasks:
         queues_as_lists[t['rack']].append(t['code'])
