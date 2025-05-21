@@ -824,3 +824,84 @@
   top: 0;
   width: 10px;
 }
+
+/* Styles for the Dashboard Completed Tasks List */
+.dashboard-completed-tasks-list {
+  max-height: 150px; /* Adjust as needed, make it scrollable */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* Space between task items */
+  padding-right: 5px; /* Space for scrollbar */
+}
+
+.dashboard-completed-tasks-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dashboard-completed-tasks-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.dashboard-completed-tasks-list::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 10px;
+}
+
+.dashboard-completed-tasks-list::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+.dashboard-task-item {
+  padding: 10px 16px; /* Slightly less padding than WorkStatus for a denser list if needed */
+  border-radius: 20px; /* Slightly smaller border-radius */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 14px; /* Slightly smaller font for dashboard */
+}
+
+.dashboard-task-item .ic-4 {
+  flex-shrink: 0;
+  width: 20px; /* Adjust icon size if needed */
+  height: 20px;
+}
+
+.dashboard-task-text {
+  margin: 0;
+  flex-grow: 1;
+}
+
+.no-completed-tasks-dashboard {
+  padding: 10px 16px;
+  color: #888;
+  font-style: italic;
+}
+
+/* Re-using color styles from WorkStatus if available globally */
+/* If not, these would need to be defined or imported */
+.dashboard-task-item.task-item-in {
+  background-color: #E6F2FF; /* Light blue for IN */
+}
+.dashboard-task-item.task-item-out {
+  background-color: #E6F7F1; /* Light green for OUT */
+}
+.dashboard-task-item.task-item-error {
+  background-color: #FFF0F0; /* Light red for ERROR */
+}
+
+.dashboard-task-text.task-bar-movement-in {
+  color: #0177FB; 
+  font-weight: bold;
+}
+.dashboard-task-text.task-bar-movement-out {
+  color: #00BB80;
+  font-weight: bold;
+}
+.dashboard-task-text.task-bar-movement-error {
+  color: #FF4D4F;
+  font-weight: bold;
+}

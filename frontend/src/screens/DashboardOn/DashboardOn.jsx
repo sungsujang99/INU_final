@@ -13,7 +13,7 @@ import { RackAProgress } from '../../components/RackProgress/RackAProgress';
 import { RackBProgress } from '../../components/RackProgress/RackBProgress';
 import { RackCProgress } from '../../components/RackProgress/RackCProgress';
 import { TotalRackProgress } from '../../components/TotalRackProgress/TotalRackProgress';
-import { getInventory, pingBackend, getTaskQueues } from "../../lib/api"; // Assuming pingBackend and getTaskQueues will be added to api.jsx
+import { getInventory, pingBackend, getTaskQueues, getWorkTasksByStatus } from "../../lib/api"; // Assuming pingBackend and getTaskQueues will be added to api.jsx
 import io from 'socket.io-client';
 
 const socket = io('http://localhost:5001'); // Or your backend URL
@@ -34,7 +34,7 @@ export const DashboardOn = () => {
   const [workStatus, setWorkStatus] = useState({
     waiting: { incoming: 0, outgoing: 0 },
     inProgress: { incoming: 0, outgoing: 0 },
-    completed: { incoming: 0, outgoing: 0 }
+    completed: [] // Changed to an array to store task objects
   });
 
   const [deviceStatus, setDeviceStatus] = useState({
@@ -90,15 +90,26 @@ export const DashboardOn = () => {
         console.error("Dashboard - Failed to fetch task queues:", queueError);
       }
       console.log(`Dashboard - fetchData - Calculated waiting - Incoming: ${waitingIncoming}, Outgoing: ${waitingOutgoing}`);
+      
+      // Fetch all completed tasks
+      let allCompletedTasks = [];
+      try {
+        allCompletedTasks = await getWorkTasksByStatus("done");
+        console.log("Dashboard - fetchData - Fetched Completed Tasks:", allCompletedTasks);
+      } catch (completedError) {
+        console.error("Dashboard - Failed to fetch completed tasks:", completedError);
+      }
+
       setWorkStatus(prevStatus => ({
         ...prevStatus, 
         waiting: { incoming: waitingIncoming, outgoing: waitingOutgoing },
-        // Keep inProgress and completed as they are, assuming they are updated by SocketIO or other means
+        completed: allCompletedTasks // Update with the array of completed tasks
+        // Assuming inProgress is handled by another mechanism or not shown here directly
       }));
     } catch (error) {
       console.error("Dashboard - Failed to fetch dashboard data:", error);
     }
-  }, []); // Empty dependency array for useCallback as fetchData doesn't rely on component props/state directly
+  }, []); // Empty dependency array for useCallback
             // (it uses state setters which are stable)
 
   useEffect(() => {
@@ -121,28 +132,8 @@ export const DashboardOn = () => {
       console.log('Dashboard: Received task_done:', data);
       // Only update if we received a "done" status
       if (data.status === "done") {
-        setWorkStatus(prevStatus => {
-          console.log('handleTaskDone - prevStatus.completed:', prevStatus.completed);
-          let newCompletedIncoming = prevStatus.completed.incoming;
-          let newCompletedOutgoing = prevStatus.completed.outgoing;
-          const commandValue = parseInt(data.code, 10);
-
-          if (commandValue > 0) {
-            newCompletedIncoming++;
-          } else {
-            newCompletedOutgoing++;
-          }
-          console.log('handleTaskDone - Condition met, new completed:', { incoming: newCompletedIncoming, outgoing: newCompletedOutgoing });
-          
-          const nextState = {
-            ...prevStatus,
-            completed: { incoming: newCompletedIncoming, outgoing: newCompletedOutgoing }
-          };
-          console.log('handleTaskDone - next workStatus.completed state:', nextState.completed);
-          return nextState;
-        });
-        // Only fetch data after receiving done signal
-        fetchData();
+        // Fetch data to refresh the list of completed tasks and other relevant info
+        fetchData(); 
       } else {
         console.log('handleTaskDone - Ignoring non-done status:', data.status);
       }
@@ -175,6 +166,51 @@ export const DashboardOn = () => {
 
   const handleLogout = () => {
     navigate('/'); // Navigate back to login screen
+  };
+
+  // Helper function to render the list of all completed tasks for the dashboard
+  const renderDashboardCompletedTaskList = () => {
+    if (!workStatus.completed || workStatus.completed.length === 0) {
+      return <p className="no-completed-tasks-dashboard">완료된 작업이 없습니다.</p>;
+    }
+
+    return (
+      <div className="dashboard-completed-tasks-list">
+        {workStatus.completed.map((task) => {
+          let iconComponent;
+          let movementText = task.movement; // Default to task.movement
+          let itemClassName = "dashboard-task-item";
+          let textColorClass = "";
+
+          if (task.movement === 'IN') {
+            iconComponent = <Ic242Tone6 color="#0177FB" />; // Blue Box with arrow (like WorkStatus)
+            movementText = "입고";
+            itemClassName += " task-item-in";
+            textColorClass = "task-bar-movement-in";
+          } else if (task.movement === 'OUT') {
+            iconComponent = <Ic242Tone6 color="#00BB80" />; // Green Box with arrow (like WorkStatus)
+            movementText = "출고";
+            itemClassName += " task-item-out";
+            textColorClass = "task-bar-movement-out";
+          } else { // ERROR or other statuses
+            iconComponent = <Ic242Tone2 color="#FF0000" />; // Red warning icon
+            movementText = task.status === 'error' ? "오류" : movementText; // Display "오류" if status is error
+            itemClassName += " task-item-error";
+            textColorClass = "task-bar-movement-error";
+          }
+
+          return (
+            <div key={`dashboard-completed-${task.id}`} className={itemClassName}>
+              {React.cloneElement(iconComponent, { className: "ic-4" })} {/* Use ic-4 class for consistent icon size */}
+              <p className={`dashboard-task-text ${textColorClass}`}>
+                랙 {task.rack}{task.slot !== undefined && task.slot !== null ? task.slot : ''} {movementText}
+                {task.product_name && ` (${task.product_name})`}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -364,20 +400,8 @@ export const DashboardOn = () => {
             <div className="title-5">
               <div className="text-wrapper-20">완료 작업</div>
             </div>
-
-            <div className="frame-11">
-              <div className="frame-12">
-                <Ic242Tone2 className="icon-instance-node" color="#39424A" />
-                <div className="text-wrapper-21">입고</div>
-                <div className="text-wrapper-22">{workStatus.completed.incoming}건</div>
-              </div>
-
-              <div className="frame-12">
-                <Ic242Tone6 className="icon-instance-node" color="#39424A" />
-                <div className="text-wrapper-21">출고</div>
-                <div className="text-wrapper-22">{workStatus.completed.outgoing}건</div>
-              </div>
-            </div>
+            {/* Replace old frame-11 (counts) with the new task list renderer */}
+            {renderDashboardCompletedTaskList()}
           </div>
         </div>
 
