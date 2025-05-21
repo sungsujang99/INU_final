@@ -116,8 +116,8 @@ class GlobalWorker(threading.Thread):
                     )
                     status = res["status"]
             except Exception as e:
-                status = f"error:{str(e)[:100]}"
-
+                status = f"error:{str(e)[:100]}" 
+            
             if status == "done":
                 # Update inventory
                 success = update_inventory_on_done(

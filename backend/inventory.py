@@ -96,7 +96,7 @@ def add_records(records: list[dict], batch_id: str = None):
                     error_msg = f"Product mismatch in slot {rack}-{slot}. Slot contains '{current_product}', but tried to 'OUT' '{pc}'."
                     logger.error("add_records: Validation failed for record %d: %s", i, error_msg)
                     return False, error_msg
-
+            
         # If we get here, all operations are valid. Now process them.
         for i, rec in enumerate(records):
             logger.debug("add_records: Processing record %d: %s", i, rec)

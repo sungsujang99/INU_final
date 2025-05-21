@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Frame } from "../../components/Frame";
 import { Menu } from "../../components/Menu";
 import { Ic162Thone1 } from "../../icons/Ic162Thone1";
@@ -207,7 +207,7 @@ export const WorkStatus = () => {
         .filter(log => log.rack === selectedRack)
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .slice(0, 5);
-      const simplifiedJobs = rackLogs.map(log => ({
+      const simplifiedJobs = rackLogs.map(log => ({ 
         id: log.id,
         rack: log.rack,
         slot: log.slot,
@@ -242,38 +242,14 @@ export const WorkStatus = () => {
     setDoneTasks(tasks.filter(t => t.rack === selectedRack));
   };
 
-  // New combined data fetching function wrapped in useCallback
-  const fetchAllWorkStatusData = useCallback(async () => {
-    console.log(`WorkStatus: Polling all data for rack ${selectedRack}`);
-    try {
-      await Promise.all([
-        fetchInventoryData(),
-        fetchPendingTasks(),
-        fetchInProgressTasks(),
-        fetchDoneTasks(),
-        fetchCompletedJobs(),
-        fetchWaitingTasks()
-      ]);
-    } catch (error) {
-      console.error("WorkStatus - Error during polling fetchAllWorkStatusData:", error);
-    }
-  }, [selectedRack]); // Dependencies: selectedRack. Individual fetch functions are stable due to useCallback or no dependencies.
-
-  // useEffect for fetching all data on mount, selectedRack change, and via polling
+  // Fetch all on mount and when rack changes
   useEffect(() => {
-    console.log(`WorkStatus: useEffect triggered for selectedRack: ${selectedRack}. Setting up polling.`);
-    // Initial fetch
-    fetchAllWorkStatusData();
-
-    // Set up the interval for polling
-    const intervalId = setInterval(fetchAllWorkStatusData, 1000); // 1-second polling
-
-    // Cleanup interval on component unmount or when selectedRack/fetchAllWorkStatusData changes
-    return () => {
-      console.log(`WorkStatus: Clearing interval for rack ${selectedRack}`);
-      clearInterval(intervalId);
-    };
-  }, [selectedRack, fetchAllWorkStatusData]); // Dependencies
+    fetchInventoryData();
+    fetchPendingTasks();
+    fetchInProgressTasks();
+    fetchDoneTasks();
+    // ...fetch inventory if needed...
+  }, [selectedRack]);
 
   // Listen for real-time updates
   useEffect(() => {
@@ -369,18 +345,18 @@ export const WorkStatus = () => {
     };
 
     return (
-      <div className="frame-34"> 
-        <div className="text-wrapper-56">{selectedRack}랙 작업 현황</div>
-        <div className="frame-35"> 
+    <div className="frame-34"> 
+      <div className="text-wrapper-56">{selectedRack}랙 작업 현황</div>
+      <div className="frame-35"> 
           {doneTasks.length === 0 && (
-            <p className="no-current-tasks">완료된 작업이 없습니다.</p>
-          )}
+          <p className="no-current-tasks">완료된 작업이 없습니다.</p>
+        )}
           {doneTasks.map((task) => {
             const { iconComponent, itemClassName, movementText, movementClassName } = getTaskDisplayProps(task);
             return (
               <div key={task.id} className={itemClassName}> 
                 {iconComponent}
-                <p className="task-bar-text">
+              <p className="task-bar-text">
                   랙 {task.rack}{task.slot !== undefined && task.slot !== null ? task.slot : ''} <span className={movementClassName}>{movementText}</span>
                 </p>
               </div>
@@ -486,20 +462,123 @@ export const WorkStatus = () => {
       {/* Rack C Button - renders normally */}
       <button
         className={`frame-22 rack-button ${selectedRack === 'C' ? 'selected' : ''}`}
+        onClick={() => handleRackSelection('C')}
       >
         <div className="text-wrapper-51">랙 C</div>
       </button>
     </div>
   );
 
+  // Update the progress bar render
+  const renderProgressBar = () => (
+    <div className="frame-33">
+      <div className="group-21">
+        <div className="text-wrapper-54">전체 작업률</div>
+        <div className="text-wrapper-55">{workProgress}%</div>
+      </div>
+
+      <div className="rectangle-wrapper">
+        <div 
+          className="rectangle-7" 
+          style={{ 
+            width: `${workProgress}%`,
+            transition: 'width 0.5s ease-in-out'
+          }}
+        />
+      </div>
+    </div>
+  );
+
   return (
-    <div className="work-status-container">
-      {renderLeftMenu()}
-      <div className="work-status-content">
-        {renderRackSelectionButtons()}
-        {renderRackGrid()}
-        {renderCurrentWorkStatus()}
-        {renderWaitingWorkStatus()}
+    <div className="work-status">
+      <div className="div-7">
+        {/* Ensure this container has relative positioning */}
+        <div className="container-3" style={{ position: 'relative' }}>
+          {/* Work Status Title */}
+          <div className="text-wrapper-49">Work Status</div>
+
+          {/* Icons positioned absolutely relative to container-3 */}
+          <div style={{
+            position: 'absolute',
+            // --- VERTICAL POSITIONING ---
+            // **ACTION NEEDED:** Inspect the "Work Status" title (text-wrapper-49)
+            // in your browser's dev tools. Find its exact 'top' position relative to
+            // 'container-3' and its height or line-height.
+            // Adjust this 'top' value until the icons align vertically with the title.
+            // Example: If title starts 20px down, set top close to 20px.
+            top: '25px', // <--- FINE-TUNE THIS VALUE based on inspection
+
+            // --- HORIZONTAL POSITIONING ---
+            // **ACTION NEEDED:** Inspect the position/width of the Rack C button
+            // (frame-22). Adjust 'right' until the icons are horizontally centered above it.
+            right: '60px', // <--- FINE-TUNE THIS VALUE based on inspection
+
+            display: 'flex',
+            gap: '6px', // Adjusted gap for new size
+            zIndex: 1, // Ensure icons are on top
+            alignItems: 'center' // Vertically align icons with each other
+          }}>
+            {/* Hidden File Input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              style={{ display: 'none' }} // Keep it hidden
+              accept=".csv" // Only accept .csv files
+            />
+
+            {/* Add Document Button - Now triggers the hidden input */}
+            <button
+              onClick={handleAddDocumentClick} // Use the new click handler
+              style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer', lineHeight: 0 }}
+              title="Import CSV" // Updated tooltip
+            >
+              <img src={addDocumentUrl} alt="Import CSV" style={{ width: '34px', height: '34px', display: 'block' }} />
+            </button>
+
+            {/* Inbox In Button */}
+            <button
+              onClick={handleInboxIn}
+              style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer', lineHeight: 0 }}
+              title="Inbox In"
+            >
+              <img src={inboxInUrl} alt="Inbox In" style={{ width: '34px', height: '34px', display: 'block' }} />
+            </button>
+          </div>
+
+          {/* Rest of the content */}
+          <div className="frame-18">
+            {renderRackSelectionButtons()} {/* Render buttons without icons */}
+             <div className="group-20">
+              <div className="frame-23">
+                {renderRackGrid()}
+              </div>
+            </div>
+            {renderProgressBar()}
+          </div>
+
+          {renderCurrentWorkStatus()}
+          {renderWaitingWorkStatus()}
+        </div>
+
+        <div className="text-7">User #1</div>
+        <img className="line-3" alt="Line" src="/img/line-1.svg" />
+        <div className="logo-6">
+          <img
+            className="INU-logistics-6"
+            alt="Inu logistics"
+            src="/img/inu-logistics-5.png"
+          />
+          <div className="group-22">
+            <div className="ellipse-22" />
+            <div className="ellipse-23" />
+            <div className="ellipse-24" />
+          </div>
+        </div>
+
+        <div className="line-4" />
+        <img className="user-profile-3" alt="User profile" src="/img/user-profile.png" />
+        {renderLeftMenu()}
       </div>
     </div>
   );

@@ -144,7 +144,7 @@ export const DashboardOn = () => {
       fetchData();
     }
 
-    const interval = setInterval(fetchData, 1000); 
+    const interval = setInterval(fetchData, 30000); 
     return () => clearInterval(interval);
   }, [fetchData]); // fetchData is now a stable dependency from useCallback
 
@@ -156,16 +156,16 @@ export const DashboardOn = () => {
       if (data.status === "done") {
         // Fetch data to refresh the list of completed tasks and other relevant info
         fetchData(); 
-      } else {
+          } else {
         console.log('handleTaskDone - Ignoring non-done status:', data.status);
-      }
+        }
     };
 
     const handleQueueSize = (data) => {
       console.log('Dashboard: Received queue_size:', data);
       // Only update queue size if we received a done signal
       if (data.status === "done") {
-        fetchData();
+      fetchData(); 
       }
     };
 
