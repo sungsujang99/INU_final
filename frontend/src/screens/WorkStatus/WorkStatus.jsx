@@ -132,7 +132,8 @@ export const WorkStatus = () => {
 
             // Common actions after try block (success or partial success)
             localStorage.setItem('dashboard_needs_refresh', 'true');
-            fetchAllDataForRack(); // Refresh data
+            fetchInventoryData();
+            fetchCompletedJobs();
 
           } catch (error) {
             // This catch block handles errors thrown by uploadTasksBatch
@@ -182,42 +183,27 @@ export const WorkStatus = () => {
     fetchWorkProgress();
   }, [selectedRack]); // Refetch when rack selection changes
 
-  // useEffect for inventory data, task queues, and completed jobs
-  const fetchAllDataForRack = async () => {
-    // Fetch Inventory Data
+  // Split fetch functions
+  const fetchInventoryData = async () => {
     try {
       const invData = await getInventory(selectedRack);
-      console.log(`WorkStatus - DEBUG - Fetched Inventory Data for Rack ${selectedRack}:`, invData);
       const slotMap = {};
       invData.forEach(item => {
         slotMap[item.slot] = item;
       });
       setInventoryData(slotMap);
     } catch (error) {
-      console.error('Failed to fetch inventory data for WorkStatus:', error);
-      setInventoryData({}); // Clear or set to error state
+      setInventoryData({});
     }
+  };
 
-    // Fetch Task Queues
+  const fetchCompletedJobs = async () => {
     try {
-      const queueData = await getTaskQueues(); 
-      console.log("WorkStatus - DEBUG - Fetched Queue Data after CSV upload (or on rack change):", queueData);
-      setWaitingTasks(queueData); 
-    } catch (error) {
-      console.error('Failed to fetch task queues for WorkStatus:', error);
-      setWaitingTasks({}); // Clear or set to error state
-    }
-
-    // Fetch Completed Jobs (Activity Logs) for the selected rack
-    try {
-      // Assuming getActivityLogs can take a rack parameter or we filter client-side
-      // For now, let's fetch all and filter. Ideally, backend supports filtering.
-      const allLogs = await getActivityLogs({ limit: 100, order: 'desc' }); // Fetch recent logs
+      const allLogs = await getActivityLogs({ limit: 100, order: 'desc' });
       const rackLogs = allLogs
         .filter(log => log.rack === selectedRack)
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 5); // Show only the 5 most recent jobs
-
+        .slice(0, 5);
       const simplifiedJobs = rackLogs.map(log => ({
         id: log.id,
         rack: log.rack,
@@ -225,16 +211,25 @@ export const WorkStatus = () => {
         movement_type: log.movement_type,
       }));
       setCompletedJobsForSelectedRack(simplifiedJobs);
-      console.log(`WorkStatus - DEBUG - Fetched and filtered completed jobs for Rack ${selectedRack}:`, simplifiedJobs);
     } catch (error) {
-      console.error('Failed to fetch activity logs for WorkStatus:', error);
       setCompletedJobsForSelectedRack([]);
     }
   };
 
+  const fetchWaitingTasks = async () => {
+    try {
+      const queueData = await getTaskQueues();
+      setWaitingTasks(queueData);
+    } catch (error) {
+      setWaitingTasks({});
+    }
+  };
+
+  // Refetch inventory and completed jobs on rack change
   useEffect(() => {
-    fetchAllDataForRack();
-  }, [selectedRack]); // Refetch when rack selection changes
+    fetchInventoryData();
+    fetchCompletedJobs();
+  }, [selectedRack]);
 
   // Update renderRackGrid to show product info
   const renderRackGrid = () => {
@@ -434,27 +429,20 @@ export const WorkStatus = () => {
   useEffect(() => {
     // SocketIO listeners
     const handleTaskDone = (data) => {
-      console.log('WorkStatus: Received task_done:', data);
-      // Only update if we received a "done" status
       if (data.status === "done") {
-        fetchAllDataForRack();
-      } else {
-        console.log('WorkStatus: Ignoring non-done status:', data.status);
+        fetchWaitingTasks();
+        fetchInventoryData(); // Optionally update inventory and completed jobs as well
+        fetchCompletedJobs();
       }
     };
-
     const handleQueueSize = (data) => {
-      console.log('WorkStatus: Received queue_size:', data);
-      // Only update queue size if we received a done signal
       if (data.status === "done") {
-        fetchAllDataForRack();
+        fetchWaitingTasks();
       }
     };
-
     const socket = io();
     socket.on('task_done', handleTaskDone);
     socket.on('queue_size', handleQueueSize);
-
     return () => {
       socket.off('task_done', handleTaskDone);
       socket.off('queue_size', handleQueueSize);
