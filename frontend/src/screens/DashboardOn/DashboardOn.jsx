@@ -119,41 +119,41 @@ export const DashboardOn = () => {
     // SocketIO listeners
     const handleTaskDone = (data) => {
       console.log('Dashboard: Received task_done:', data);
-      setWorkStatus(prevStatus => {
-        console.log('handleTaskDone - prevStatus.completed:', prevStatus.completed);
-        let newCompletedIncoming = prevStatus.completed.incoming;
-        let newCompletedOutgoing = prevStatus.completed.outgoing;
-        const commandValue = parseInt(data.code, 10);
+      // Only update if we received a "done" status
+      if (data.status === "done") {
+        setWorkStatus(prevStatus => {
+          console.log('handleTaskDone - prevStatus.completed:', prevStatus.completed);
+          let newCompletedIncoming = prevStatus.completed.incoming;
+          let newCompletedOutgoing = prevStatus.completed.outgoing;
+          const commandValue = parseInt(data.code, 10);
 
-        if (data.status.startsWith("done")) {
           if (commandValue > 0) {
             newCompletedIncoming++;
           } else {
             newCompletedOutgoing++;
           }
           console.log('handleTaskDone - Condition met, new completed:', { incoming: newCompletedIncoming, outgoing: newCompletedOutgoing });
-        } else {
-          console.log('handleTaskDone - Condition NOT met. data.status:', data.status);
-        }
-        
-        // Call fetchData separately if needed, after the state update
-        // fetchData(); 
-        
-        const nextState = {
-          ...prevStatus,
-          completed: { incoming: newCompletedIncoming, outgoing: newCompletedOutgoing }
-        };
-        console.log('handleTaskDone - next workStatus.completed state:', nextState.completed);
-        return nextState;
-      });
-      // Call fetchData here if you want it to run after setWorkStatus has been queued
-      fetchData(); 
+          
+          const nextState = {
+            ...prevStatus,
+            completed: { incoming: newCompletedIncoming, outgoing: newCompletedOutgoing }
+          };
+          console.log('handleTaskDone - next workStatus.completed state:', nextState.completed);
+          return nextState;
+        });
+        // Only fetch data after receiving done signal
+        fetchData();
+      } else {
+        console.log('handleTaskDone - Ignoring non-done status:', data.status);
+      }
     };
 
     const handleQueueSize = (data) => {
       console.log('Dashboard: Received queue_size:', data);
-      // When queue size changes, the most reliable way to update waiting counts is to re-fetch.
-      fetchData(); 
+      // Only update queue size if we received a done signal
+      if (data.status === "done") {
+        fetchData();
+      }
     };
 
     socket.on('task_done', handleTaskDone);

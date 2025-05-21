@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import addDocumentUrl from '../../icons/add-document.svg'; // Default import gives URL
 import inboxInUrl from '../../icons/inbox-in.svg';       // Default import gives URL
 import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs } from "../../lib/api";
+import io from 'socket.io-client';
 
 export const WorkStatus = () => {
   const navigate = useNavigate();
@@ -429,6 +430,36 @@ export const WorkStatus = () => {
       </div>
     </div>
   );
+
+  useEffect(() => {
+    // SocketIO listeners
+    const handleTaskDone = (data) => {
+      console.log('WorkStatus: Received task_done:', data);
+      // Only update if we received a "done" status
+      if (data.status === "done") {
+        fetchAllDataForRack();
+      } else {
+        console.log('WorkStatus: Ignoring non-done status:', data.status);
+      }
+    };
+
+    const handleQueueSize = (data) => {
+      console.log('WorkStatus: Received queue_size:', data);
+      // Only update queue size if we received a done signal
+      if (data.status === "done") {
+        fetchAllDataForRack();
+      }
+    };
+
+    const socket = io();
+    socket.on('task_done', handleTaskDone);
+    socket.on('queue_size', handleQueueSize);
+
+    return () => {
+      socket.off('task_done', handleTaskDone);
+      socket.off('queue_size', handleQueueSize);
+    };
+  }, [selectedRack]); // Refetch when rack selection changes
 
   return (
     <div className="work-status">
