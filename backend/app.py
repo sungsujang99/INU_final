@@ -201,14 +201,23 @@ def record_inventory_and_queue_tasks():
 @app.route("/api/task-queues")
 @token_required
 def get_task_queues_route():
-    queues_as_lists = {}
-    for rack, q_object in task_queue.RACK_TASK_QUEUES.items():
-        with q_object.mutex: # Keep mutex for consistent snapshot of the queue
-            # Convert Task objects to their 'code' attribute for JSON serialization
-            # as the frontend expects a list of these codes.
-            task_codes_for_json = [task.code for task in list(q_object.queue) if isinstance(task, task_queue.Task)]
-        queues_as_lists[rack] = task_codes_for_json
+    # Return the list of waiting tasks (queued or in_progress)
+    waiting_tasks = task_queue.get_waiting_tasks()
+    # Group by rack for frontend compatibility
+    queues_as_lists = {'A': [], 'B': [], 'C': []}
+    for t in waiting_tasks:
+        queues_as_lists[t['rack']].append(t['code'])
     return jsonify(queues_as_lists)
+
+@app.route("/api/done-tasks")
+@token_required
+def get_done_tasks_route():
+    done_tasks = task_queue.get_done_tasks()
+    # Group by rack for frontend compatibility
+    done_by_rack = {'A': [], 'B': [], 'C': []}
+    for t in done_tasks:
+        done_by_rack[t['rack']].append(t['code'])
+    return jsonify(done_by_rack)
 
 @app.route("/api/upload-tasks", methods=["POST"])
 @token_required
