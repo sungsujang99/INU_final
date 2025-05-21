@@ -213,16 +213,16 @@ export const WorkStatus = () => {
       // Assuming getActivityLogs can take a rack parameter or we filter client-side
       // For now, let's fetch all and filter. Ideally, backend supports filtering.
       const allLogs = await getActivityLogs({ limit: 100, order: 'desc' }); // Fetch recent logs
-      const rackLogs = allLogs.filter(log => log.rack === selectedRack);
-      // Store only what's needed for rendering the bars
-      const simplifiedJobs = rackLogs.map(log => ({ 
+      const rackLogs = allLogs
+        .filter(log => log.rack === selectedRack)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 5); // Show only the 5 most recent jobs
+
+      const simplifiedJobs = rackLogs.map(log => ({
         id: log.id,
-        rack: log.rack, // Keep rack info
-        slot: log.slot, // Keep slot info
+        rack: log.rack,
+        slot: log.slot,
         movement_type: log.movement_type,
-        // We might need a way to flag errors. For now, product_logs don't have an error status.
-        // Let's assume for now that all product_logs are successful operations.
-        // Error display might come from a different source or a future modification.
       }));
       setCompletedJobsForSelectedRack(simplifiedJobs);
       console.log(`WorkStatus - DEBUG - Fetched and filtered completed jobs for Rack ${selectedRack}:`, simplifiedJobs);

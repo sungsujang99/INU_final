@@ -41,62 +41,73 @@ def add_records(records: list[dict], batch_id: str = None):
         cur = conn.cursor()
         logger.debug("add_records: Cursor created.")
 
-        # Track slots that will be emptied by OUT operations in this batch
-        slots_to_be_emptied = set()
-        # Track slots that will be filled by IN operations in this batch
-        slots_to_be_filled = set()
-        
-        # First pass: collect all OUT and IN operations
-        for rec in records:
+        # First pass: collect all operations and validate
+        slots_to_be_emptied = set()  # Slots that will be emptied by OUT operations
+        slots_to_be_filled = set()   # Slots that will be filled by IN operations
+        current_inventory = {}       # Track current inventory state
+
+        # Get current inventory state
+        cur.execute("SELECT rack, slot, product_code, total_quantity FROM current_inventory")
+        for row in cur.fetchall():
+            rack, slot, product_code, quantity = row
+            current_inventory[(rack, slot)] = (product_code, quantity)
+
+        # Validate all operations first
+        for i, rec in enumerate(records):
+            pc = rec["product_code"]
             rack = rec["rack"].upper()
             slot = int(rec["slot"])
-            if rec["movement"].upper() == "OUT":
-                slots_to_be_emptied.add((rack, slot))
-            elif rec["movement"].upper() == "IN":
+            mv = rec["movement"].upper()
+            qty = int(rec["quantity"])
+
+            # Check for multiple IN operations to same slot
+            if mv == "IN":
                 if (rack, slot) in slots_to_be_filled:
                     error_msg = f"Multiple IN operations to slot {rack}-{slot} in the same batch are not allowed."
                     logger.error("add_records: Validation failed: %s", error_msg)
                     return False, error_msg
                 slots_to_be_filled.add((rack, slot))
+            elif mv == "OUT":
+                slots_to_be_emptied.add((rack, slot))
 
+        # Second pass: validate each operation against current state and planned operations
+        for i, rec in enumerate(records):
+            pc = rec["product_code"]
+            rack = rec["rack"].upper()
+            slot = int(rec["slot"])
+            mv = rec["movement"].upper()
+            qty = int(rec["quantity"])
+
+            if mv == "IN":
+                # For IN operations, check if slot will be empty
+                if (rack, slot) in current_inventory and (rack, slot) not in slots_to_be_emptied:
+                    current_product, current_qty = current_inventory[(rack, slot)]
+                    error_msg = f"Slot {rack}-{slot} is already occupied by product '{current_product}' (quantity: {current_qty}). Slot must be empty for 'IN' operation."
+                    logger.error("add_records: Validation failed for record %d: %s", i, error_msg)
+                    return False, error_msg
+            elif mv == "OUT":
+                # For OUT operations, check if slot has the correct product
+                if (rack, slot) not in current_inventory:
+                    error_msg = f"Cannot 'OUT' from empty slot {rack}-{slot} (no record in current_inventory)."
+                    logger.error("add_records: Validation failed for record %d: %s", i, error_msg)
+                    return False, error_msg
+                current_product, current_qty = current_inventory[(rack, slot)]
+                if current_product != pc:
+                    error_msg = f"Product mismatch in slot {rack}-{slot}. Slot contains '{current_product}', but tried to 'OUT' '{pc}'."
+                    logger.error("add_records: Validation failed for record %d: %s", i, error_msg)
+                    return False, error_msg
+
+        # If we get here, all operations are valid. Now process them.
         for i, rec in enumerate(records):
             logger.debug("add_records: Processing record %d: %s", i, rec)
             # ---------- 파싱 ----------
             pc, name = rec["product_code"], rec["product_name"]
             rack = rec["rack"].upper()
             slot = int(rec["slot"])
-            mv = rec["movement"].upper()         # 'IN' / 'OUT'
+            mv = rec["movement"].upper()
             qty = int(rec["quantity"])
             owner = rec.get("cargo_owner", "")
             logger.debug("add_records: Parsed record %d: pc=%s, rack=%s, slot=%d, mv=%s, qty=%d", i, pc, rack, slot, mv, qty)
-
-            # ---------- Pre-operation Validation ----------
-            logger.debug("add_records: Selecting from current_inventory for validation %d (rack=%s, slot=%s)...", i, rack, slot)
-            cur.execute("""
-                SELECT id, product_code, total_quantity
-                  FROM current_inventory
-                 WHERE rack=? AND slot=?
-            """, (rack, slot))
-            row_for_validation = cur.fetchone()
-            logger.debug("add_records: Validation SELECT for record %d. Row: %s", i, row_for_validation)
-
-            if mv == "IN":
-                # For IN operations, check if slot will be empty (either already empty or emptied by a previous OUT in this batch)
-                if row_for_validation and (rack, slot) not in slots_to_be_emptied:
-                    error_msg = f"Slot {rack}-{slot} is already occupied by product '{row_for_validation[1]}' (quantity: {row_for_validation[2]}). Slot must be empty for 'IN' operation."
-                    logger.error("add_records: Validation failed for record %d: %s", i, error_msg)
-                    return False, error_msg
-            elif mv == "OUT":
-                if not row_for_validation: # Slot is empty
-                    error_msg = f"Cannot 'OUT' from empty slot {rack}-{slot} (no record in current_inventory)."
-                    logger.error("add_records: Validation failed for record %d: %s", i, error_msg)
-                    return False, error_msg
-                if row_for_validation[1] != pc: # Product mismatch
-                    error_msg = f"Product mismatch in slot {rack}-{slot}. Slot contains '{row_for_validation[1]}', but tried to 'OUT' '{pc}'."
-                    logger.error("add_records: Validation failed for record %d: %s", i, error_msg)
-                    return False, error_msg
-            
-            logger.debug("add_records: Pre-operation validation passed for record %d.", i)
 
             # ---------- product_logs INSERT ----------
             logger.debug("add_records: Inserting into product_logs for record %d...", i)
