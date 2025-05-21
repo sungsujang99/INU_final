@@ -36,13 +36,20 @@ def enqueue_work_task(task, conn=None, cur=None):
             task.get('cargo_owner', ''),
             now, now
         ))
-        new_task_id = cur.lastrowid # Get the ID of the newly inserted task
+        new_task_id = cur.lastrowid
         if own_connection:
             conn.commit()
         
-        # Emit event after successful insertion
+        # --- DEBUG LOGGING --- 
+        logger = current_app.logger if current_app else logging.getLogger(__name__)
+        logger.info(f"[enqueue_work_task] Attempting to emit. io object: {io}, new_task_id: {new_task_id}")
+        # --- END DEBUG LOGGING ---
+
         if io and new_task_id:
             io.emit("task_status_changed", {"id": new_task_id, "status": "pending", "action": "created"})
+            # --- DEBUG LOGGING --- 
+            logger.info(f"[enqueue_work_task] Emitted task_status_changed for new task ID: {new_task_id}")
+            # --- END DEBUG LOGGING ---
 
     finally:
         if own_connection:
