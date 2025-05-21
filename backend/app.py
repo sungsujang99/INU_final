@@ -1,54 +1,5 @@
-# # backend/app.py
-
-# # CRITICAL: eventlet.monkey_patch() must be the very first thing.
-# import eventlet
-# eventlet.monkey_patch()
-
-# print("DEBUG: Monkey patch called.")
-
-# from flask import Flask
-# from flask_socketio import SocketIO
-# import logging # For basic logging
-
-# # Configure basic logging to see Flask-SocketIO messages
-# logging.basicConfig(level=logging.DEBUG)
-
-# print("DEBUG: Flask and Flask-SocketIO imported.")
-
-# app = Flask(__name__)
-# app.config['SECRET_KEY'] = 'temporary_secret_for_debugging!' # Use a simple secret
-
-# # Explicitly set async_mode, though it should be auto-detected with monkey_patch
-# socketio = SocketIO(app, async_mode='eventlet', logger=True, engineio_logger=True)
-
-# print("DEBUG: Flask app and SocketIO instance created.")
-
-# @app.route('/')
-# def index():
-#     return "Minimal Flask App with Socket.IO is Running!"
-
-# @socketio.on('connect')
-# def handle_connect():
-#     print('DEBUG: Client connected to Socket.IO')
-
-# @socketio.on('disconnect')
-# def handle_disconnect():
-#     print('DEBUG: Client disconnected from Socket.IO')
-
-# # Basic test event
-# @socketio.on('test_event')
-# def handle_my_custom_event(json):
-#     print('DEBUG: received json: ' + str(json))
-#     socketio.emit('response_event', {'data': 'Server response to test_event'})
-
-# if __name__ == '__main__':
-#     print("DEBUG: Starting Flask-SocketIO server with Eventlet...")
-#     print(f"DEBUG: SocketIO server instance should be Eventlet: {socketio.server}")
-#     try:
-#         socketio.run(app, host="0.0.0.0", port=5001, debug=True, use_reloader=False)
-#     except Exception as e:
-#         print(f"ERROR starting server: {e}") 
-
+import eventlet
+eventlet.monkey_patch()
 
 # app.py
 from flask import Flask, request, jsonify, Response, current_app
@@ -59,8 +10,6 @@ import secrets
 import uuid
 import io # Standard io module for StringIO
 import csv # Standard csv module
-import eventlet
-eventlet.monkey_patch()
 
 from .auth import authenticate, token_required
 from .db import DB_NAME, init_db
@@ -87,7 +36,7 @@ app.config['SERIAL_COMMUNICATION_ENABLED'] = SERIAL_COMMUNICATION_ENABLED
 # Make sure to replace 192.168.0.16 with your Mac's actual current IP if it changes,
 # or use a more dynamic solution for production on Pi later.
 allowed_origins_list = ["http://localhost:5173", "http://192.168.0.18:5173", "http://192.168.0.16:8080"]
-socketio = SocketIO(app, cors_allowed_origins=allowed_origins_list, async_mode='eventlet')
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins=allowed_origins_list, logger=True, engineio_logger=True)
 
 # Configure basic logging
 logging.basicConfig(level=logging.DEBUG)
