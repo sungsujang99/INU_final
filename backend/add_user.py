@@ -1,6 +1,6 @@
 import sqlite3
 from passlib.hash import bcrypt as bcrypt_hasher # Use the same as in auth.py
-from db import DB_NAME # Assuming db.py is in the same directory
+from .db import DB_NAME # Use relative import
 
 def add_user_to_db(username, password, role=None):
     conn = sqlite3.connect(DB_NAME)
@@ -41,7 +41,7 @@ if __name__ == "__main__":
         # Make sure the database and tables are initialized first
         # You might need to run your main app once to trigger init_db()
         # or call init_db() here if it's safe to do so.
-        # from db import init_db
-        # init_db() # Uncomment if you want this script to also ensure DB is initialized
+        from .db import init_db
+        init_db() # Initialize the database first
         
         add_user_to_db(new_username, new_password, user_role) 
