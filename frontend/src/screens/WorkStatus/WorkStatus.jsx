@@ -325,12 +325,12 @@ export const WorkStatus = () => {
       let movementClassName = "";
 
       if (task.movement && task.movement.toUpperCase() === 'IN') {
-        iconComponent = <Property1Variant5 className="ic-4 task-bar-icon" color="#0177FB" />; // Blue box with inward arrows for IN
+        iconComponent = <Ic242Tone6 className="ic-4 task-bar-icon" color="#0177FB" />; // Use Ic242Tone6 (OUT icon shape) but colored Blue for IN
         itemClassName = "task-bar task-item-in";
         movementText = "입고"; // Korean for IN
         movementClassName = "task-bar-movement-in";
       } else if (task.movement && task.movement.toUpperCase() === 'OUT') {
-        iconComponent = <Ic242Tone6 className="ic-4 task-bar-icon" color="#00BB80" />; // Green box with outward arrows for OUT
+        iconComponent = <Ic242Tone6 className="ic-4 task-bar-icon" color="#00BB80" />; // Green Ic242Tone6 (OUT icon shape) for OUT
         itemClassName = "task-bar task-item-out";
         movementText = "출고"; // Korean for OUT
         movementClassName = "task-bar-movement-out";
