@@ -356,7 +356,7 @@ export const WorkStatus = () => {
               <div key={task.id} className={itemClassName}> 
                 {iconComponent}
                 <p className="task-bar-text">
-                  랙 {task.rack}{task.slot} <span className={movementClassName}>{movementText}</span>
+                  랙 {task.rack}{task.slot !== undefined && task.slot !== null ? task.slot : ''} <span className={movementClassName}>{movementText}</span>
                 </p>
               </div>
             );
@@ -386,7 +386,7 @@ export const WorkStatus = () => {
                 <div key={`inprogress-${task.id}`} className={`waiting-task-item ${backgroundClass}`}>
                   <Ic242Tone6 className="ic-4" color={iconColor} />
                   <p className={`task-bar-text ${textColorClass}`}>
-                    랙 {task.rack}{task.slot !== undefined && task.slot !== null ? String.fromCharCode(65 + task.slot -1) : ''} {movementText}
+                    랙 {task.rack}{task.slot !== undefined && task.slot !== null ? task.slot : ''} {movementText}
                   </p>
                 </div>
               );
@@ -397,7 +397,7 @@ export const WorkStatus = () => {
                 <div key={`pending-${task.id}`} className="waiting-task-item pending-task-item">
                   <Ic242Tone2 className="ic-4" color="#8C8C8C" /> {/* Grey icon for pending */}
                   <p className="task-bar-text">
-                  랙 {task.rack}{task.slot !== undefined && task.slot !== null ? String.fromCharCode(65 + task.slot -1) : ''} {movementText}
+                  랙 {task.rack}{task.slot !== undefined && task.slot !== null ? task.slot : ''} {movementText}
                   </p>
                 </div>
               );
