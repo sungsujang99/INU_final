@@ -16,7 +16,7 @@ import { TotalRackProgress } from '../../components/TotalRackProgress/TotalRackP
 import { getInventory, pingBackend, getTaskQueues, getWorkTasksByStatus } from "../../lib/api"; // Assuming pingBackend and getTaskQueues will be added to api.jsx
 import io from 'socket.io-client';
 
-const socket = io('http://localhost:5001'); // Or your backend URL
+const socket = io('http://127.0.0.1:5001'); // Changed to 127.0.0.1
 
 export const DashboardOn = () => {
   const navigate = useNavigate();
