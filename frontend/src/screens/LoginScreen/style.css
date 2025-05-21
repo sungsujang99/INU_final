@@ -72,11 +72,13 @@
 
 .login-screen .logo-3 {
   border-radius: 50px;
-  height: 56px;
-  width: 166px;
+  height: auto;
+  width: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
+  gap: 8px;
 }
 
 .login-screen .INU-logistics-3 {
@@ -87,10 +89,10 @@
 
 .login-screen .group-8 {
   height: 16px;
-  left: 0;
-  position: absolute;
-  top: 0;
+  position: relative;
   width: 56px;
+  display: flex;
+  justify-content: space-between;
 }
 
 .login-screen .ellipse-13 {
