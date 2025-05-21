@@ -377,7 +377,8 @@ export const WorkStatus = () => {
           <>
             {inProgressTasks.map((task) => {
               const isMovementIn = task.movement && task.movement.toUpperCase() === 'IN';
-              const InProgressIcon = isMovementIn ? Property1Variant5 : Ic242Tone6;
+              // Use Ic242Tone6 icon shape for both IN and OUT in-progress tasks
+              const InProgressIcon = Ic242Tone6; 
               const iconColor = isMovementIn ? "#0177FB" : "#00BB80"; // Blue for IN, Green for OUT
               const movementBaseText = isMovementIn ? "입고" : "출고";
               const movementSpanClass = isMovementIn ? "task-bar-movement-in" : "task-bar-movement-out";
