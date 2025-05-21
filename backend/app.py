@@ -18,8 +18,11 @@ print("DEBUG: Flask and Flask-SocketIO imported.")
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'temporary_secret_for_debugging!' # Use a simple secret
 
-# Explicitly set async_mode, though it should be auto-detected with monkey_patch
-socketio = SocketIO(app, async_mode='eventlet', logger=True, engineio_logger=True)
+# Define allowed origins, including your frontend's actual origin
+allowed_origins_list = ["http://localhost:5173", "http://192.168.0.18:5173"]
+
+# Explicitly set async_mode and add cors_allowed_origins
+socketio = SocketIO(app, async_mode='eventlet', logger=True, engineio_logger=True, cors_allowed_origins=allowed_origins_list)
 
 print("DEBUG: Flask app and SocketIO instance created.")
 
