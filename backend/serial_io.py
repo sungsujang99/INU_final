@@ -164,7 +164,7 @@ class SerialManager:
         with mutex:
             for attempt in range(1, active_max_echo_attempts + 1):
                 ser.reset_input_buffer() # Reset buffer at the start of each command send attempt
-                ser.write((code + "\n").encode()) # Send the command
+                ser.write(f"{code}\n") # Send the command as string directly
                 
                 if app_logger:
                     app_logger.debug(f"{log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent. Waiting for echo...")
