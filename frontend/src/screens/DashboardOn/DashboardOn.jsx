@@ -13,8 +13,8 @@ import { RackAProgress } from '../../components/RackProgress/RackAProgress';
 import { RackBProgress } from '../../components/RackProgress/RackBProgress';
 import { RackCProgress } from '../../components/RackProgress/RackCProgress';
 import { TotalRackProgress } from '../../components/TotalRackProgress/TotalRackProgress';
-import { getInventory, pingBackend, getTaskQueues, getWorkTasksByStatus } from "../../lib/api"; // Assuming pingBackend and getTaskQueues will be added to api.jsx
-import { socket } from '../../socket'; // Add this line
+import { getInventory, pingBackend, getWorkTasksByStatus, getPendingTaskCounts } from "../../lib/api";
+import { socket } from '../../socket';
 
 export const DashboardOn = () => {
   const navigate = useNavigate();
@@ -70,24 +70,18 @@ export const DashboardOn = () => {
         setDeviceStatus({ isConnected: false });
       }
 
-      let waitingIncoming = 0;
-      let waitingOutgoing = 0;
+      // Fetch pending task counts directly
+      let pendingIncoming = 0;
+      let pendingOutgoing = 0;
       try {
-        const queueData = await getTaskQueues(); 
-        console.log("Dashboard - fetchData - Fetched Queue Data:", queueData);
-        for (const rack in queueData) {
-          if (queueData.hasOwnProperty(rack)) {
-            queueData[rack].forEach(taskCmd => {
-              const cmdVal = parseInt(taskCmd, 10);
-              if (cmdVal > 0) waitingIncoming++;
-              else if (cmdVal < 0) waitingOutgoing++;
-            });
-          }
-        }
-      } catch (queueError) {
-        console.error("Dashboard - Failed to fetch task queues:", queueError);
+        const counts = await getPendingTaskCounts();
+        console.log("Dashboard - fetchData - Fetched Pending Task Counts:", counts);
+        pendingIncoming = counts.pending_in_count || 0;
+        pendingOutgoing = counts.pending_out_count || 0;
+      } catch (countsError) {
+        console.error("Dashboard - Failed to fetch pending task counts:", countsError);
       }
-      console.log(`Dashboard - fetchData - Calculated waiting - Incoming: ${waitingIncoming}, Outgoing: ${waitingOutgoing}`);
+      console.log(`Dashboard - fetchData - Pending counts - Incoming: ${pendingIncoming}, Outgoing: ${pendingOutgoing}`);
       
       let completedIncomingCount = 0;
       let completedOutgoingCount = 0;
@@ -122,7 +116,7 @@ export const DashboardOn = () => {
 
       setWorkStatus(prevStatus => ({
         ...prevStatus, 
-        waiting: { incoming: waitingIncoming, outgoing: waitingOutgoing },
+        waiting: { incoming: pendingIncoming, outgoing: pendingOutgoing },
         inProgress: { incoming: inProgressIncomingCount, outgoing: inProgressOutgoingCount },
         completed: { incoming: completedIncomingCount, outgoing: completedOutgoingCount }
       }));
@@ -149,30 +143,34 @@ export const DashboardOn = () => {
   useEffect(() => {
     // SocketIO listeners
     const handleTaskDone = (data) => {
-      console.log('Dashboard: Received task_done:', data);
-      // Only update if we received a "done" status
+      console.log('Dashboard: Received task_done (OLD LISTENER - TO BE REMOVED/REPLACED):', data);
       if (data.status === "done") {
-        // Fetch data to refresh the list of completed tasks and other relevant info
         fetchData(); 
-          } else {
-        console.log('handleTaskDone - Ignoring non-done status:', data.status);
-        }
-    };
-
-    const handleQueueSize = (data) => {
-      console.log('Dashboard: Received queue_size:', data);
-      // Only update queue size if we received a done signal
-      if (data.status === "done") {
-      fetchData(); 
       }
     };
 
-    socket.on('task_done', handleTaskDone);
-    socket.on('queue_size', handleQueueSize);
+    const handleQueueSize = (data) => {
+      console.log('Dashboard: Received queue_size (OLD LISTENER - TO BE REMOVED/REPLACED):', data);
+      if (data.status === "done") {
+        fetchData(); 
+      }
+    };
+
+    const handleTaskStatusChanged = (data) => {
+      console.log('Dashboard: Received task_status_changed:', data);
+      // Any task status change could affect pending counts or other dashboard items
+      fetchData(); 
+    };
+
+    // Keep old listeners for now if they serve other purposes, or remove if fully replaced
+    socket.on('task_done', handleTaskDone); // Consider removing if task_status_changed covers it
+    socket.on('queue_size', handleQueueSize); // Consider removing if task_status_changed covers it
+    socket.on('task_status_changed', handleTaskStatusChanged); // New primary listener
 
     return () => {
       socket.off('task_done', handleTaskDone);
       socket.off('queue_size', handleQueueSize);
+      socket.off('task_status_changed', handleTaskStatusChanged);
     };
   }, [fetchData]); // fetchData is now a stable dependency
 

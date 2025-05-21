@@ -189,3 +189,18 @@ def get_work_tasks_by_status(status=None):
     columns = [desc[0] for desc in cur.description]
     conn.close()
     return [dict(zip(columns, row)) for row in rows]
+
+def get_pending_task_counts():
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    
+    # Count pending IN tasks
+    cur.execute("SELECT COUNT(*) FROM work_tasks WHERE status='pending' AND movement='IN'")
+    pending_in_count = cur.fetchone()[0]
+    
+    # Count pending OUT tasks
+    cur.execute("SELECT COUNT(*) FROM work_tasks WHERE status='pending' AND movement='OUT'")
+    pending_out_count = cur.fetchone()[0]
+    
+    conn.close()
+    return {"pending_in_count": pending_in_count, "pending_out_count": pending_out_count}

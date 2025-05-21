@@ -212,6 +212,16 @@ def get_work_tasks_route():
         current_app.logger.error(f"Error fetching work tasks: {e}", exc_info=True)
         return jsonify({"error": "Failed to fetch work tasks", "message": str(e)}), 500
 
+@app.route("/api/pending-task-counts")
+@token_required
+def get_pending_task_counts_route():
+    try:
+        counts = task_queue.get_pending_task_counts()
+        return jsonify(counts), 200
+    except Exception as e:
+        current_app.logger.error(f"Error fetching pending task counts: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch pending task counts", "message": str(e)}), 500
+
 @app.route("/api/upload-tasks", methods=["POST"])
 @token_required
 def upload_tasks_route():

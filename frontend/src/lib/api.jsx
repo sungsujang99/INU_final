@@ -167,3 +167,5 @@ export async function getWorkTasksByStatus(status) {
   });
   return res.data;
 }
+
+export const getPendingTaskCounts = () => req('/pending-task-counts');
