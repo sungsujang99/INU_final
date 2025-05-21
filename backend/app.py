@@ -331,5 +331,6 @@ def after_request(response):
 # ───── run ─────
 if __name__ == "__main__":
     print("Starting Flask-SocketIO server with eventlet on port 5001...")
-    socketio.run(app, host="0.0.0.0", port=5001, debug=False, use_reloader=False)
+    print(f"SocketIO server instance: {socketio.server}") # Log the server instance
+    socketio.run(app, host="0.0.0.0", port=5001, debug=True, use_reloader=False)
     # allow_unsafe_werkzeug=True might be needed for newer Werkzeug versions if use_reloader=False and debug=True 
