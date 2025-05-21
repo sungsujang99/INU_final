@@ -40,20 +40,28 @@ def enqueue_work_task(task, conn=None, cur=None):
         if own_connection:
             conn.commit()
         
-        # --- DEBUG LOGGING --- 
         logger = current_app.logger if current_app else logging.getLogger(__name__)
-        logger.info(f"[enqueue_work_task] Attempting to emit. io object: {io}, new_task_id: {new_task_id}")
-        # --- END DEBUG LOGGING ---
+        logger.info(f"[enqueue_work_task] Task enqueued with ID: {new_task_id}. Attempting to emit.")
 
         if io and new_task_id:
-            io.emit("task_status_changed", {"id": new_task_id, "status": "pending", "action": "created"})
-            # --- DEBUG LOGGING --- 
-            logger.info(f"[enqueue_work_task] Emitted task_status_changed for new task ID: {new_task_id}")
-            # --- END DEBUG LOGGING ---
+            # For the initial pending event, we don't have batch_id yet from batch_task_links,
+            # as it's inserted by inventory.py *after* this call.
+            # So, the initial 'pending' event will not have batch_id here.
+            # Batch_id will be added to 'in_progress' and 'done' events from set_task_status.
+            io.emit("task_status_changed", {
+                "id": new_task_id, 
+                "status": "pending", 
+                "action": "created", 
+                "rack": task['rack'].upper(), 
+                "slot": int(task['slot']), 
+                "movement": task['movement'].upper()
+            })
+            logger.info(f"[enqueue_work_task] Emitted task_status_changed for new task ID: {new_task_id} (pending, no batch_id yet)")
 
     finally:
         if own_connection:
             conn.close()
+    return new_task_id
 
 def set_task_status(task_id, status):
     now = datetime.datetime.now().isoformat(timespec="seconds")
@@ -61,9 +69,29 @@ def set_task_status(task_id, status):
     cur = conn.cursor()
     cur.execute("UPDATE work_tasks SET status=?, updated_at=? WHERE id=?", (status, now, task_id))
     conn.commit()
+    
+    task_details_for_event = {"id": task_id, "status": status}
+    
+    # Fetch task details from work_tasks and batch_id from batch_task_links
+    if status == "done" or status == "in_progress":
+        cur.execute("""
+            SELECT wt.id, wt.rack, wt.slot, wt.movement, btl.batch_id 
+            FROM work_tasks wt
+            LEFT JOIN batch_task_links btl ON wt.id = btl.task_id
+            WHERE wt.id=?
+        """, (task_id,))
+        row = cur.fetchone()
+        if row:
+            columns = [desc[0] for desc in cur.description]
+            fetched_details = dict(zip(columns, row))
+            task_details_for_event.update(fetched_details) # Add rack, slot, movement, batch_id
+            
     conn.close()
+
     if io:
-        io.emit("task_status_changed", {"id": task_id, "status": status})
+        io.emit("task_status_changed", task_details_for_event)
+        logger = current_app.logger if current_app else logging.getLogger(__name__)
+        logger.info(f"[set_task_status] Emitted task_status_changed: {task_details_for_event}")
 
 def get_next_pending_task():
     conn = sqlite3.connect(DB_NAME)

@@ -98,6 +98,7 @@ def add_records(records: list[dict], batch_id: str = None):
                     return False, error_msg
             
         # If we get here, all operations are valid. Now process them.
+        generated_task_ids = [] # Store task_ids generated for this batch
         for i, rec in enumerate(records):
             logger.debug("add_records: Processing record %d: %s", i, rec)
             # ---------- 파싱 ----------
@@ -120,11 +121,11 @@ def add_records(records: list[dict], batch_id: str = None):
             logger.debug("add_records: Inserted into product_logs for record %d.", i)
 
             # ---------- 장치 명령을 큐에 넣기 ----------
-            cmd_val = slot  # Arduino expects the slot number directly
+            cmd_val = slot
             if mv == "OUT":
-                cmd_val *= -1 # Prepend '-' for OUT operations
+                cmd_val *= -1
             logger.debug("add_records: Enqueuing task for record %d: rack=%s, cmd_val=%s", i, rack, str(cmd_val))
-            enqueue_work_task({
+            task_id = enqueue_work_task({
                 'rack': rack,
                 'slot': abs(cmd_val),
                 'product_code': pc,
@@ -132,8 +133,18 @@ def add_records(records: list[dict], batch_id: str = None):
                 'movement': mv,
                 'quantity': qty,
                 'cargo_owner': owner
-            }, conn=conn, cur=cur)  # Pass conn and cur
-            logger.debug("add_records: Task enqueued for record %d.", i)
+            }, conn=conn, cur=cur)  # batch_id is NOT passed here to enqueue_work_task anymore
+                                      # as it does not take it with the new approach.
+            if task_id:
+                generated_task_ids.append(task_id)
+            logger.debug("add_records: Task enqueued for record %d with task_id: %s.", i, task_id)
+
+        # Insert into batch_task_links
+        if batch_id and generated_task_ids:
+            logger.debug(f"add_records: Linking {len(generated_task_ids)} tasks to batch_id {batch_id}")
+            for t_id in generated_task_ids:
+                cur.execute("INSERT INTO batch_task_links (batch_id, task_id) VALUES (?, ?)", (batch_id, t_id))
+            logger.debug(f"add_records: Finished linking tasks to batch_id {batch_id}")
 
         logger.debug("add_records: All records processed. Attempting to commit.")
         conn.commit()

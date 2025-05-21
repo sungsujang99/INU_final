@@ -66,5 +66,17 @@ def init_db():
         );
     """)
 
+    # ⑤ Batch Task Links (New Table)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS batch_task_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id TEXT NOT NULL,
+            task_id INTEGER NOT NULL,
+            FOREIGN KEY (task_id) REFERENCES work_tasks (id)
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_batch_task_links_batch_id ON batch_task_links (batch_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_batch_task_links_task_id ON batch_task_links (task_id);")
+
     conn.commit()
     conn.close()

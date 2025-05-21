@@ -18,13 +18,16 @@ import { socket } from '../../socket'; // Add this line
 export const WorkStatus = () => {
   const navigate = useNavigate();
   const [selectedRack, setSelectedRack] = useState('A'); // Default to Rack A
-  const [workProgress, setWorkProgress] = useState(0); // Add state for work progress percentage
   const [inventoryData, setInventoryData] = useState({}); // Add state for inventory data
-  const [waitingTasks, setWaitingTasks] = useState({}); // Tasks per rack: e.g. { A: [], B: [], C: [] }
-  const [completedJobsForSelectedRack, setCompletedJobsForSelectedRack] = useState([]); // New state for completed jobs
   const [pendingTasks, setPendingTasks] = useState([]);
   const [inProgressTasks, setInProgressTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
+
+  const [activeBatch, setActiveBatch] = useState({
+    id: null,         // batch_id from the server
+    totalTasks: 0,    // Total tasks in this batch
+    completedTasks: 0 // Tasks completed from this batch
+  });
 
   // Create a ref for the hidden file input
   const fileInputRef = useRef(null);
@@ -105,6 +108,7 @@ export const WorkStatus = () => {
 
           if (tasks.length === 0) {
             alert("No valid tasks found in the CSV file. Please check the format.");
+            event.target.value = null; // Reset file input
             return;
           }
 
@@ -113,36 +117,41 @@ export const WorkStatus = () => {
             const result = await uploadTasksBatch(tasks); // Call the API function
             console.log('Upload tasks API response:', result); // Log the full response
 
-            // Check for errors based on the backend's JSON structure for 207 Multi-Status
-            // The backend returns a JSON with an "errors" array and "processed_tasks"
-            if (result && result.errors && result.errors.length > 0) {
-              // Display the specific errors from the 'errors' array
-              alert('Some tasks failed:\n' + result.errors.join('\n'));
-            } else if (result && result.processed_tasks && result.processed_tasks.some(task => task.status === 'error')) {
-               // If no top-level 'errors' array, check individual tasks in 'processed_tasks'
-               const errorMessages = result.processed_tasks
-                   .filter(task => task.status === 'error')
-                   .map(task => task.message || `Error processing task for product: ${task.task?.product_code || 'unknown'}`); // Access nested task data safely
-               alert(`Processing complete with some errors:\n${errorMessages.join('\n')}\n\nOverall: ${result.message}`);
-            } else if (result && result.message) {
-              // If no explicit errors found, display the overall message from the backend
-              // This will cover the "Successfully processed X tasks" case too.
+            // Alert based on backend message (covers success and batch-level errors)
+            if (result && result.message) {
               alert(result.message);
             } else {
-              // Fallback if the response structure is unexpected but was 'ok'
-              alert('Tasks submitted. Check status for details.');
+              alert('Tasks submitted. Status unknown or unexpected response format.');
             }
 
-            // Common actions after try block (success or partial success)
+            // If backend confirms successful batch submission and provides batch_id & processed_count
+            if (result && result.batch_id && typeof result.processed_count === 'number') {
+              setActiveBatch({
+                id: result.batch_id,
+                totalTasks: result.processed_count,
+                completedTasks: 0, // Reset for the new batch
+              });
+              // Fetch initial progress for this new batch only if there are tasks
+              if (result.processed_count > 0) {
+                fetchAndSetBatchProgress(result.batch_id, result.processed_count);
+              }
+            } else {
+              // If batch info isn't available (e.g. full batch processing error from backend),
+              // reset progress tracking.
+              setActiveBatch({ id: null, totalTasks: 0, completedTasks: 0 });
+            }
+
+            // Refresh general UI elements
             localStorage.setItem('dashboard_needs_refresh', 'true');
             fetchInventoryData();
-            fetchCompletedJobs();
+            fetchPendingTasks();
+            fetchInProgressTasks();
+            fetchDoneTasks();
 
           } catch (error) {
-            // This catch block handles errors thrown by uploadTasksBatch
-            // (e.g., network errors, or if !response.ok and it throws like for 400/500)
             console.error('Error in uploadTasksBatch call:', error);
-            alert('Failed to upload tasks: ' + error.message);
+            alert('Failed to upload tasks: ' + (error.message || "Unknown error"));
+            setActiveBatch({ id: null, totalTasks: 0, completedTasks: 0 }); // Reset on critical error
           }
         } catch (error) {
           console.error('Error processing CSV or uploading tasks:', error);
@@ -157,7 +166,9 @@ export const WorkStatus = () => {
     }
 
     // Reset the input value to allow selecting the same file again
-    event.target.value = null;
+    if (event && event.target) {
+        event.target.value = null;
+    }
   };
 
   // Placeholder handler for the Inbox In button
@@ -248,24 +259,50 @@ export const WorkStatus = () => {
     fetchPendingTasks();
     fetchInProgressTasks();
     fetchDoneTasks();
-    // ...fetch inventory if needed...
+    // If activeBatch.id and activeBatch.totalTasks are already set (e.g. from session state in future),
+    // you could call fetchAndSetBatchProgress here to load initial progress on page load.
+    // For now, progress starts when a new CSV is uploaded.
   }, [selectedRack]);
 
   // Listen for real-time updates
   useEffect(() => {
-    socket.on("task_status_changed", (data) => {
-      // Refetch all data that could have changed
-      console.log("WorkStatus: Received task_status_changed", data); // Added log
-      fetchInventoryData();
+    const handleTaskStatusChanged = (data) => {
+      console.log("WorkStatus: Received task_status_changed via Socket", data);
+      
+      // General data refresh for lists (pending, in_progress, done)
+      // These are important to keep the detailed lists up-to-date
       fetchPendingTasks();
       fetchInProgressTasks();
       fetchDoneTasks();
-    });
-    // Clean up the socket listener when the component unmounts
-    return () => {
-      socket.off("task_status_changed");
+      fetchInventoryData(); // Also refresh inventory view if a task affects it
+
+      // Update overall batch progress if the completed task belongs to the currently tracked batch
+      if (data.status === "done" && data.batch_id && activeBatch.id && data.batch_id === activeBatch.id) {
+        console.log(`Task from active batch ${activeBatch.id} completed. Updating progress.`);
+        // Option 1: Increment locally (simpler, but might drift if events are missed)
+        // setActiveBatch(prev => ({
+        //   ...prev,
+        //   completedTasks: Math.min(prev.completedTasks + 1, prev.totalTasks)
+        // }));
+
+        // Option 2: Refetch for robustness (preferred)
+        fetchAndSetBatchProgress(activeBatch.id, activeBatch.totalTasks);
+      } else if (data.status === "pending" && data.batch_id && data.batch_id !== activeBatch.id) {
+        // Optional: If a new batch processing starts (pending task from a new batch_id arrives)
+        // and it's different from the current activeBatch, reset current view or set new active batch.
+        // This depends on desired UX - for now, we only set active batch on CSV upload.
+        // console.log(`New batch ${data.batch_id} detected, current active is ${activeBatch.id}. Clearing old progress.`);
+        // setActiveBatch({ id: null, totalTasks: 0, completedTasks: 0 });
+      }
     };
-  }, []); // <-- REMOVED selectedRack from dependency array
+
+    socket.on("task_status_changed", handleTaskStatusChanged);
+    return () => {
+      socket.off("task_status_changed", handleTaskStatusChanged);
+    };
+  // Re-run effect if the active batch context (id or totalTasks) changes by other means,
+  // or if the fetch functions themselves change (though they are stable with useCallback if used).
+  }, [activeBatch.id, activeBatch.totalTasks]);
 
   // Update renderRackGrid to show product info
   const renderRackGrid = () => {
@@ -468,24 +505,63 @@ export const WorkStatus = () => {
   );
 
   // Update the progress bar render
-  const renderProgressBar = () => (
-    <div className="frame-33">
-      <div className="group-21">
-        <div className="text-wrapper-54">전체 작업률</div>
-        <div className="text-wrapper-55">{workProgress}%</div>
-      </div>
+  const renderProgressBar = () => {
+    // Calculate percentage based on activeBatch state
+    const currentBatchProgressPercentage = activeBatch.totalTasks > 0
+      ? Math.round((activeBatch.completedTasks / activeBatch.totalTasks) * 100)
+      : 0;
 
-      <div className="rectangle-wrapper">
-        <div 
-          className="rectangle-7" 
-          style={{ 
-            width: `${workProgress}%`,
-            transition: 'width 0.5s ease-in-out'
-          }}
-        />
+    console.log("Rendering progress bar with:", activeBatch, `Percentage: ${currentBatchProgressPercentage}%`);
+
+    return (
+      <div className="frame-33">
+        <div className="group-21">
+          <div className="text-wrapper-54">전체 작업률</div>
+          <div className="text-wrapper-55">{currentBatchProgressPercentage}%</div>
+        </div>
+
+        <div className="rectangle-wrapper">
+          <div
+            className="rectangle-7"
+            style={{
+              width: `${currentBatchProgressPercentage}%`,
+              transition: 'width 0.5s ease-in-out'
+            }}
+          />
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+
+  const fetchAndSetBatchProgress = async (batchIdToUpdate, totalTasksInBatch) => {
+    if (!batchIdToUpdate || totalTasksInBatch === 0) {
+      // Ensure UI shows 0% if no active batch or empty batch
+      setActiveBatch(prev => ({
+        id: batchIdToUpdate, // Keep current batch context if any
+        totalTasks: totalTasksInBatch,
+        completedTasks: 0 
+      }));
+      return;
+    }
+    try {
+      console.log(`Fetching progress for batch: ${batchIdToUpdate}, total tasks: ${totalTasksInBatch}`);
+      const allDoneTasks = await getWorkTasksByStatus("done");
+      const completedInThisBatch = allDoneTasks.filter(
+        (task) => task.batch_id === batchIdToUpdate
+      ).length;
+      
+      console.log(`Batch ${batchIdToUpdate}: ${completedInThisBatch} completed out of ${totalTasksInBatch}`);
+      setActiveBatch({
+        id: batchIdToUpdate,
+        totalTasks: totalTasksInBatch,
+        completedTasks: completedInThisBatch,
+      });
+    } catch (error) {
+      console.error("Failed to fetch and set batch progress:", error);
+      // Optionally, maintain last known good state or reset partially
+      // setActiveBatch(prev => ({ ...prev, completedTasks: prev.completedTasks })); 
+    }
+  };
 
   return (
     <div className="work-status">
