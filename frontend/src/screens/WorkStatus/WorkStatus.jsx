@@ -376,30 +376,28 @@ export const WorkStatus = () => {
         ) : (
           <>
             {inProgressTasks.map((task) => {
-              const isMovementIn = task.movement && task.movement.toUpperCase() === 'IN';
-              // Use Ic242Tone6 icon shape for both IN and OUT in-progress tasks
-              const InProgressIcon = Ic242Tone6; 
-              const iconColor = isMovementIn ? "#0177FB" : "#00BB80"; // Blue for IN, Green for OUT
-              const movementBaseText = isMovementIn ? "입고" : "출고";
-              const movementSpanClass = isMovementIn ? "task-bar-movement-in" : "task-bar-movement-out";
+              const movementText = task.movement === 'IN' ? '입고 (진행중)' : '출고 (진행중)';
+              const iconColor = task.movement === 'IN' ? '#0177FB' : '#00BB80';
+              const textColorClass = task.movement === 'IN' ? 'task-bar-movement-in' : 'task-bar-movement-out';
+              // Use task-item-in or task-item-out for background consistency
+              const backgroundClass = task.movement === 'IN' ? 'task-item-in' : 'task-item-out';
 
               return (
-                <div key={task.id} className="waiting-task-item task-item-inprogress"> 
-                  <InProgressIcon className="ic-4 task-bar-icon" color={iconColor} />
-                  <p className="task-bar-text">
-                    랙 {task.rack}{task.slot} <span className={movementSpanClass}>{movementBaseText} (진행중)</span>
+                <div key={`inprogress-${task.id}`} className={`waiting-task-item ${backgroundClass}`}>
+                  <Ic242Tone6 className="ic-4" color={iconColor} />
+                  <p className={`task-bar-text ${textColorClass}`}>
+                    랙 {task.rack}{task.slot !== undefined && task.slot !== null ? String.fromCharCode(65 + task.slot -1) : ''} {movementText}
                   </p>
                 </div>
               );
             })}
             {pendingTasks.map((task) => {
-              const isMovementIn = task.movement && task.movement.toUpperCase() === 'IN';
-              const movementBaseText = isMovementIn ? "입고" : "출고";
+              const movementText = task.movement === 'IN' ? '입고 (대기)' : '출고 (대기)';
               return (
-                <div key={task.id} className="waiting-task-item task-item-pending"> 
-                  <Ic242Tone2 className="ic-4 task-bar-icon" color="#888888"/> 
+                <div key={`pending-${task.id}`} className="waiting-task-item pending-task-item">
+                  <Ic242Tone2 className="ic-4" color="#8C8C8C" /> {/* Grey icon for pending */}
                   <p className="task-bar-text">
-                    랙 {task.rack}{task.slot} <span className="task-bar-movement-neutral">{movementBaseText} (대기)</span>
+                  랙 {task.rack}{task.slot !== undefined && task.slot !== null ? String.fromCharCode(65 + task.slot -1) : ''} {movementText}
                   </p>
                 </div>
               );
