@@ -33,7 +33,7 @@ app.config['SERIAL_COMMUNICATION_ENABLED'] = SERIAL_COMMUNICATION_ENABLED
 # Make sure to replace 192.168.0.16 with your Mac's actual current IP if it changes,
 # or use a more dynamic solution for production on Pi later.
 allowed_origins_list = ["http://localhost:5173", "http://192.168.0.18:5173", "http://192.168.0.16:8080"]
-socketio = SocketIO(app, cors_allowed_origins=allowed_origins_list)
+socketio = SocketIO(app, cors_allowed_origins=allowed_origins_list, async_mode='eventlet')
 
 # Configure basic logging
 logging.basicConfig(level=logging.DEBUG)
@@ -328,6 +328,6 @@ def after_request(response):
 
 # ───── run ─────
 if __name__ == "__main__":
-    print("Starting Flask-SocketIO server on port 5001...")
-    socketio.run(app, host="0.0.0.0", port=5001, debug=True, use_reloader=False, allow_unsafe_werkzeug=True)
+    print("Starting Flask-SocketIO server with eventlet on port 5001...")
+    socketio.run(app, host="0.0.0.0", port=5001, debug=True, use_reloader=False)
     # allow_unsafe_werkzeug=True might be needed for newer Werkzeug versions if use_reloader=False and debug=True 
