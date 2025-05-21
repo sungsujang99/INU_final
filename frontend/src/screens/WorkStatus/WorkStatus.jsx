@@ -325,18 +325,18 @@ export const WorkStatus = () => {
       let movementClassName = "";
 
       if (task.movement && task.movement.toUpperCase() === 'IN') {
-        iconComponent = <Property1Variant5 className="ic-4 task-bar-icon" color="#0177FB" />; // Blue box for IN
+        iconComponent = <Property1Variant5 className="ic-4 task-bar-icon" color="#0177FB" />; // Blue box with inward arrows for IN
         itemClassName = "task-bar task-item-in";
         movementText = "입고"; // Korean for IN
         movementClassName = "task-bar-movement-in";
       } else if (task.movement && task.movement.toUpperCase() === 'OUT') {
-        iconComponent = <Ic242Tone6 className="ic-4 task-bar-icon" color="#00BB80" />; // Green box for OUT
+        iconComponent = <Ic242Tone6 className="ic-4 task-bar-icon" color="#00BB80" />; // Green box with outward arrows for OUT
         itemClassName = "task-bar task-item-out";
         movementText = "출고"; // Korean for OUT
         movementClassName = "task-bar-movement-out";
       } else { 
         // Fallback for other statuses or if movement is not IN/OUT (considered as error for 'done' tasks)
-        iconComponent = <Ic242Tone2 className="ic-4 task-bar-icon" color="#FF0000" />; // Neutral box icon, colored Red for ERROR
+        iconComponent = <Ic242Tone2 className="ic-4 task-bar-icon" color="#FF0000" />; // Neutral box icon (placeholder for triangle), colored Red for ERROR
         itemClassName = "task-bar task-item-error";
         movementText = "오류"; // Korean for ERROR
         movementClassName = "task-bar-movement-error";
