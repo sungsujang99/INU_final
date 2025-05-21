@@ -53,10 +53,48 @@ class GlobalWorker(threading.Thread):
 
             # --- Mark as done only if status is 'done' ---
             if status == "done":
-                for t in TASK_STATE:
-                    if t['rack'] == task.rack and t['code'] == task.code and t['state'] == 'in_progress':
-                        t['state'] = 'done'
-                        break
+                # Fetch task details from product_logs (as in your old code)
+                conn = sqlite3.connect(DB_NAME)
+                cur = conn.cursor()
+                try:
+                    slot = abs(task.code)
+                    cur.execute("""
+                        SELECT product_code, product_name, movement_type, quantity, cargo_owner
+                        FROM product_logs
+                        WHERE rack = ? AND slot = ?
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                    """, (task.rack, slot))
+                    row = cur.fetchone()
+                    if row:
+                        product_code, product_name, movement_type, quantity, cargo_owner = row
+                        # Update inventory only when we get the done signal
+                        success = update_inventory_on_done(
+                            task.rack,
+                            slot,
+                            movement_type,
+                            product_code,
+                            product_name,
+                            quantity,
+                            cargo_owner
+                        )
+                        if success:
+                            for t in TASK_STATE:
+                                if t['rack'] == task.rack and t['code'] == task.code and t['state'] == 'in_progress':
+                                    t['state'] = 'done'
+                                    break
+                            # Emit SocketIO event for real-time UI update
+                            if io:
+                                io.emit("task_done", {
+                                    "rack": task.rack,
+                                    "code": task.code,
+                                    "status": "done"
+                                })
+                        else:
+                            # Optionally: handle DB update failure (log, retry, etc.)
+                            pass
+                finally:
+                    conn.close()
             # Optionally: emit socket events, update inventory, etc.
 
             self.q.task_done()
