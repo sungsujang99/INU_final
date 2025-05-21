@@ -376,23 +376,24 @@ export const WorkStatus = () => {
         ) : (
           <>
             {inProgressTasks.map((task) => {
-              // Determine icon based on movement for in-progress tasks
-              const InProgressIcon = task.movement && task.movement.toUpperCase() === 'IN' ? 
-                                     Property1Variant5 : Ic242Tone6;
-              const iconColor = task.movement && task.movement.toUpperCase() === 'IN' ? "#0177FB" : "#00BB80";
-              const movementBaseText = task.movement && task.movement.toUpperCase() === 'IN' ? "입고" : "출고";
+              const isMovementIn = task.movement && task.movement.toUpperCase() === 'IN';
+              const InProgressIcon = isMovementIn ? Property1Variant5 : Ic242Tone6;
+              const iconColor = isMovementIn ? "#0177FB" : "#00BB80"; // Blue for IN, Green for OUT
+              const movementBaseText = isMovementIn ? "입고" : "출고";
+              const movementSpanClass = isMovementIn ? "task-bar-movement-in" : "task-bar-movement-out";
 
               return (
                 <div key={task.id} className="waiting-task-item task-item-inprogress"> 
                   <InProgressIcon className="ic-4 task-bar-icon" color={iconColor} />
                   <p className="task-bar-text">
-                    랙 {task.rack}{task.slot} <span className={task.movement && task.movement.toUpperCase() === 'IN' ? "task-bar-movement-in" : "task-bar-movement-out" }>{movementBaseText} (진행중)</span>
+                    랙 {task.rack}{task.slot} <span className={movementSpanClass}>{movementBaseText} (진행중)</span>
                   </p>
                 </div>
               );
             })}
             {pendingTasks.map((task) => {
-              const movementBaseText = task.movement && task.movement.toUpperCase() === 'IN' ? "입고" : "출고";
+              const isMovementIn = task.movement && task.movement.toUpperCase() === 'IN';
+              const movementBaseText = isMovementIn ? "입고" : "출고";
               return (
                 <div key={task.id} className="waiting-task-item task-item-pending"> 
                   <Ic242Tone2 className="ic-4 task-bar-icon" color="#888888"/> 
