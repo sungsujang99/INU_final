@@ -106,9 +106,26 @@ export const DashboardOn = () => {
         console.error("Dashboard - Failed to fetch completed tasks:", completedError);
       }
 
+      // Calculate In-Progress task counts
+      let inProgressIncomingCount = 0;
+      let inProgressOutgoingCount = 0;
+      try {
+        const allInProgressTasks = await getWorkTasksByStatus("in_progress");
+        allInProgressTasks.forEach(task => {
+          if (task.movement === 'IN') {
+            inProgressIncomingCount++;
+          } else if (task.movement === 'OUT') {
+            inProgressOutgoingCount++;
+          }
+        });
+      } catch (inProgressError) {
+        console.error("Dashboard - Failed to fetch in-progress tasks:", inProgressError);
+      }
+
       setWorkStatus(prevStatus => ({
         ...prevStatus, 
         waiting: { incoming: waitingIncoming, outgoing: waitingOutgoing },
+        inProgress: { incoming: inProgressIncomingCount, outgoing: inProgressOutgoingCount },
         completed: { incoming: completedIncomingCount, outgoing: completedOutgoingCount }
       }));
     } catch (error) {
