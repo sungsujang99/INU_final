@@ -315,16 +315,6 @@ export const WorkStatus = () => {
     return frames;
   };
 
-  const parseTaskCommand = (cmd_val) => {
-    const isOut = cmd_val < 0;
-    const abs_cmd = Math.abs(parseInt(cmd_val, 10)); // Ensure cmd_val is treated as number
-    const rackIndexFromCmd = Math.floor(abs_cmd / 100) - 1;
-    const slot = abs_cmd % 100;
-    const movementType = isOut ? "출고" : "입고";
-    const rackLetter = ['A', 'B', 'C'][rackIndexFromCmd];
-    return `랙 ${rackLetter}${slot} ${movementType}`;
-  };
-
   // Render current work status section (Completed Jobs)
   const renderCurrentWorkStatus = () => (
     <div className="frame-34"> 
@@ -354,17 +344,19 @@ export const WorkStatus = () => {
           <p className="no-waiting-tasks">대기 중인 작업이 없습니다.</p>
         ) : (
           <>
-            {pendingTasks.map((task) => (
-              <div key={task.id} className="waiting-task-item"> {/* 개별 작업 아이템 */}
-                <p className="a"> {/* From original commented out JSX */}
-                   {parseTaskCommand(task.movement)}
+            {inProgressTasks.map((task) => (
+              <div key={task.id} className="waiting-task-item in-progress-task-item"> 
+                <Property1Variant5 className="ic-4 task-bar-icon" /> {/* Using a generic 'in-progress' icon */}
+                <p className="task-bar-text">
+                  랙 {task.rack}{task.slot} <span className="task-bar-movement-in">{task.movement} (진행중)</span>
                 </p>
               </div>
             ))}
-            {inProgressTasks.map((task) => (
-              <div key={task.id} className="waiting-task-item"> {/* 개별 작업 아이템 */}
-                <p className="a"> {/* From original commented out JSX */}
-                   {parseTaskCommand(task.movement)}
+            {pendingTasks.map((task) => (
+              <div key={task.id} className="waiting-task-item pending-task-item"> 
+                <Ic242Tone2 className="ic-4 task-bar-icon" /> {/* Using a generic 'pending' icon */}
+                <p className="task-bar-text">
+                  랙 {task.rack}{task.slot} <span className="task-bar-movement-neutral">{task.movement} (대기)</span>
                 </p>
               </div>
             ))}

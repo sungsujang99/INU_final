@@ -161,7 +161,7 @@ export const checkUser = (username) =>
   });
 
 export async function getWorkTasksByStatus(status) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("inu_token");
   const res = await axios.get(`/api/work-tasks?status=${status}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
