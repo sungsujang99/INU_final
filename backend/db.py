@@ -49,5 +49,22 @@ def init_db():
         );
     """)
 
+    # ④ 작업 작업
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS work_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rack TEXT NOT NULL,
+            slot INTEGER NOT NULL,
+            product_code TEXT NOT NULL,
+            product_name TEXT NOT NULL,
+            movement TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            cargo_owner TEXT,
+            status TEXT NOT NULL, -- 'pending', 'in_progress', 'done'
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+    """)
+
     conn.commit()
     conn.close()

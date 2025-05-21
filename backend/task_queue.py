@@ -1,5 +1,5 @@
 # task_queue.py  ─────────────────────────────────────────────
-import queue, threading, time, logging, sqlite3
+import queue, threading, time, logging, sqlite3, datetime
 from typing import Optional
 from .serial_io import serial_mgr, RESET_COMMAND_MAX_ECHO_ATTEMPTS
 from flask import current_app
@@ -10,105 +10,125 @@ io = None                           # SocketIO 인스턴스 홀더
 def set_socketio(sock):             # app.py 가 주입
     global io; io = sock
 
-GLOBAL_TASK_QUEUE = queue.Queue()
-TASK_STATE = []
+# --- DB Task Management ---
+def enqueue_work_task(task):
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO work_tasks
+        (rack, slot, product_code, product_name, movement, quantity, cargo_owner, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+    """, (
+        task['rack'].upper(),
+        int(task['slot']),
+        task['product_code'],
+        task['product_name'],
+        task['movement'].upper(),
+        int(task['quantity']),
+        task.get('cargo_owner', ''),
+        now, now
+    ))
+    conn.commit()
+    conn.close()
 
-class Task:
-    def __init__(self, rack, code, wait=True):
-        self.rack, self.code, self.wait = rack.upper(), code, wait
+def set_task_status(task_id, status):
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("UPDATE work_tasks SET status=?, updated_at=? WHERE id=?", (status, now, task_id))
+    conn.commit()
+    conn.close()
+    if io:
+        io.emit("task_status_changed", {"id": task_id, "status": status})
 
+def get_next_pending_task():
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM work_tasks WHERE status='pending' ORDER BY created_at ASC LIMIT 1")
+    row = cur.fetchone()
+    columns = [desc[0] for desc in cur.description]
+    conn.close()
+    if row:
+        return dict(zip(columns, row))
+    return None
+
+def get_task_by_id(task_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM work_tasks WHERE id=?", (task_id,))
+    row = cur.fetchone()
+    columns = [desc[0] for desc in cur.description]
+    conn.close()
+    if row:
+        return dict(zip(columns, row))
+    return None
+
+# --- Worker Thread ---
 class GlobalWorker(threading.Thread):
-    def __init__(self, q):
+    def __init__(self):
         super().__init__()
-        self.q = q
         self.daemon = True
 
     def run(self):
         while True:
-            task = self.q.get()
-            # Mark as in_progress
-            for t in TASK_STATE:
-                if t['rack'] == task.rack and t['code'] == task.code and t['state'] == 'queued':
-                    t['state'] = 'in_progress'
-                    break
-
-            # --- Arduino communication logic (copied from old RackWorker) ---
+            task = get_next_pending_task()
+            if not task:
+                time.sleep(1)
+                continue
+            task_id = task['id']
+            set_task_status(task_id, 'in_progress')
             status = "unknown"
             try:
                 if not serial_mgr.enabled:
                     status = "done (simulated_disabled)"
-                elif task.rack not in serial_mgr.ports:
-                    # Optionally: requeue or skip
+                elif task['rack'] not in serial_mgr.ports:
                     status = "port_not_found"
                 else:
                     res = serial_mgr.send(
-                        task.rack,
-                        str(task.code),
-                        wait_done=task.wait,
+                        task['rack'],
+                        str(task['slot']) if task['movement'].upper() == 'IN' else str(-int(task['slot'])),
+                        wait_done=True,
                         custom_max_echo_attempts=RESET_COMMAND_MAX_ECHO_ATTEMPTS
                     )
                     status = res["status"]
             except Exception as e:
                 status = f"error:{str(e)[:100]}"
 
-            # --- Mark as done only if status is 'done' ---
             if status == "done":
-                # Fetch task details from product_logs (as in your old code)
-                conn = sqlite3.connect(DB_NAME)
-                cur = conn.cursor()
-                try:
-                    slot = abs(task.code)
-                    cur.execute("""
-                        SELECT product_code, product_name, movement_type, quantity, cargo_owner
-                        FROM product_logs
-                        WHERE rack = ? AND slot = ?
-                        ORDER BY timestamp DESC
-                        LIMIT 1
-                    """, (task.rack, slot))
-                    row = cur.fetchone()
-                    if row:
-                        product_code, product_name, movement_type, quantity, cargo_owner = row
-                        # Update inventory only when we get the done signal
-                        success = update_inventory_on_done(
-                            task.rack,
-                            slot,
-                            movement_type,
-                            product_code,
-                            product_name,
-                            quantity,
-                            cargo_owner
-                        )
-                        if success:
-                            for t in TASK_STATE:
-                                if t['rack'] == task.rack and t['code'] == task.code and t['state'] == 'in_progress':
-                                    t['state'] = 'done'
-                                    break
-                            # Emit SocketIO event for real-time UI update
-                            if io:
-                                io.emit("task_done", {
-                                    "rack": task.rack,
-                                    "code": task.code,
-                                    "status": "done"
-                                })
-                        else:
-                            # Optionally: handle DB update failure (log, retry, etc.)
-                            pass
-                finally:
-                    conn.close()
-            # Optionally: emit socket events, update inventory, etc.
-
-            self.q.task_done()
-
-def enqueue_task(rack, code, wait=True):
-    GLOBAL_TASK_QUEUE.put(Task(rack, code, wait))
-    TASK_STATE.append({'rack': rack.upper(), 'code': code, 'state': 'queued'})
+                # Update inventory
+                success = update_inventory_on_done(
+                    task['rack'],
+                    int(task['slot']),
+                    task['movement'].upper(),
+                    task['product_code'],
+                    task['product_name'],
+                    int(task['quantity']),
+                    task.get('cargo_owner', '')
+                )
+                if success:
+                    set_task_status(task_id, 'done')
+                else:
+                    # Optionally: handle DB update failure (log, retry, etc.)
+                    pass
+            else:
+                # Optionally: handle error state
+                pass
+            time.sleep(0.1)
 
 def start_global_worker():
-    worker = GlobalWorker(GLOBAL_TASK_QUEUE)
+    worker = GlobalWorker()
     worker.start()
 
-def get_waiting_tasks():
-    return [t for t in TASK_STATE if t['state'] in ('queued', 'in_progress')]
-
-def get_done_tasks():
-    return [t for t in TASK_STATE if t['state'] == 'done']
+# --- API Helper ---
+def get_work_tasks_by_status(status=None):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    if status:
+        cur.execute("SELECT * FROM work_tasks WHERE status=? ORDER BY created_at ASC", (status,))
+    else:
+        cur.execute("SELECT * FROM work_tasks ORDER BY created_at ASC")
+    rows = cur.fetchall()
+    columns = [desc[0] for desc in cur.description]
+    conn.close()
+    return [dict(zip(columns, row)) for row in rows]

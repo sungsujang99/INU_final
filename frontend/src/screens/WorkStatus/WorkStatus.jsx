@@ -12,7 +12,7 @@ import "./style.css";
 import { useNavigate } from "react-router-dom";
 import addDocumentUrl from '../../icons/add-document.svg'; // Default import gives URL
 import inboxInUrl from '../../icons/inbox-in.svg';       // Default import gives URL
-import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs } from "../../lib/api";
+import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs, getWorkTasksByStatus } from "../../lib/api";
 import io from 'socket.io-client';
 
 export const WorkStatus = () => {
@@ -22,6 +22,9 @@ export const WorkStatus = () => {
   const [inventoryData, setInventoryData] = useState({}); // Add state for inventory data
   const [waitingTasks, setWaitingTasks] = useState({}); // Tasks per rack: e.g. { A: [], B: [], C: [] }
   const [completedJobsForSelectedRack, setCompletedJobsForSelectedRack] = useState([]); // New state for completed jobs
+  const [pendingTasks, setPendingTasks] = useState([]);
+  const [inProgressTasks, setInProgressTasks] = useState([]);
+  const [doneTasks, setDoneTasks] = useState([]);
 
   // Create a ref for the hidden file input
   const fileInputRef = useRef(null);
@@ -225,10 +228,37 @@ export const WorkStatus = () => {
     }
   };
 
-  // Refetch inventory and completed jobs on rack change
+  // Fetch tasks by status
+  const fetchPendingTasks = async () => {
+    const tasks = await getWorkTasksByStatus("pending");
+    setPendingTasks(tasks.filter(t => t.rack === selectedRack));
+  };
+  const fetchInProgressTasks = async () => {
+    const tasks = await getWorkTasksByStatus("in_progress");
+    setInProgressTasks(tasks.filter(t => t.rack === selectedRack));
+  };
+  const fetchDoneTasks = async () => {
+    const tasks = await getWorkTasksByStatus("done");
+    setDoneTasks(tasks.filter(t => t.rack === selectedRack));
+  };
+
+  // Fetch all on mount and when rack changes
   useEffect(() => {
-    fetchInventoryData();
-    fetchCompletedJobs();
+    fetchPendingTasks();
+    fetchInProgressTasks();
+    fetchDoneTasks();
+    // ...fetch inventory if needed...
+  }, [selectedRack]);
+
+  // Listen for real-time updates
+  useEffect(() => {
+    const socket = io();
+    socket.on("task_status_changed", (data) => {
+      fetchPendingTasks();
+      fetchInProgressTasks();
+      fetchDoneTasks();
+    });
+    return () => socket.off("task_status_changed");
   }, [selectedRack]);
 
   // Update renderRackGrid to show product info
@@ -293,58 +323,49 @@ export const WorkStatus = () => {
     <div className="frame-34"> 
       <div className="text-wrapper-56">{selectedRack}랙 작업 현황</div>
       <div className="frame-35"> 
-        {completedJobsForSelectedRack.length === 0 && (
+        {doneTasks.length === 0 && (
           <p className="no-current-tasks">완료된 작업이 없습니다.</p>
         )}
-        {completedJobsForSelectedRack.map((job) => (
-          job.movement_type === 'OUT' ? (
-            <div key={job.id} className="frame-36 task-bar"> 
-              <Ic242Tone6 className="ic-4 task-bar-icon" color="#00BB80" />
-              <p className="task-bar-text">
-                랙 {job.rack}{job.slot} <span className="task-bar-movement-out">출고</span>
-              </p>
-            </div>
-          ) : job.movement_type === 'IN' ? (
-            <div key={job.id} className="frame-37 task-bar"> 
-              <Ic242Tone2 className="ic-4 task-bar-icon" color="#0177FB" />
-              <p className="task-bar-text">
-                랙 {job.rack}{job.slot} <span className="task-bar-movement-in">입고</span>
-              </p>
-            </div>
-          ) : null
+        {doneTasks.map((task) => (
+          <div key={task.id} className="frame-36 task-bar"> 
+            <Ic242Tone6 className="ic-4 task-bar-icon" color="#00BB80" />
+            <p className="task-bar-text">
+              랙 {task.rack}{task.slot} <span className="task-bar-movement-out">{task.movement}</span>
+            </p>
+          </div>
         ))}
-        {/* Static Error Bar - for now, will need logic later */}
-        {/* <div className="frame-38 task-bar"> 
-          <Property1Variant5 className="ic-4 task-bar-icon" color="#F20202" /> 
-          <p className="task-bar-text task-bar-error">오류</p>
-        </div> */}
       </div>
     </div>
   );
 
   // Updated renderWaitingWorkStatus section
-  const renderWaitingWorkStatus = () => {
-    const tasksForSelectedRack = waitingTasks[selectedRack] || [];
-    return (
-      <div className="frame-39"> {/* 작업 대기 섹션의 메인 프레임 */}
-        <div className="text-wrapper-56">{selectedRack}랙 작업 대기</div>
-        <div className="frame-40"> {/* 작업 대기 내용 감싸는 프레임 */}
-          {tasksForSelectedRack.length === 0 ? (
-            <p className="no-waiting-tasks">대기 중인 작업이 없습니다.</p>
-          ) : (
-            tasksForSelectedRack.map((taskCmd, index) => (
-              <div key={index} className="waiting-task-item"> {/* 개별 작업 아이템 */}
-                {/* You might want an icon here too */}
+  const renderWaitingWorkStatus = () => (
+    <div className="frame-39"> {/* 작업 대기 섹션의 메인 프레임 */}
+      <div className="text-wrapper-56">{selectedRack}랙 작업 대기</div>
+      <div className="frame-40"> {/* 작업 대기 내용 감싸는 프레임 */}
+        {pendingTasks.length === 0 && inProgressTasks.length === 0 ? (
+          <p className="no-waiting-tasks">대기 중인 작업이 없습니다.</p>
+        ) : (
+          <>
+            {pendingTasks.map((task) => (
+              <div key={task.id} className="waiting-task-item"> {/* 개별 작업 아이템 */}
                 <p className="a"> {/* From original commented out JSX */}
-                   {parseTaskCommand(taskCmd)}
+                   {parseTaskCommand(task.movement)}
                 </p>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+            {inProgressTasks.map((task) => (
+              <div key={task.id} className="waiting-task-item"> {/* 개별 작업 아이템 */}
+                <p className="a"> {/* From original commented out JSX */}
+                   {parseTaskCommand(task.movement)}
+                </p>
+              </div>
+            ))}
+          </>
+        )}
       </div>
-    );
-  };
+    </div>
+  );
 
   // Render left menu
   const renderLeftMenu = () => (
@@ -425,16 +446,6 @@ export const WorkStatus = () => {
       </div>
     </div>
   );
-
-  useEffect(() => {
-    const socket = io();
-    socket.on('task_done', (data) => {
-      // Should trigger a UI update
-      fetchWaitingTasks();
-      fetchCompletedJobs();
-    });
-    return () => socket.off('task_done');
-  }, []);
 
   return (
     <div className="work-status">

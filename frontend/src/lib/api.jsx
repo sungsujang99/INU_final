@@ -1,3 +1,5 @@
+import axios from "axios";
+
 let token = localStorage.getItem('inu_token') || ''
 
 export function setToken(t) {
@@ -157,3 +159,11 @@ export const checkUser = (username) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username })
   });
+
+export async function getWorkTasksByStatus(status) {
+  const token = localStorage.getItem("token");
+  const res = await axios.get(`/api/work-tasks?status=${status}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.data;
+}
