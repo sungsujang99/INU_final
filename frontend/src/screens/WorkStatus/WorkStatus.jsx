@@ -317,98 +317,109 @@ export const WorkStatus = () => {
 
   // Render current work status section (Completed Jobs)
   const renderCurrentWorkStatus = () => {
-    // Helper to determine display properties based on task
     const getTaskDisplayProps = (task) => {
-      let iconComponent;
-      let itemClassName = "task-bar"; 
-      let movementText = task.movement;
-      let movementClassName = "";
+      let iconComponent = <Ic242Tone2 className="ic-4" color="#8C8C8C" />; // Default for error or unknown
+      let itemClass = "task-item-error"; // Default class
+      let movementText = task.movement === 'IN' ? '입고' : '출고';
+      let textColor = "#FF4D4F"; // Default to error color
 
-      if (task.movement && task.movement.toUpperCase() === 'IN') {
-        iconComponent = <Ic242Tone6 className="ic-4 task-bar-icon" color="#0177FB" />; // Use Ic242Tone6 (OUT icon shape) but colored Blue for IN
-        itemClassName = "task-bar task-item-in";
-        movementText = "입고"; // Korean for IN
-        movementClassName = "task-bar-movement-in";
-      } else if (task.movement && task.movement.toUpperCase() === 'OUT') {
-        iconComponent = <Ic242Tone6 className="ic-4 task-bar-icon" color="#00BB80" />; // Green Ic242Tone6 (OUT icon shape) for OUT
-        itemClassName = "task-bar task-item-out";
-        movementText = "출고"; // Korean for OUT
-        movementClassName = "task-bar-movement-out";
-      } else { 
-        iconComponent = <Ic242Tone2 className="ic-4 task-bar-icon" color="#FF0000" />; 
-        itemClassName = "task-bar task-item-error";
-        movementText = "오류"; 
-        movementClassName = "task-bar-movement-error";
+      if (task.status === 'done') {
+        if (task.movement === 'OUT') {
+          itemClass = "task-item-out";
+          iconComponent = <Ic242Tone6 className="ic-4" color="#00BB80" />;
+          textColor = "#00BB80";
+        } else if (task.movement === 'IN') {
+          itemClass = "task-item-in";
+          iconComponent = <Ic242Tone6 className="ic-4" color="#0177FB" />;
+          textColor = "#0177FB";
+        }
+      } else if (task.status === 'error') {
+        // Icon and itemClass already set to error defaults
+        // textColor already set to error default
+        movementText = '오류'; // Or some other indicator
       }
-      return { iconComponent, itemClassName, movementText, movementClassName };
+      // Note: 'in_progress' and 'pending' are handled by renderWaitingWorkStatus
+
+      return { iconComponent, itemClass, movementText, textColor };
     };
 
-    return (
-      <div className="frame-34"> 
-        <div className="text-wrapper-56">{selectedRack}랙 작업 현황</div>
-        <div className="frame-35"> 
-          {doneTasks.length === 0 && (
-            <p className="no-current-tasks">완료된 작업이 없습니다.</p>
-          )}
-          {doneTasks.map((task) => {
-            const { iconComponent, itemClassName, movementText, movementClassName } = getTaskDisplayProps(task);
-            return (
-              <div key={task.id} className={itemClassName}> 
-                {iconComponent}
-                <p className="task-bar-text">
-                  랙 {task.rack}{task.slot} <span className={movementClassName}>{movementText}</span>
-                </p>
-              </div>
-            );
-          })}
+    // Filter for 'done' or 'error' tasks for the selected rack
+    const tasksToDisplay = doneTasks.filter(task => task.rack === selectedRack && (task.status === 'done' || task.status === 'error'));
+
+    if (tasksToDisplay.length === 0) {
+      return <p className="a" style={{ textAlign: 'center', width: '100%' }}>완료된 작업이 없습니다.</p>;
+    }
+
+    return tasksToDisplay.map((task, index) => {
+      const { iconComponent, itemClass, movementText, textColor } = getTaskDisplayProps(task);
+      return (
+        <div key={`done-${task.id}-${index}`} className={`task-bar ${itemClass}`}>
+          {iconComponent}
+          <p className="task-bar-text a">
+            <span style={{ color: textColor, fontWeight: 'bold' }}>{`랙 ${task.rack}${task.slot} ${movementText}`}</span>
+          </p>
         </div>
-      </div>
-    );
+      );
+    });
   };
 
   // Updated renderWaitingWorkStatus section
-  const renderWaitingWorkStatus = () => (
-    <div className="frame-39"> 
-      <div className="text-wrapper-56">{selectedRack}랙 작업 대기</div>
-      <div className="frame-40"> 
-        {(pendingTasks.length === 0 && inProgressTasks.length === 0) ? (
-          <p className="no-waiting-tasks">대기 중인 작업이 없습니다.</p>
-        ) : (
-          <>
-            {inProgressTasks.map((task) => {
-              const isMovementIn = task.movement && task.movement.toUpperCase() === 'IN';
-              // Use Ic242Tone6 icon shape for both IN and OUT in-progress tasks
-              const InProgressIcon = Ic242Tone6; 
-              const iconColor = isMovementIn ? "#0177FB" : "#00BB80"; // Blue for IN, Green for OUT
-              const movementBaseText = isMovementIn ? "입고" : "출고";
-              const movementSpanClass = isMovementIn ? "task-bar-movement-in" : "task-bar-movement-out";
+  const renderWaitingWorkStatus = () => {
+    // Combine in-progress and pending tasks for the selected rack
+    const combinedTasks = [
+      ...inProgressTasks.filter(task => task.rack === selectedRack),
+      ...pendingTasks.filter(task => task.rack === selectedRack)
+    ];
 
-              return (
-                <div key={task.id} className="waiting-task-item task-item-inprogress"> 
-                  <InProgressIcon className="ic-4 task-bar-icon" color={iconColor} />
-                  <p className="task-bar-text">
-                    랙 {task.rack}{task.slot} <span className={movementSpanClass}>{movementBaseText} (진행중)</span>
-                  </p>
-                </div>
-              );
-            })}
-            {pendingTasks.map((task) => {
-              const isMovementIn = task.movement && task.movement.toUpperCase() === 'IN';
-              const movementBaseText = isMovementIn ? "입고" : "출고";
-              return (
-                <div key={task.id} className="waiting-task-item task-item-pending"> 
-                  <Ic242Tone2 className="ic-4 task-bar-icon" color="#888888"/> 
-                  <p className="task-bar-text">
-                    랙 {task.rack}{task.slot} <span className="task-bar-movement-neutral">{movementBaseText} (대기)</span>
-                  </p>
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-    </div>
-  );
+    // Sort: in_progress first, then by id (or timestamp if available)
+    combinedTasks.sort((a, b) => {
+      if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
+      if (a.status !== 'in_progress' && b.status === 'in_progress') return 1;
+      // Add secondary sort by task.id if needed, or by a timestamp
+      return (a.id || 0) - (b.id || 0); // Assuming id is numeric and can be sorted
+    });
+
+    if (combinedTasks.length === 0) {
+      return <p className="a" style={{ textAlign: 'center', width: '100%' }}>대기중인 작업이 없습니다.</p>;
+    }
+
+    return combinedTasks.map((task, index) => {
+      let iconComponent;
+      let itemClass;
+      let statusText = "";
+      let baseTextColor = "#5C6A75"; // Default for pending text
+      let movementColor = baseTextColor; // Default for movement part
+
+      if (task.status === 'in_progress') {
+        itemClass = "task-item-inprogress"; // Light yellow
+        statusText = "(진행중)";
+        if (task.movement === 'OUT') {
+          iconComponent = <Ic242Tone6 className="ic-4" color="#00BB80" />; // Green icon
+          movementColor = "#00BB80"; // Green text for "출고"
+        } else { // IN
+          iconComponent = <Ic242Tone6 className="ic-4" color="#0177FB" />; // Blue icon
+          movementColor = "#0177FB"; // Blue text for "입고"
+        }
+      } else { // pending
+        itemClass = "pending-task-item"; // Light grey
+        iconComponent = <Ic242Tone2 className="ic-4" color="#8C8C8C" />; // Grey icon
+        statusText = "(대기)";
+        movementColor = "#8C8C8C"; // Grey text for movement part as well for pending
+      }
+
+      const movementType = task.movement === 'IN' ? '입고' : '출고';
+
+      return (
+        <div key={`waiting-${task.id}-${index}`} className={`waiting-task-item ${itemClass}`}>
+          {iconComponent}
+          <p className="task-bar-text a">
+            <span style={{ color: movementColor, fontWeight: 'bold' }}>{`랙 ${task.rack}${task.slot} ${movementType}`}</span>
+            {statusText && <span style={{ color: baseTextColor, marginLeft: '4px' }}>{statusText}</span>}
+          </p>
+        </div>
+      );
+    });
+  };
 
   // Render left menu
   const renderLeftMenu = () => (
