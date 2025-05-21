@@ -115,6 +115,10 @@ class RackWorker(threading.Thread):
                             error_func(f"RackWorker [{self.rack}]: Error updating inventory: {e}", exc_info=True)
                         finally:
                             conn.close()
+                        for t in TASK_STATE:
+                            if t['rack'] == task.rack and t['code'] == task.code and t['state'] == 'in_progress':
+                                t['state'] = 'done'
+                                break
                     elif status == "sent_echo_confirmed": 
                         log_func(f"RackWorker [{self.rack}]: Task {task.code} (command: '{str(task.code)}') sent and ECHO CONFIRMED by Arduino (wait_done=False). Status: {status}")
                     else:
@@ -148,5 +152,17 @@ def start_rack_workers():
             w.start()
     print("RackWorker threads started.")
 
+# In-memory task state tracking
+TASK_STATE = []  # Each item: {'rack': 'A', 'code': 2, 'state': 'queued'}
+
 def enqueue_task(rack:str, code:int, wait=True):
     RACK_TASK_QUEUES[rack.upper()].put(Task(rack, code, wait))
+    TASK_STATE.append({'rack': rack.upper(), 'code': code, 'state': 'queued'})
+
+# Helper functions for API use
+
+def get_waiting_tasks():
+    return [t for t in TASK_STATE if t['state'] in ('queued', 'in_progress')]
+
+def get_done_tasks():
+    return [t for t in TASK_STATE if t['state'] == 'done']
