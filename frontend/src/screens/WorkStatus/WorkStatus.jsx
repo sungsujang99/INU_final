@@ -253,9 +253,10 @@ export const WorkStatus = () => {
 
   // Listen for real-time updates
   useEffect(() => {
-    const socket = io();
+    const socket = io('http://localhost:5001'); // Explicitly connect to backend URL
     socket.on("task_status_changed", (data) => {
       // Refetch all data that could have changed
+      console.log("WorkStatus: Received task_status_changed", data); // Added log
       fetchInventoryData();
       fetchPendingTasks();
       fetchInProgressTasks();
