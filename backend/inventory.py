@@ -6,7 +6,7 @@
 
 import sqlite3, datetime
 from .db import DB_NAME
-from .task_queue import enqueue_task          # ← 큐 모듈 import
+from .task_queue import enqueue_work_task          # ← 큐 모듈 import
 from flask import current_app # Added for logging
 
 
@@ -124,7 +124,15 @@ def add_records(records: list[dict], batch_id: str = None):
             if mv == "OUT":
                 cmd_val *= -1 # Prepend '-' for OUT operations
             logger.debug("add_records: Enqueuing task for record %d: rack=%s, cmd_val=%s", i, rack, str(cmd_val))
-            enqueue_task(rack, cmd_val, wait=True) # Pass cmd_val as int
+            enqueue_work_task({
+                'rack': rack,
+                'slot': abs(cmd_val),
+                'product_code': pc,
+                'product_name': name,
+                'movement': mv,
+                'quantity': qty,
+                'cargo_owner': owner
+            })
             logger.debug("add_records: Task enqueued for record %d.", i)
 
         logger.debug("add_records: All records processed. Attempting to commit.")
