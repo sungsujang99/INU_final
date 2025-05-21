@@ -83,6 +83,7 @@ class RackWorker(threading.Thread):
                         try:
                             # Get the most recent log entry for this rack and slot
                             slot = abs(task.code)  # Convert command code back to slot number
+                            debug_func(f"RackWorker [{self.rack}]: Looking up task details for rack={task.rack}, slot={slot}")
                             cur.execute("""
                                 SELECT product_code, product_name, movement_type, quantity, cargo_owner
                                 FROM product_logs
@@ -93,8 +94,9 @@ class RackWorker(threading.Thread):
                             row = cur.fetchone()
                             if row:
                                 product_code, product_name, movement_type, quantity, cargo_owner = row
+                                debug_func(f"RackWorker [{self.rack}]: Found task details: product_code={product_code}, movement_type={movement_type}")
                                 # Update inventory only when we get the done signal
-                                update_inventory_on_done(
+                                success = update_inventory_on_done(
                                     task.rack,
                                     slot,
                                     movement_type,
@@ -103,8 +105,14 @@ class RackWorker(threading.Thread):
                                     quantity,
                                     cargo_owner
                                 )
+                                if success:
+                                    log_func(f"RackWorker [{self.rack}]: Successfully updated inventory for task {task.code}")
+                                else:
+                                    error_func(f"RackWorker [{self.rack}]: Failed to update inventory for task {task.code}")
+                            else:
+                                error_func(f"RackWorker [{self.rack}]: No task details found in product_logs for rack={task.rack}, slot={slot}")
                         except Exception as e:
-                            error_func(f"RackWorker [{self.rack}]: Error updating inventory: {e}")
+                            error_func(f"RackWorker [{self.rack}]: Error updating inventory: {e}", exc_info=True)
                         finally:
                             conn.close()
                     elif status == "sent_echo_confirmed": 

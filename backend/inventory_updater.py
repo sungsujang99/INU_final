@@ -3,7 +3,7 @@
 Handles inventory database updates when tasks are completed
 """
 
-import sqlite3, datetime
+import sqlite3, datetime, logging
 from .db import DB_NAME
 from flask import current_app
 
