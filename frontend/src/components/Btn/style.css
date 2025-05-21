@@ -7,9 +7,9 @@
   gap: 8px;
   height: 72px;
   justify-content: space-around;
-  padding: 24px 230px;
+  padding: 20px 32px;
   position: relative;
-  width: 514px;
+  width: 100%;
 }
 
 .btn .next {

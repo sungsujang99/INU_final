@@ -7,7 +7,8 @@
   gap: 8px;
   padding: 20px 32px;
   position: relative;
-  width: 514px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .input-field-ic .frame-2 {
@@ -15,17 +16,17 @@
   display: flex;
   flex: 0 0 auto;
   justify-content: space-between;
-  margin-right: -1.00px;
   position: relative;
-  width: 451px;
+  width: 100%;
 }
 
 .input-field-ic .frame-3 {
   align-items: center;
   display: inline-flex;
-  flex: 0 0 auto;
+  flex-grow: 1;
   gap: 12px;
   position: relative;
+  min-width: 0;
 }
 
 .input-field-ic .login-id {
@@ -36,7 +37,9 @@
   line-height: 24px;
   position: relative;
   white-space: nowrap;
-  width: fit-content;
+  flex-grow: 1;
+  display: flex;
+  min-width: 0;
 }
 
 .input-field-ic .text-wrapper {
@@ -49,11 +52,14 @@
   position: relative;
   text-align: right;
   white-space: nowrap;
-  width: fit-content;
+  flex-shrink: 0;
 }
 
 .input-field-ic .ic-32-2tone {
   position: relative !important;
+  outline: none;
+  font-size: inherit;
+  color: inherit;
 }
 
 .input-field-ic.property-1-disalbe {
