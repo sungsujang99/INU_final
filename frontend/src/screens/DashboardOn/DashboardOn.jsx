@@ -34,7 +34,7 @@ export const DashboardOn = () => {
   const [workStatus, setWorkStatus] = useState({
     waiting: { incoming: 0, outgoing: 0 },
     inProgress: { incoming: 0, outgoing: 0 },
-    completed: [] // Changed to an array to store task objects
+    completed: { incoming: 0, outgoing: 0 } // Reverted to counts
   });
 
   const [deviceStatus, setDeviceStatus] = useState({
@@ -91,11 +91,17 @@ export const DashboardOn = () => {
       }
       console.log(`Dashboard - fetchData - Calculated waiting - Incoming: ${waitingIncoming}, Outgoing: ${waitingOutgoing}`);
       
-      // Fetch all completed tasks
-      let allCompletedTasks = [];
+      let completedIncomingCount = 0;
+      let completedOutgoingCount = 0;
       try {
-        allCompletedTasks = await getWorkTasksByStatus("done");
-        console.log("Dashboard - fetchData - Fetched Completed Tasks:", allCompletedTasks);
+        const allCompletedTasks = await getWorkTasksByStatus("done");
+        allCompletedTasks.forEach(task => {
+          if (task.movement === 'IN') {
+            completedIncomingCount++;
+          } else if (task.movement === 'OUT') {
+            completedOutgoingCount++;
+          }
+        });
       } catch (completedError) {
         console.error("Dashboard - Failed to fetch completed tasks:", completedError);
       }
@@ -103,8 +109,7 @@ export const DashboardOn = () => {
       setWorkStatus(prevStatus => ({
         ...prevStatus, 
         waiting: { incoming: waitingIncoming, outgoing: waitingOutgoing },
-        completed: allCompletedTasks // Update with the array of completed tasks
-        // Assuming inProgress is handled by another mechanism or not shown here directly
+        completed: { incoming: completedIncomingCount, outgoing: completedOutgoingCount }
       }));
     } catch (error) {
       console.error("Dashboard - Failed to fetch dashboard data:", error);
@@ -166,51 +171,6 @@ export const DashboardOn = () => {
 
   const handleLogout = () => {
     navigate('/'); // Navigate back to login screen
-  };
-
-  // Helper function to render the list of all completed tasks for the dashboard
-  const renderDashboardCompletedTaskList = () => {
-    if (!workStatus.completed || workStatus.completed.length === 0) {
-      return <p className="no-completed-tasks-dashboard">완료된 작업이 없습니다.</p>;
-    }
-
-    return (
-      <div className="dashboard-completed-tasks-list">
-        {workStatus.completed.map((task) => {
-          let iconComponent;
-          let movementText = task.movement; // Default to task.movement
-          let itemClassName = "dashboard-task-item";
-          let textColorClass = "";
-
-          if (task.movement === 'IN') {
-            iconComponent = <Ic242Tone6 color="#0177FB" />; // Blue Box with arrow (like WorkStatus)
-            movementText = "입고";
-            itemClassName += " task-item-in";
-            textColorClass = "task-bar-movement-in";
-          } else if (task.movement === 'OUT') {
-            iconComponent = <Ic242Tone6 color="#00BB80" />; // Green Box with arrow (like WorkStatus)
-            movementText = "출고";
-            itemClassName += " task-item-out";
-            textColorClass = "task-bar-movement-out";
-          } else { // ERROR or other statuses
-            iconComponent = <Ic242Tone2 color="#FF0000" />; // Red warning icon
-            movementText = task.status === 'error' ? "오류" : movementText; // Display "오류" if status is error
-            itemClassName += " task-item-error";
-            textColorClass = "task-bar-movement-error";
-          }
-
-          return (
-            <div key={`dashboard-completed-${task.id}`} className={itemClassName}>
-              {React.cloneElement(iconComponent, { className: "ic-4" })} {/* Use ic-4 class for consistent icon size */}
-              <p className={`dashboard-task-text ${textColorClass}`}>
-                랙 {task.rack}{task.slot !== undefined && task.slot !== null ? task.slot : ''} {movementText}
-                {task.product_name && ` (${task.product_name})`}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    );
   };
 
   return (
@@ -400,8 +360,18 @@ export const DashboardOn = () => {
             <div className="title-5">
               <div className="text-wrapper-20">완료 작업</div>
             </div>
-            {/* Replace old frame-11 (counts) with the new task list renderer */}
-            {renderDashboardCompletedTaskList()}
+            <div className="frame-11">
+              <div className="frame-12">
+                <Ic242Tone2 className="icon-instance-node" color="#39424A" />
+                <div className="text-wrapper-21">입고</div>
+                <div className="text-wrapper-22">{workStatus.completed.incoming}건</div>
+              </div>
+              <div className="frame-12">
+                <Ic242Tone6 className="icon-instance-node" color="#39424A" />
+                <div className="text-wrapper-21">출고</div>
+                <div className="text-wrapper-22">{workStatus.completed.outgoing}건</div>
+              </div>
+            </div>
           </div>
         </div>
 
