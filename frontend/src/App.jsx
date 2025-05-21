@@ -7,7 +7,6 @@ import { Login } from "./screens/Login";
 import { LoginScreen } from "./screens/LoginScreen";
 import { WorkStatus } from "./screens/WorkStatus";
 import io from 'socket.io-client';
-import { start_global_worker } from './task_queue';
 
 const router = createBrowserRouter([
   {
@@ -43,6 +42,5 @@ const router = createBrowserRouter([
 const socket = io();
 
 export const App = () => {
-  start_global_worker();
   return <RouterProvider router={router} />;
 };
