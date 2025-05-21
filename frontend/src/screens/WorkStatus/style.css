@@ -360,14 +360,14 @@
 .work-status .frame-35 {
   align-items: stretch;
   align-self: stretch;
-  background-color: #00bb8014;
-  border-radius: 24px;
   display: flex;
   flex: 0 0 auto;
+  flex-direction: column;
   gap: 8px;
-  padding: 8px 16px;
   position: relative;
   width: 100%;
+  max-height: 250px;
+  overflow-y: auto;
 }
 
 .work-status .frame-35::-webkit-scrollbar {
@@ -650,10 +650,11 @@
   color: var(--variable-collection-main-01, #0177FB);
 }
 
-.work-status .task-bar {
-  padding: 10px 15px;
+.work-status .task-bar,
+.work-status .waiting-task-item {
+  padding: 12px 16px;
   margin-bottom: 8px;
-  border-radius: 10px;
+  border-radius: 24px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -661,35 +662,37 @@
   box-sizing: border-box;
 }
 
-.task-item-out {
+.work-status .task-item-out {
   background-color: #E6F7F1;
 }
-.task-bar-movement-out {
+.work-status .task-bar-movement-out {
   color: #00BB80;
   font-weight: bold;
 }
 
-.task-item-in {
+.work-status .task-item-in {
   background-color: #E6F2FF;
 }
-.task-bar-movement-in {
+.work-status .task-bar-movement-in {
   color: #0177FB;
   font-weight: bold;
 }
 
-.task-item-error {
+.work-status .task-item-error {
   background-color: #FFF0F0;
 }
-.task-bar-movement-error {
+.work-status .task-bar-movement-error {
   color: #FF4D4F;
   font-weight: bold;
 }
 
-.task-bar .ic-4 {
+.work-status .task-bar .ic-4,
+.work-status .waiting-task-item .ic-4 {
   flex-shrink: 0;
 }
 
-.task-bar .task-bar-text {
+.work-status .task-bar .task-bar-text,
+.work-status .waiting-task-item .task-bar-text {
   margin: 0;
 }
 
