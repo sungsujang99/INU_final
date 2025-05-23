@@ -9,7 +9,7 @@ import { Ic162Thone6 } from "../../icons/Ic162Thone6";
 import { Property1LogOut } from "../../icons/Property1LogOut";
 import "./style.css";
 import { useNavigate } from "react-router-dom";
-import { getActivityLogs, getApiBaseUrl } from "../../lib/api";
+import { getActivityLogs } from "../../lib/api";
 
 // Helper to format time, you might want to make this more robust or use a library
 const formatLogTime = (timestamp) => {
@@ -40,9 +40,10 @@ export const Camera = () => {
 
   // Render the selected camera's live stream
   const renderCameraStream = () => {
-    // Construct the stream URL directly. 
+    // Construct the stream URL directly.
     // Assumes backend is served from the same origin, so /api path works.
-    const mjpegStreamUrl = `${getApiBaseUrl()}/api/camera/live_feed`; 
+    // const mjpegStreamUrl = `${getApiBaseUrl()}/api/camera/live_feed`;
+    const mjpegStreamUrl = `http://192.168.0.18:5001/api/camera/live_feed`;
 
     if (selectedCamera === 1) { // Only show the stream if Camera 1 is selected
       return (
