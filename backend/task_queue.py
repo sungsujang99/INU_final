@@ -122,6 +122,8 @@ class GlobalWorker(threading.Thread):
 
     def run(self):
         logger = current_app.logger if current_app else logging.getLogger(__name__)
+        main_equipment_id = "M"
+        main_done_token = b"fin"
         rack_done_token = b"done"
 
         while True:
@@ -135,53 +137,101 @@ class GlobalWorker(threading.Thread):
             current_slot = int(task['slot'])
             movement = task['movement'].upper()
             
-            logger.info(f"[Worker] Picked task {task_id}: {movement} for {target_rack_id}-{current_slot}")
+            logger.info(f"[Worker] Picked task {task_id}: {movement} for {target_rack_id}-{current_slot}. Setting to in_progress.")
             set_task_status(task_id, 'in_progress')
 
             final_task_status = None
-            operation_successful_on_rack = False
+            physical_op_successful = False
 
             try:
-                if not serial_mgr.enabled:
-                    logger.warning(f"[Worker] Task {task_id}: Serial communication is DISABLED. Simulating successful rack operation.")
-                    operation_successful_on_rack = True # Simulate for inventory update test
-                
-                elif target_rack_id not in serial_mgr.ports:
-                    logger.error(f"[Worker] Task {task_id}: Target rack '{target_rack_id}' not found.")
-                    final_task_status = 'failed_port_not_found'
-                
-                else:
-                    # Generate command for the target rack
-                    rack_command = str(current_slot) if movement == 'IN' else str(-current_slot)
-                    logger.info(f"[Worker] Task {task_id}: Sending command '{rack_command}' to rack '{target_rack_id}'.")
-                    
-                    res_rack = serial_mgr.send(
-                        target_rack_id,
-                        rack_command,
-                        wait_done=True,
-                        done_token=rack_done_token,
-                        custom_max_echo_attempts=DEFAULT_MAX_ECHO_ATTEMPTS # Use default attempts
-                    )
-                    rack_serial_status = res_rack["status"]
-                    logger.info(f"[Worker] Task {task_id}: Rack '{target_rack_id}' serial response status: {rack_serial_status}")
+                # --- M Command Generation ---
+                cmd_for_m = "0"
+                rack_to_num_map = {'A': 1, 'B': 2, 'C': 3}
+                rack_numeric_id = rack_to_num_map.get(target_rack_id)
 
-                    if rack_serial_status == "done":
-                        operation_successful_on_rack = True
-                    elif rack_serial_status == "echo_error_max_retries":
-                        final_task_status = 'failed_echo'
-                    elif rack_serial_status == "timeout_after_echo":
-                        final_task_status = 'failed_timeout_after_echo'
-                    else: # Other unhandled serial statuses
-                        final_task_status = f'failed_serial_{rack_serial_status}'
-                        logger.warning(f"[Worker] Task {task_id}: Unhandled serial status '{rack_serial_status}' from rack '{target_rack_id}'.")
-            
+                if rack_numeric_id is None:
+                    logger.error(f"[Worker] Task {task_id}: Unknown target_rack_id '{target_rack_id}' for M cmd gen.")
+                    final_task_status = 'failed_invalid_rack_for_m'
+                else:
+                    m_base_val = rack_numeric_id * 100 + current_slot
+                    cmd_for_m = str(m_base_val) if movement == 'IN' else str(-m_base_val)
+                # --- End M Command Generation ---
+                
+                # Rack commands
+                cmd_for_rack = str(current_slot) if movement == 'IN' else str(-current_slot)
+
+                logger.info(f"[Worker] Task {task_id}: M Cmd: '{cmd_for_m}', Rack Cmd: '{cmd_for_rack}'")
+
+                if final_task_status: # Error from M command generation
+                    pass # Skip to end
+                elif not serial_mgr.enabled:
+                    logger.warning(f"[Worker] Task {task_id}: Serial DISABLED. Simulating success.")
+                    physical_op_successful = True
+                
+                elif movement == 'IN':
+                    # 1. Main equipment (M) delivers to rack approach area
+                    if main_equipment_id not in serial_mgr.ports:
+                        logger.error(f"[Worker] Task {task_id} (IN): Main equip '{main_equipment_id}' not found.")
+                        final_task_status = 'failed_m_not_found'
+                    else:
+                        logger.info(f"[Worker] Task {task_id} (IN) - M Op: Cmd '{cmd_for_m}' to '{main_equipment_id}'.")
+                        res_m = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
+                        if res_m["status"] == "done": # 'done' from send means main_done_token ('fin') received
+                            logger.info(f"[Worker] Task {task_id} (IN) - M Op SUCCESS.")
+                            # 2. Target rack stores item
+                            if target_rack_id not in serial_mgr.ports:
+                                logger.error(f"[Worker] Task {task_id} (IN): Rack '{target_rack_id}' not found.")
+                                final_task_status = 'failed_rack_not_found'
+                            else:
+                                logger.info(f"[Worker] Task {task_id} (IN) - Rack Op: Cmd '{cmd_for_rack}' to '{target_rack_id}'.")
+                                res_rack = serial_mgr.send(target_rack_id, cmd_for_rack, wait_done=True, done_token=rack_done_token)
+                                if res_rack["status"] == "done":
+                                    logger.info(f"[Worker] Task {task_id} (IN) - Rack Op SUCCESS.")
+                                    physical_op_successful = True
+                                else: # Rack failed
+                                    final_task_status = 'failed_rack_echo' if res_rack["status"] == "echo_error_max_retries" else 'failed_rack_timeout'
+                                    logger.error(f"[Worker] Task {task_id} (IN) - Rack Op FAILED: {final_task_status}")
+                        else: # M failed
+                            final_task_status = 'failed_m_echo' if res_m["status"] == "echo_error_max_retries" else 'failed_m_timeout'
+                            logger.error(f"[Worker] Task {task_id} (IN) - M Op FAILED: {final_task_status}")
+
+                elif movement == 'OUT':
+                    # 1. Target rack dispenses item to approach area
+                    if target_rack_id not in serial_mgr.ports:
+                        logger.error(f"[Worker] Task {task_id} (OUT): Rack '{target_rack_id}' not found.")
+                        final_task_status = 'failed_rack_not_found'
+                    else:
+                        logger.info(f"[Worker] Task {task_id} (OUT) - Rack Op: Cmd '{cmd_for_rack}' to '{target_rack_id}'.")
+                        res_rack = serial_mgr.send(target_rack_id, cmd_for_rack, wait_done=True, done_token=rack_done_token)
+                        if res_rack["status"] == "done":
+                            logger.info(f"[Worker] Task {task_id} (OUT) - Rack Op SUCCESS.")
+                            # 2. Main equipment (M) collects item
+                            if main_equipment_id not in serial_mgr.ports:
+                                logger.error(f"[Worker] Task {task_id} (OUT): Main equip '{main_equipment_id}' not found.")
+                                final_task_status = 'failed_m_not_found'
+                            else:
+                                logger.info(f"[Worker] Task {task_id} (OUT) - M Op: Cmd '{cmd_for_m}' to '{main_equipment_id}'.")
+                                res_m = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
+                                if res_m["status"] == "done": # 'done' from send means main_done_token ('fin') received
+                                    logger.info(f"[Worker] Task {task_id} (OUT) - M Op SUCCESS.")
+                                    physical_op_successful = True
+                                else: # M failed
+                                    final_task_status = 'failed_m_echo' if res_m["status"] == "echo_error_max_retries" else 'failed_m_timeout'
+                                    logger.error(f"[Worker] Task {task_id} (OUT) - M Op FAILED: {final_task_status}")
+                        else: # Rack failed
+                            final_task_status = 'failed_rack_echo' if res_rack["status"] == "echo_error_max_retries" else 'failed_rack_timeout'
+                            logger.error(f"[Worker] Task {task_id} (OUT) - Rack Op FAILED: {final_task_status}")
+                else:
+                    logger.error(f"[Worker] Task {task_id}: Unknown movement '{movement}'.")
+                    final_task_status = 'failed_unknown_movement' # Should be caught by validation earlier
+
             except Exception as e:
-                logger.error(f"[Worker] Task {task_id}: Exception during processing: {e}", exc_info=True)
+                logger.error(f"[Worker] Task {task_id}: EXCEPTION during processing: {e}", exc_info=True)
                 final_task_status = 'failed_exception'
 
-            # Post-operation: Update inventory and set final status
-            if operation_successful_on_rack:
-                logger.info(f"[Worker] Task {task_id}: Rack operation successful. Updating inventory.")
+            # Post-operation: Update inventory and set final task status
+            if physical_op_successful:
+                logger.info(f"[Worker] Task {task_id}: Physical ops successful. Updating inventory.")
                 inventory_update_success = update_inventory_on_done(
                     task['rack'],
                     int(task['slot']),
@@ -192,20 +242,21 @@ class GlobalWorker(threading.Thread):
                     task.get('cargo_owner', '')
                 )
                 if inventory_update_success:
-                    final_task_status = 'done' # Final success state
-                    logger.info(f"[Worker] Task {task_id}: Inventory updated. Task marked 'done'.")
+                    final_task_status = 'done'
+                    logger.info(f"[Worker] Task {task_id}: Inventory updated. Marked 'done'.")
                 else:
                     final_task_status = 'failed_inventory_update'
-                    logger.error(f"[Worker] Task {task_id}: Inventory update FAILED. Task marked 'failed_inventory_update'.")
+                    logger.error(f"[Worker] Task {task_id}: Inventory update FAILED. Marked '{final_task_status}'.")
             
-            # Ensure a status is always set
-            if final_task_status:
+            if final_task_status: # This will be 'done' or some error status
                 set_task_status(task_id, final_task_status)
-            elif not operation_successful_on_rack: # Should have been caught by specific errors
-                logger.error(f"[Worker] Task {task_id}: Operation not successful but no specific error status set. Defaulting to 'failed_exception'.")
+            else:
+                # This implies physical_op_successful was false, but no specific error status was set.
+                # This case should ideally be covered by specific error handling above.
+                logger.error(f"[Worker] Task {task_id}: No final status determined despite physical_op_successful=False. Defaulting to failed_exception.")
                 set_task_status(task_id, 'failed_exception')
             
-            time.sleep(0.1) # Loop delay
+            time.sleep(0.1)
 
 def start_global_worker():
     worker = GlobalWorker()
