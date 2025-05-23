@@ -13,21 +13,25 @@ class Camera:
             
             print("[CAM_INIT_DEBUG] About to import picamera2.", file=sys.stderr)
             from picamera2 import Picamera2
+            from libcamera import controls  # Import libcamera controls
             print("[CAM_INIT_DEBUG] picamera2 imported successfully.", file=sys.stderr)
 
             print("[CAM_INIT_DEBUG] Initializing picamera2.Picamera2().", file=sys.stderr)
             self.picam = Picamera2()
             print("[CAM_INIT_DEBUG] picamera2.Picamera2() initialized.", file=sys.stderr)
             
-            # Use still configuration for simpler setup
-            print("[CAM_INIT_DEBUG] Creating still configuration.", file=sys.stderr)
-            config = self.picam.create_still_configuration(
-                main={"size": (width, height)},
-                lores={"size": (160, 120)},  # Add low-res stream for preview
-                buffer_count=4
+            # Use preview configuration for continuous capture
+            print("[CAM_INIT_DEBUG] Creating preview configuration.", file=sys.stderr)
+            config = self.picam.create_preview_configuration(
+                main={"size": (width, height), "format": "RGB888"},
+                buffer_count=4,
+                controls={
+                    "FrameDurationLimits": (int(1/fps * 1000000), int(1/fps * 1000000)),
+                    "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Fast
+                }
             )
 
-            print(f"[CAM_INIT_DEBUG] Still configuration created: {config}", file=sys.stderr)
+            print(f"[CAM_INIT_DEBUG] Preview configuration created: {config}", file=sys.stderr)
             logger.info(f"[CAM_INIT] Picamera2 raw configuration: {config}")
             
             print("[CAM_INIT_DEBUG] Configuring picam.", file=sys.stderr)
@@ -48,7 +52,6 @@ class Camera:
             self._update_counter = 0
             self.fps = fps
             self.last_capture_time = 0
-            self.capture_timeout = 2.0  # Increased timeout to 2 seconds
             self.capture_errors = 0  # Track consecutive capture errors
             print("[CAM_INIT_DEBUG] Starting _update thread.", file=sys.stderr)
             threading.Thread(target=self._update, daemon=True).start()
@@ -74,64 +77,46 @@ class Camera:
                 print("[CAM_UPDATE_DEBUG] Attempting capture...", file=sys.stderr)
                 start_capture = time.time()
                 
-                # Set up a timer thread to detect capture timeout
-                capture_success = threading.Event()
-                capture_result = {"frame": None, "error": None}
+                try:
+                    # Capture directly from the camera stream
+                    arr = self.picam.capture_array()
+                    if arr is not None:
+                        print(f"[CAM_UPDATE_DEBUG] Array captured. Shape: {arr.shape}, Type: {arr.dtype}", file=sys.stderr)
+                        
+                        # Convert RGB to BGR for OpenCV
+                        bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+                        ret, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        
+                        if ret:
+                            self.frame = jpg.tobytes()
+                            self._update_counter += 1
+                            capture_time = time.time() - start_capture
+                            if self._update_counter % (self.fps * 2) == 0:
+                                print(f"[CAM_UPDATE_DEBUG] Frame {self._update_counter} captured and encoded in {capture_time:.3f}s, size: {len(self.frame)} bytes", file=sys.stderr)
+                            
+                            self.capture_errors = 0  # Reset error counter on successful capture
+                            self.last_capture_time = time.time()
+                        else:
+                            print("[CAM_UPDATE_DEBUG] Failed to encode frame", file=sys.stderr)
+                            self.capture_errors += 1
+                    else:
+                        print("[CAM_UPDATE_DEBUG] Capture returned None frame", file=sys.stderr)
+                        self.capture_errors += 1
                 
-                def capture_with_timeout():
-                    try:
-                        arr = self.picam.capture_array("main")
-                        if arr is not None:
-                            capture_result["frame"] = arr
-                            print(f"[CAM_UPDATE_DEBUG] Array captured. Shape: {arr.shape}, Type: {arr.dtype}", file=sys.stderr)
-                            capture_success.set()
-                    except Exception as e:
-                        capture_result["error"] = str(e)
-                        print(f"[CAM_UPDATE_DEBUG] Capture thread exception: {e}", file=sys.stderr)
-                        capture_success.set()  # Set event to prevent hanging
-                
-                # Start capture in a separate thread
-                capture_thread = threading.Thread(target=capture_with_timeout)
-                capture_thread.daemon = True
-                capture_thread.start()
-                
-                # Wait for capture with timeout
-                if not capture_success.wait(self.capture_timeout):
-                    print(f"[CAM_UPDATE_DEBUG] Capture timeout after {self.capture_timeout}s", file=sys.stderr)
+                except Exception as e:
+                    print(f"[CAM_UPDATE_DEBUG] Capture error: {e}", file=sys.stderr)
                     self.capture_errors += 1
-                    if self.capture_errors >= 5:  # Reset camera after 5 consecutive errors
-                        print("[CAM_UPDATE_DEBUG] Too many capture errors, attempting camera reset...", file=sys.stderr)
+                    
+                if self.capture_errors >= 5:  # Reset camera after 5 consecutive errors
+                    print("[CAM_UPDATE_DEBUG] Too many capture errors, attempting camera reset...", file=sys.stderr)
+                    try:
                         self.picam.stop()
                         time.sleep(1)
                         self.picam.start()
                         time.sleep(2)
                         self.capture_errors = 0
-                    continue
-                
-                if capture_result["error"]:
-                    print(f"[CAM_UPDATE_DEBUG] Capture failed with error: {capture_result['error']}", file=sys.stderr)
-                    self.capture_errors += 1
-                    continue
-                
-                arr = capture_result["frame"]
-                if arr is None:
-                    print("[CAM_UPDATE_DEBUG] Capture returned None frame", file=sys.stderr)
-                    self.capture_errors += 1
-                    continue
-                
-                self.capture_errors = 0  # Reset error counter on successful capture
-                self.last_capture_time = time.time()
-                
-                # Convert RGB to BGR for OpenCV
-                bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
-                ret, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                
-                if ret:
-                    self.frame = jpg.tobytes()
-                    self._update_counter += 1
-                    capture_time = time.time() - start_capture
-                    if self._update_counter % (self.fps * 2) == 0:
-                        print(f"[CAM_UPDATE_DEBUG] Frame {self._update_counter} captured and encoded in {capture_time:.3f}s, size: {len(self.frame)} bytes", file=sys.stderr)
+                    except Exception as e:
+                        print(f"[CAM_UPDATE_DEBUG] Camera reset failed: {e}", file=sys.stderr)
                 
             except Exception as e:
                 print(f"[CAM_UPDATE_DEBUG_ERROR] Exception in _update: {e}", file=sys.stderr)
