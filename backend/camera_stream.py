@@ -2,6 +2,9 @@ import io, threading, time, cv2, logging, sys
 from PIL import Image
 from flask import Response, current_app
 
+# Set Picamera2 logging to WARNING to suppress DEBUG output
+logging.getLogger('picamera2').setLevel(logging.WARNING)
+
 # Get a logger instance
 logger = logging.getLogger(__name__)
 
