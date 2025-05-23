@@ -74,14 +74,16 @@ class Camera:
                     time.sleep(0.001)  # Small sleep to prevent CPU spinning
                     continue
                 
-                print("[CAM_UPDATE_DEBUG] Attempting capture...", file=sys.stderr)
+                print("[CAM_UPDATE_DEBUG] About to call capture_array()...", file=sys.stderr)
                 start_capture = time.time()
                 
                 try:
                     # Capture directly from the camera stream
+                    print("[CAM_UPDATE_DEBUG] Calling self.picam.capture_array()", file=sys.stderr)
                     arr = self.picam.capture_array()
+                    print(f"[CAM_UPDATE_DEBUG] capture_array() returned. Type: {type(arr)}, Value: {repr(arr)[:200]}", file=sys.stderr)
                     if arr is not None:
-                        print(f"[CAM_UPDATE_DEBUG] Array captured. Shape: {arr.shape}, Type: {arr.dtype}", file=sys.stderr)
+                        print(f"[CAM_UPDATE_DEBUG] Array captured. Shape: {getattr(arr, 'shape', None)}, Type: {getattr(arr, 'dtype', None)}", file=sys.stderr)
                         
                         # Convert RGB to BGR for OpenCV
                         bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
@@ -132,11 +134,14 @@ class Camera:
         while True:
             try:
                 if self.frame:
+                    print(f"[CAM_GEN_DEBUG] Yielding frame {frames_yielded_count+1}", file=sys.stderr)
                     yield boundary + b'\r\n'
                     yield b'Content-Type: image/jpeg\r\n\r\n' + self.frame + b'\r\n'
                     frames_yielded_count += 1
                     if frames_yielded_count % (self.fps * 2) == 0:
                         print(f"[CAM_GEN_DEBUG] Frame yielded (total {frames_yielded_count})", file=sys.stderr)
+                else:
+                    print("[CAM_GEN_DEBUG] Waiting for frame (self.frame is None)", file=sys.stderr)
                 time.sleep(1.0 / self.fps)  # Control frame rate
             except Exception as e:
                 print(f"[CAM_GEN_DEBUG_ERROR] Exception in get_generator: {e}", file=sys.stderr)
