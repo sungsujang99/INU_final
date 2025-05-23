@@ -8,6 +8,7 @@ DISCOVERY_TIMEOUT = 2 # Specific timeout for WHO command during discovery
 ECHO_TIMEOUT = 3 # Timeout for waiting for command echo
 WHO_CMD = b"WHO\n"
 RACKS   = {"A", "B", "C", "M"}
+#A: 1, B: 2, C: 3, M: main rack
 
 DEFAULT_MAX_ECHO_ATTEMPTS = 6    # Default number of attempts (1 initial + 5 retries) to get command echo
 RESET_COMMAND_MAX_ECHO_ATTEMPTS = 15 # More attempts for the critical reset command
@@ -345,24 +346,33 @@ class SerialManager:
 
         print(f"INFO: Attempting to reset all connected racks with command '{reset_cmd_code}' (echo attempts: {RESET_COMMAND_MAX_ECHO_ATTEMPTS})...")
         
+        main_equipment_id = "M" # Define M equipment ID
+        main_reset_done_token = b"fin" # M uses "fin" for reset completion
+
         for rack_id in self.ports.keys(): 
             print(f"INFO: Rack {rack_id}: Sending reset command '{reset_cmd_code}'...")
+            
+            current_done_token = done_token_reset # Default for A, B, C
+            if rack_id == main_equipment_id:
+                current_done_token = main_reset_done_token # Override for M
+                print(f"INFO: Rack {rack_id} is Main equipment. Using '{main_reset_done_token.decode()}' as done token for reset.")
+
             try:
                 result = self.send(
                     rack_id, 
                     reset_cmd_code,  # Send as string, encoding will be handled in send method
                     wait_done=True, 
-                    done_token=done_token_reset, 
+                    done_token=current_done_token, # Use specific done token 
                     custom_max_echo_attempts=RESET_COMMAND_MAX_ECHO_ATTEMPTS
                 )
                 status = result.get("status")
 
-                if status == "done":
-                    print(f"SUCCESS: Rack {rack_id}: Reset command '{reset_cmd_code}' COMPLETED. Arduino responded '{done_token_reset.decode(errors='ignore')}'.")
+                if status == "done": # "done" is the general success status from send() method
+                    print(f"SUCCESS: Rack {rack_id}: Reset command '{reset_cmd_code}' COMPLETED. Arduino responded '{current_done_token.decode(errors='ignore')}'.")
                 elif status == "echo_error_max_retries":
                     print(f"ERROR: Rack {rack_id}: Failed to get echo for reset command '{reset_cmd_code}' after {RESET_COMMAND_MAX_ECHO_ATTEMPTS} attempts.")
                 elif status == "timeout_after_echo":
-                    print(f"ERROR: Rack {rack_id}: Reset command '{reset_cmd_code}' echo OK, but TIMEOUT waiting for '{done_token_reset.decode(errors='ignore')}'.")
+                    print(f"ERROR: Rack {rack_id}: Reset command '{reset_cmd_code}' echo OK, but TIMEOUT waiting for '{current_done_token.decode(errors='ignore')}'.")
                 else: 
                     print(f"WARNING: Rack {rack_id}: Reset command '{reset_cmd_code}' resulted in unexpected status: '{status}'.")
             except RuntimeError as re:
