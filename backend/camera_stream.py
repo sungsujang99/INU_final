@@ -52,8 +52,20 @@ class Camera:
         logger.info("[CAM_UPDATE] Camera _update thread loop started.")
         while self.running:
             try:
+                print("[CAM_UPDATE_DEBUG] Attempting picam.capture_array...", file=sys.stderr)
                 arr = self.picam.capture_array("main")
+                print(f"[CAM_UPDATE_DEBUG] picam.capture_array done. arr is None: {arr is None}", file=sys.stderr)
+                
+                if arr is None:
+                    print("[CAM_UPDATE_DEBUG_WARN] capture_array returned None. Skipping encode.", file=sys.stderr)
+                    self.frame = None
+                    time.sleep(0.1) # Brief pause if capture fails
+                    continue
+
+                print("[CAM_UPDATE_DEBUG] Attempting cv2.imencode...", file=sys.stderr)
                 ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                print(f"[CAM_UPDATE_DEBUG] cv2.imencode done. ret: {ret}", file=sys.stderr)
+                
                 if ret:
                     self.frame = jpg.tobytes()
                     self._update_counter += 1
@@ -67,6 +79,8 @@ class Camera:
             except Exception as e:
                 print(f"[CAM_UPDATE_DEBUG_ERROR] Exception in _update: {e}", file=sys.stderr)
                 logger.error(f"[CAM_UPDATE_ERROR] Error in Camera _update loop: {e}", exc_info=True)
+                # If picam methods are problematic, this could be a tight loop of errors.
+                # Consider stopping self.running = False or a longer sleep.
                 time.sleep(1)
 
     def get_generator(self):
