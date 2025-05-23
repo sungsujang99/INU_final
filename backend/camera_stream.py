@@ -23,8 +23,7 @@ class Camera:
             print("[CAM_INIT_DEBUG] Creating still configuration.", file=sys.stderr)
             config = self.picam.create_still_configuration(
                 main={"size": (width, height)},
-                lores={"size": (320, 240)},
-                display="lores"
+                buffer_count=4  # Increase buffer count for smoother capture
             )
 
             print(f"[CAM_INIT_DEBUG] Still configuration created: {config}", file=sys.stderr)
@@ -47,6 +46,7 @@ class Camera:
             self.running = True
             self._update_counter = 0
             self.fps = fps
+            self.last_capture_time = 0
             print("[CAM_INIT_DEBUG] Starting _update thread.", file=sys.stderr)
             threading.Thread(target=self._update, daemon=True).start()
             logger.info("[CAM_INIT] Camera _update thread started.")
@@ -60,41 +60,55 @@ class Camera:
         print("[CAM_UPDATE_DEBUG] _update thread has started.", file=sys.stderr)
         logger.info("[CAM_UPDATE] Camera _update thread loop started.")
         frame_interval = 1.0 / self.fps if self.fps > 0 else 0.1
-        last_capture_time = 0
+        capture_requested = False
         
         while self.running:
             try:
                 current_time = time.time()
-                if current_time - last_capture_time < frame_interval:
-                    time.sleep(0.001)  # Small sleep to prevent CPU spinning
+                
+                # Only request a new capture if enough time has passed and we're not waiting for one
+                if not capture_requested and (current_time - self.last_capture_time) >= frame_interval:
+                    print("[CAM_UPDATE_DEBUG] Requesting capture...", file=sys.stderr)
+                    self.picam.request_capture()
+                    capture_requested = True
                     continue
+                
+                # If we have a pending capture, check if it's ready
+                if capture_requested:
+                    if not self.picam.capture_completion():
+                        time.sleep(0.001)  # Brief sleep while waiting for capture
+                        continue
+                        
+                    print("[CAM_UPDATE_DEBUG] Capture completed, retrieving array...", file=sys.stderr)
+                    arr = self.picam.capture_array("main")
+                    capture_requested = False
+                    self.last_capture_time = current_time
                     
-                print("[CAM_UPDATE_DEBUG] Attempting picam.capture_array('main')...", file=sys.stderr)
-                arr = self.picam.capture_array("main")
-                last_capture_time = time.time()
-                
-                print(f"[CAM_UPDATE_DEBUG] Capture complete. Array shape: {arr.shape if arr is not None else 'None'}", file=sys.stderr)
-                
-                if arr is None:
-                    print("[CAM_UPDATE_DEBUG_WARN] capture_array returned None. Skipping encode.", file=sys.stderr)
-                    continue
+                    print(f"[CAM_UPDATE_DEBUG] Array retrieved. Shape: {arr.shape if arr is not None else 'None'}", file=sys.stderr)
+                    
+                    if arr is None:
+                        print("[CAM_UPDATE_DEBUG_WARN] capture_array returned None. Skipping encode.", file=sys.stderr)
+                        continue
 
-                print("[CAM_UPDATE_DEBUG] Attempting cv2.imencode...", file=sys.stderr)
-                ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                print(f"[CAM_UPDATE_DEBUG] cv2.imencode complete. Success: {ret}", file=sys.stderr)
-                
-                if ret:
-                    self.frame = jpg.tobytes()
-                    self._update_counter += 1
-                    if self._update_counter % (self.fps * 2) == 0:
-                        print(f"[CAM_UPDATE_DEBUG] Frame {self._update_counter} captured and encoded, size: {len(self.frame)} bytes", file=sys.stderr)
-                else:
-                    logger.warning("[CAM_UPDATE_WARN] cv2.imencode failed.")
-                    print("[CAM_UPDATE_DEBUG_ERROR] cv2.imencode failed.", file=sys.stderr)
+                    print("[CAM_UPDATE_DEBUG] Attempting cv2.imencode...", file=sys.stderr)
+                    ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                    print(f"[CAM_UPDATE_DEBUG] cv2.imencode complete. Success: {ret}", file=sys.stderr)
                     
+                    if ret:
+                        self.frame = jpg.tobytes()
+                        self._update_counter += 1
+                        if self._update_counter % (self.fps * 2) == 0:
+                            print(f"[CAM_UPDATE_DEBUG] Frame {self._update_counter} captured and encoded, size: {len(self.frame)} bytes", file=sys.stderr)
+                    else:
+                        logger.warning("[CAM_UPDATE_WARN] cv2.imencode failed.")
+                        print("[CAM_UPDATE_DEBUG_ERROR] cv2.imencode failed.", file=sys.stderr)
+                else:
+                    time.sleep(0.001)  # Brief sleep while waiting for next capture interval
+                        
             except Exception as e:
                 print(f"[CAM_UPDATE_DEBUG_ERROR] Exception in _update: {e}", file=sys.stderr)
                 logger.error(f"[CAM_UPDATE_ERROR] Error in Camera _update loop: {e}", exc_info=True)
+                capture_requested = False  # Reset on error
                 time.sleep(0.1)  # Brief pause on error
 
     def get_generator(self):
