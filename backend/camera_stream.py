@@ -19,12 +19,21 @@ class Camera:
             self.picam = picamera2.Picamera2()
             print("[CAM_INIT_DEBUG] picamera2.Picamera2() initialized.", file=sys.stderr)
             
-            config = self.picam.create_video_configuration(
-                main={"size": (width, height)},
-                controls={"FrameRate": fps}
-            )
-            print(f"[CAM_INIT_DEBUG] Video configuration created: {config}", file=sys.stderr)
-            logger.info(f"[CAM_INIT] Picamera2 raw configuration: {config}")
+            # TEST: Use create_still_configuration to see if capture_array unblocks
+            print("[CAM_INIT_DEBUG] Creating STILL configuration for test.", file=sys.stderr)
+            # config = self.picam.create_video_configuration(
+            #     main={"size": (width, height)},
+            #     controls={"FrameRate": fps}
+            # )
+            config = self.picam.create_still_configuration()
+            # To keep the size somewhat reasonable for this test, let's try to adjust the still config's main stream if possible
+            # This might not be the standard way, but for a test:
+            if 'main' not in config: config['main'] = {}
+            config['main']['size'] = (width, height) # Try to force the size
+            # config['main']['format'] = 'BGR888' # Match working format from test, though still config might override
+
+            print(f"[CAM_INIT_DEBUG] Video configuration created (using still_config basis): {config}", file=sys.stderr)
+            logger.info(f"[CAM_INIT] Picamera2 raw configuration (using still_config basis): {config}")
             
             print("[CAM_INIT_DEBUG] Configuring picam.", file=sys.stderr)
             self.picam.configure(config)
@@ -37,7 +46,7 @@ class Camera:
             logger.info("[CAM_INIT] Picamera2 started successfully.")
             self.frame = None
             self.running = True
-            self._update_counter = 0 # Add counter for periodic print
+            self._update_counter = 0
             print("[CAM_INIT_DEBUG] Starting _update thread.", file=sys.stderr)
             threading.Thread(target=self._update, daemon=True).start()
             logger.info("[CAM_INIT] Camera _update thread started.")
