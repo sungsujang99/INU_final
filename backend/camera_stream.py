@@ -43,6 +43,10 @@ class Camera:
             self.picam.start()
             print("[CAM_INIT_DEBUG] Picam started.", file=sys.stderr)
             
+            print("[CAM_INIT_DEBUG] Waiting 2 seconds for camera to settle after start...", file=sys.stderr)
+            time.sleep(2) # Allow camera to settle
+            print("[CAM_INIT_DEBUG] Finished 2-second settle time.", file=sys.stderr)
+            
             logger.info("[CAM_INIT] Picamera2 started successfully.")
             self.frame = None
             self.running = True
