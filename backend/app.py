@@ -17,6 +17,7 @@ from .inventory import add_records
 from .stats import fetch_logs, logs_to_csv
 from .serial_io import serial_mgr
 from . import task_queue
+from . import camera_stream # Import the new camera_stream module
 
 # Define SECRET_KEY for the application
 # This should be a long, random, and secret string in production
@@ -313,6 +314,15 @@ def download_batch_task(batch_id):
     finally:
         if conn:
             conn.close()
+
+# ---- Camera Stream Route ----
+@app.route('/api/camera/live_feed')
+# @token_required # MJPEG streams are often not token-protected for simplicity in <img> tags,
+                 # but can be if your client-side can handle adding tokens to image requests (less common).
+                 # For now, let's assume it might be open or protected by network ACLs if needed.
+def camera_live_feed_route():
+    # This directly returns the Response object from your mjpeg_feed function
+    return camera_stream.mjpeg_feed()
 
 @app.after_request
 def after_request(response):

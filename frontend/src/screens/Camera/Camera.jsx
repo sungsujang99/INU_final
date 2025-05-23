@@ -11,14 +11,6 @@ import "./style.css";
 import { useNavigate } from "react-router-dom";
 import { getActivityLogs, getApiBaseUrl } from "../../lib/api";
 
-// Placeholder Stream URLs - REPLACE THESE WITH YOUR ACTUAL STREAM URLS
-const CAMERA_STREAM_URLS = {
-  1: "YOUR_CAMERA_1_STREAM_URL", // e.g., "http://example.com/stream1/playlist.m3u8"
-  2: "YOUR_CAMERA_2_STREAM_URL",
-  3: "YOUR_CAMERA_3_STREAM_URL",
-  4: "YOUR_CAMERA_4_STREAM_URL",
-};
-
 // Helper to format time, you might want to make this more robust or use a library
 const formatLogTime = (timestamp) => {
   if (!timestamp) return "00:00:00";
@@ -34,7 +26,6 @@ const formatLogTime = (timestamp) => {
 export const Camera = () => {
   const navigate = useNavigate();
   const [selectedCamera, setSelectedCamera] = useState(1); // Default to camera 1
-  // const [activityLogs, setActivityLogs] = useState([]); // Raw logs, if needed for other purposes
   const [groupedActivityLogs, setGroupedActivityLogs] = useState({}); // State for grouped logs
 
   // Navigation handlers
@@ -49,41 +40,35 @@ export const Camera = () => {
 
   // Render the selected camera's live stream
   const renderCameraStream = () => {
-    const streamUrl = CAMERA_STREAM_URLS[selectedCamera];
+    // Construct the stream URL directly. 
+    // Assumes backend is served from the same origin, so /api path works.
+    const mjpegStreamUrl = `${getApiBaseUrl()}/api/camera/live_feed`; 
 
-    if (!streamUrl || streamUrl.startsWith("YOUR_CAMERA_")) {
-      return <div className="camera-stream-placeholder">카메라 {selectedCamera} 스트림 URL이 설정되지 않았습니다.</div>;
+    if (selectedCamera === 1) { // Only show the stream if Camera 1 is selected
+      return (
+        <img 
+          src={mjpegStreamUrl} 
+          alt="카메라 1 라이브 스트림" 
+          className="camera-mjpeg-stream" // Add a class for styling if needed
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          // Basic error visual cue (you might want a more robust error handling)
+          onError={(e) => {
+            e.target.alt = "카메라 스트림을 불러올 수 없습니다."; 
+            // Optionally, replace with a placeholder image or hide:
+            // e.target.src = "/img/camera_error_placeholder.png"; 
+            // e.target.style.display = 'none'; 
+          }}
+        />
+      );
+    } else {
+      // For other camera selections, show a placeholder or message
+      // This maintains the 4-camera UI for future expansion if you add more streams later
+      return (
+        <div className="camera-stream-placeholder">
+          카메라 {selectedCamera} 은(는) 현재 설정되지 않았습니다.
+        </div>
+      );
     }
-
-    // Example using a generic video tag (suitable for some direct stream types or if ReactPlayer is too heavy)
-    // For HLS/DASH, ReactPlayer or hls.js/dash.js integration is more robust.
-    // If using ReactPlayer:
-    // return (
-    //   <ReactPlayer 
-    //     url={streamUrl} 
-    //     playing 
-    //     controls={false} // Minimal controls, or true if you want them
-    //     width="100%" 
-    //     height="100%" 
-    //     className="react-player-instance"
-    //   />
-    // );
-    
-    // Fallback to a simple placeholder if not using ReactPlayer or if URL is an MJPEG stream
-    // If it IS an MJPEG stream, you might use an <img> tag:
-    // if (streamUrl.includes('.mjpg') || streamUrl.includes('.cgi')) { // Basic check
-    //   return <img src={streamUrl} alt={`카메라 ${selectedCamera} 스트림`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
-    // }
-
-    // Default placeholder if no specific player logic is implemented yet for the URL type
-    return (
-      <div className="camera-stream-active">
-        {/* This div will be styled to show the stream or a message */}
-        {/* For a real stream, you'd embed a video player component here pointing to streamUrl */}
-        <p>운영 캠{selectedCamera} 라이브 스트리밍 영역</p>
-        <p style={{fontSize: '0.8em', wordBreak: 'break-all'}}>URL: {streamUrl}</p>
-      </div>
-    );
   };
 
   // Render the main camera display
