@@ -23,10 +23,10 @@ class Camera:
             self.picam = Picamera2()
             print("[CAM_INIT_DEBUG] picamera2.Picamera2() initialized.", file=sys.stderr)
             
-            # Use preview configuration for continuous capture, with BGR888 format
+            # Use preview configuration for continuous capture, with RGB888 format
             print("[CAM_INIT_DEBUG] Creating preview configuration.", file=sys.stderr)
             config = self.picam.create_preview_configuration(
-                main={"size": (width, height), "format": "BGR888"},
+                main={"size": (width, height), "format": "RGB888"},
                 buffer_count=4,
                 controls={
                     "FrameDurationLimits": (int(1/fps * 1000000), int(1/fps * 1000000)),
@@ -85,9 +85,11 @@ class Camera:
                     arr = self.picam.capture_array()
                     # print(f"[CAM_UPDATE_DEBUG] capture_array() returned. Type: {type(arr)}, Value: {repr(arr)[:200]}", file=sys.stderr)
                     if arr is not None:
-                        # print(f"[CAM_UPDATE_DEBUG] Array captured. Shape: {getattr(arr, 'shape', None)}, Type: {getattr(arr, 'dtype', None)}", file=sys.stderr)
-                        
-                        # Directly encode BGR888 to JPEG
+                        # Save a test frame to disk for inspection (only once)
+                        if self._update_counter == 0:
+                            import cv2
+                            cv2.imwrite("test_frame.jpg", arr)
+                        # Directly encode RGB888 to JPEG
                         ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
                         
                         if ret:
