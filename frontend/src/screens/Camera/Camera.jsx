@@ -11,6 +11,14 @@ import "./style.css";
 import { useNavigate } from "react-router-dom";
 import { getActivityLogs, getApiBaseUrl } from "../../lib/api";
 
+// Placeholder Stream URLs - REPLACE THESE WITH YOUR ACTUAL STREAM URLS
+const CAMERA_STREAM_URLS = {
+  1: "YOUR_CAMERA_1_STREAM_URL", // e.g., "http://example.com/stream1/playlist.m3u8"
+  2: "YOUR_CAMERA_2_STREAM_URL",
+  3: "YOUR_CAMERA_3_STREAM_URL",
+  4: "YOUR_CAMERA_4_STREAM_URL",
+};
+
 // Helper to format time, you might want to make this more robust or use a library
 const formatLogTime = (timestamp) => {
   if (!timestamp) return "00:00:00";
@@ -39,15 +47,43 @@ export const Camera = () => {
     setSelectedCamera(cameraNumber);
   };
 
-  // Render camera content based on selected camera
-  const renderCameraContent = () => {
-    switch(selectedCamera) {
-      case 1: return <div className="camera-content">운영 캠1 영상</div>;
-      case 2: return <div className="camera-content">운영 캠2 영상</div>;
-      case 3: return <div className="camera-content">운영 캠3 영상</div>;
-      case 4: return <div className="camera-content">운영 캠4 영상</div>;
-      default: return <div className="camera-content">선택된 카메라 없음</div>;
+  // Render the selected camera's live stream
+  const renderCameraStream = () => {
+    const streamUrl = CAMERA_STREAM_URLS[selectedCamera];
+
+    if (!streamUrl || streamUrl.startsWith("YOUR_CAMERA_")) {
+      return <div className="camera-stream-placeholder">카메라 {selectedCamera} 스트림 URL이 설정되지 않았습니다.</div>;
     }
+
+    // Example using a generic video tag (suitable for some direct stream types or if ReactPlayer is too heavy)
+    // For HLS/DASH, ReactPlayer or hls.js/dash.js integration is more robust.
+    // If using ReactPlayer:
+    // return (
+    //   <ReactPlayer 
+    //     url={streamUrl} 
+    //     playing 
+    //     controls={false} // Minimal controls, or true if you want them
+    //     width="100%" 
+    //     height="100%" 
+    //     className="react-player-instance"
+    //   />
+    // );
+    
+    // Fallback to a simple placeholder if not using ReactPlayer or if URL is an MJPEG stream
+    // If it IS an MJPEG stream, you might use an <img> tag:
+    // if (streamUrl.includes('.mjpg') || streamUrl.includes('.cgi')) { // Basic check
+    //   return <img src={streamUrl} alt={`카메라 ${selectedCamera} 스트림`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
+    // }
+
+    // Default placeholder if no specific player logic is implemented yet for the URL type
+    return (
+      <div className="camera-stream-active">
+        {/* This div will be styled to show the stream or a message */}
+        {/* For a real stream, you'd embed a video player component here pointing to streamUrl */}
+        <p>운영 캠{selectedCamera} 라이브 스트리밍 영역</p>
+        <p style={{fontSize: '0.8em', wordBreak: 'break-all'}}>URL: {streamUrl}</p>
+      </div>
+    );
   };
 
   // Render the main camera display
@@ -59,7 +95,7 @@ export const Camera = () => {
         <div className="text-wrapper-31">운영 캠{selectedCamera}</div>
       </div>
       <div className="camera-display">
-        {/* No image needed - the checkered background will be applied via CSS */}
+        {renderCameraStream()}
       </div>
     </div>
   );
