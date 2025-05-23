@@ -63,7 +63,7 @@ class Camera:
             raise
 
     def _update(self):
-        print("[CAM_UPDATE_DEBUG] _update thread has started.", file=sys.stderr)
+        # print("[CAM_UPDATE_DEBUG] _update thread has started.", file=sys.stderr)
         logger.info("[CAM_UPDATE] Camera _update thread loop started.")
         frame_interval = 1.0 / self.fps if self.fps > 0 else 0.1
         
@@ -74,16 +74,15 @@ class Camera:
                     time.sleep(0.001)  # Small sleep to prevent CPU spinning
                     continue
                 
-                print("[CAM_UPDATE_DEBUG] About to call capture_array()...", file=sys.stderr)
+                # print("[CAM_UPDATE_DEBUG] About to call capture_array()...", file=sys.stderr)
                 start_capture = time.time()
                 
                 try:
-                    # Capture directly from the camera stream
-                    print("[CAM_UPDATE_DEBUG] Calling self.picam.capture_array()", file=sys.stderr)
+                    # print("[CAM_UPDATE_DEBUG] Calling self.picam.capture_array()", file=sys.stderr)
                     arr = self.picam.capture_array()
-                    print(f"[CAM_UPDATE_DEBUG] capture_array() returned. Type: {type(arr)}, Value: {repr(arr)[:200]}", file=sys.stderr)
+                    # print(f"[CAM_UPDATE_DEBUG] capture_array() returned. Type: {type(arr)}, Value: {repr(arr)[:200]}", file=sys.stderr)
                     if arr is not None:
-                        print(f"[CAM_UPDATE_DEBUG] Array captured. Shape: {getattr(arr, 'shape', None)}, Type: {getattr(arr, 'dtype', None)}", file=sys.stderr)
+                        # print(f"[CAM_UPDATE_DEBUG] Array captured. Shape: {getattr(arr, 'shape', None)}, Type: {getattr(arr, 'dtype', None)}", file=sys.stderr)
                         
                         # Convert RGB to BGR for OpenCV
                         bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
@@ -93,24 +92,24 @@ class Camera:
                             self.frame = jpg.tobytes()
                             self._update_counter += 1
                             capture_time = time.time() - start_capture
-                            if self._update_counter % (self.fps * 2) == 0:
-                                print(f"[CAM_UPDATE_DEBUG] Frame {self._update_counter} captured and encoded in {capture_time:.3f}s, size: {len(self.frame)} bytes", file=sys.stderr)
+                            # if self._update_counter % (self.fps * 2) == 0:
+                            #     print(f"[CAM_UPDATE_DEBUG] Frame {self._update_counter} captured and encoded in {capture_time:.3f}s, size: {len(self.frame)} bytes", file=sys.stderr)
                             
                             self.capture_errors = 0  # Reset error counter on successful capture
                             self.last_capture_time = time.time()
                         else:
-                            print("[CAM_UPDATE_DEBUG] Failed to encode frame", file=sys.stderr)
+                            # print("[CAM_UPDATE_DEBUG] Failed to encode frame", file=sys.stderr)
                             self.capture_errors += 1
                     else:
-                        print("[CAM_UPDATE_DEBUG] Capture returned None frame", file=sys.stderr)
+                        # print("[CAM_UPDATE_DEBUG] Capture returned None frame", file=sys.stderr)
                         self.capture_errors += 1
                 
                 except Exception as e:
-                    print(f"[CAM_UPDATE_DEBUG] Capture error: {e}", file=sys.stderr)
+                    # print(f"[CAM_UPDATE_DEBUG] Capture error: {e}", file=sys.stderr)
                     self.capture_errors += 1
                     
                 if self.capture_errors >= 5:  # Reset camera after 5 consecutive errors
-                    print("[CAM_UPDATE_DEBUG] Too many capture errors, attempting camera reset...", file=sys.stderr)
+                    # print("[CAM_UPDATE_DEBUG] Too many capture errors, attempting camera reset...", file=sys.stderr)
                     try:
                         self.picam.stop()
                         time.sleep(1)
@@ -118,7 +117,8 @@ class Camera:
                         time.sleep(2)
                         self.capture_errors = 0
                     except Exception as e:
-                        print(f"[CAM_UPDATE_DEBUG] Camera reset failed: {e}", file=sys.stderr)
+                        # print(f"[CAM_UPDATE_DEBUG] Camera reset failed: {e}", file=sys.stderr)
+                        pass
                 
             except Exception as e:
                 print(f"[CAM_UPDATE_DEBUG_ERROR] Exception in _update: {e}", file=sys.stderr)
@@ -126,7 +126,7 @@ class Camera:
                 time.sleep(0.1)  # Brief pause on error
 
     def get_generator(self):
-        print("[CAM_GEN_DEBUG] get_generator called.", file=sys.stderr)
+        # print("[CAM_GEN_DEBUG] get_generator called.", file=sys.stderr)
         logger.info("[CAM_GEN] Camera get_generator called by a client.")
         boundary = b'--frame'
         frames_yielded_count = 0
@@ -134,14 +134,15 @@ class Camera:
         while True:
             try:
                 if self.frame:
-                    print(f"[CAM_GEN_DEBUG] Yielding frame {frames_yielded_count+1}", file=sys.stderr)
+                    # print(f"[CAM_GEN_DEBUG] Yielding frame {frames_yielded_count+1}", file=sys.stderr)
                     yield boundary + b'\r\n'
                     yield b'Content-Type: image/jpeg\r\n\r\n' + self.frame + b'\r\n'
                     frames_yielded_count += 1
-                    if frames_yielded_count % (self.fps * 2) == 0:
-                        print(f"[CAM_GEN_DEBUG] Frame yielded (total {frames_yielded_count})", file=sys.stderr)
+                    # if frames_yielded_count % (self.fps * 2) == 0:
+                    #     print(f"[CAM_GEN_DEBUG] Frame yielded (total {frames_yielded_count})", file=sys.stderr)
                 else:
-                    print("[CAM_GEN_DEBUG] Waiting for frame (self.frame is None)", file=sys.stderr)
+                    # print("[CAM_GEN_DEBUG] Waiting for frame (self.frame is None)", file=sys.stderr)
+                    pass
                 time.sleep(1.0 / self.fps)  # Control frame rate
             except Exception as e:
                 print(f"[CAM_GEN_DEBUG_ERROR] Exception in get_generator: {e}", file=sys.stderr)
