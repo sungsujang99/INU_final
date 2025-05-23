@@ -1,76 +1,64 @@
 import time
-from picamera2 import Picamera2, Preview
+import sys # For printing to stderr
+from picamera2 import Picamera2 # Preview is not strictly needed for array capture
 
 print("Attempting to initialize Picamera2...")
+picam2 = None # Initialize to None for finally block
 try:
     picam2 = Picamera2()
     print("Picamera2 initialized.")
 
-    # Basic configuration
-    # config = picam2.create_preview_configuration() # For preview
-    config = picam2.create_still_configuration() # For still image
-    print(f"Configuration created: {config}")
+    width, height = 640, 480
+    print(f"Attempting to use create_still_configuration() with main size {width}x{height}.")
+    
+    # Use a still configuration but try to set the main stream size
+    config = picam2.create_still_configuration()
+    if 'main' not in config: config['main'] = {}
+    config['main']['size'] = (width, height)
+    # Optionally, set a format if needed, e.g., BGR888 which worked before
+    # config['main']['format'] = 'BGR888' 
+    
+    print(f"Configuration to be applied: {config}")
     picam2.configure(config)
     print("Picamera2 configured.")
-
-    # If you have a display connected and want to see a preview (optional):
-    # print("Starting preview (qtgl)...")
-    # picam2.start_preview(Preview.QTGL) 
-    # print("Preview started. Sleeping for 5 seconds...")
-    # time.sleep(5) # Preview for 5 seconds
-    # picam2.stop_preview()
-    # print("Preview stopped.")
 
     print("Starting camera...")
     picam2.start()
     print("Camera started. Waiting 2 seconds for sensor to settle...")
-    time.sleep(2)  # Give sensor time to settle
+    time.sleep(2)
 
-    image_path = "test_image.jpg"
-    print(f"Attempting to capture image to {image_path}...")
-    # metadata = picam2.capture_file(image_path)
-    
-    # Let's try capture_array first as it's used in the app
-    try:
-        print("Attempting capture_array()...")
-        array = picam2.capture_array()
-        print(f"capture_array() successful. Array shape: {array.shape}, dtype: {array.dtype}")
-        
-        # If capture_array works, try to save it using OpenCV (optional, but good test)
+    num_frames_to_capture = 10
+    print(f"Attempting to capture {num_frames_to_capture} frames in a loop...")
+
+    for i in range(num_frames_to_capture):
+        print(f"Loop {i+1}/{num_frames_to_capture}: Attempting capture_array('main')...", file=sys.stderr)
         try:
-            import cv2
-            print("Attempting to save array with cv2.imwrite...")
-            # Picamera2 by default gives RGB, OpenCV imwrite expects BGR
-            # Convert RGB to BGR
-            # bgr_array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
-            # cv2.imwrite("test_image_from_array_cv2.jpg", bgr_array)
-
-            # Or, more directly, if main format is XBGR8888 (which is BGRA essentially)
-            # and if imencode in your app uses this directly, let's simulate that
-            # For XBGR8888, it's BGRA, so we might need to slice off Alpha or ensure cv2 handles it.
-            # Let's assume it's BGR for a simple test with imwrite if XBGR8888 is used.
-            # If your stream format is XBGR8888, capture_array() on that stream should give BGRA.
-            # OpenCV's imwrite expects BGR.
-            # Let's try to save the raw array with picam2's method first which is simpler.
-            print(f"Attempting to save array with picam2.helpers.save()...")
-            from picamera2.helpers import save
-            # Create a dummy request object for capture_array
-            request = picam2.capture_request()
-            save(request, {"main": array}, image_path) # Save the 'main' stream's array
-            request.release() # Release the request
-            print(f"Image saved from array to {image_path} using picamera2.helpers.save")
-
-        except Exception as e_cv2:
-            print(f"Error saving array with OpenCV or picamera2.helpers.save: {e_cv2}")
-
-    except Exception as e_capture:
-        print(f"Error during capture_array: {e_capture}")
-
-    print("Stopping camera...")
-    picam2.stop()
-    print("Camera stopped.")
+            start_capture_time = time.monotonic()
+            array = picam2.capture_array("main")
+            end_capture_time = time.monotonic()
+            capture_duration = end_capture_time - start_capture_time
+            
+            if array is not None:
+                print(f"Loop {i+1}: capture_array() successful. Shape: {array.shape}, dtype: {array.dtype}. Capture time: {capture_duration:.4f}s", file=sys.stderr)
+            else:
+                print(f"Loop {i+1}: capture_array() returned None.", file=sys.stderr)
+        except Exception as e_capture:
+            print(f"Loop {i+1}: Exception during capture_array(): {e_capture}", file=sys.stderr)
+            break # Stop if one capture fails
+        
+        time.sleep(0.1) # Small delay between captures
 
 except Exception as e:
-    print(f"An error occurred: {e}")
-
+    print(f"An error occurred in the main script: {e}", file=sys.stderr)
+    import traceback
+    traceback.print_exc()
+finally:
+    if picam2 is not None:
+        if picam2.started:
+            print("Stopping camera...", file=sys.stderr)
+            picam2.stop()
+            print("Camera stopped.", file=sys.stderr)
+        print("Closing Picamera2 object...", file=sys.stderr)
+        picam2.close()
+        print("Picamera2 object closed.", file=sys.stderr)
 print("Test script finished.") 
