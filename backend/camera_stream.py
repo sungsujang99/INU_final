@@ -35,7 +35,6 @@ class Camera:
             print("[CAM_INIT_DEBUG] Picam configured.", file=sys.stderr)
             
             print("[CAM_INIT_DEBUG] Starting picam.", file=sys.stderr)
-            self.picam.start_preview()  # Start preview to enable capture queue
             self.picam.start()
             print("[CAM_INIT_DEBUG] Picam started.", file=sys.stderr)
             
@@ -49,6 +48,7 @@ class Camera:
             self._update_counter = 0
             self.fps = fps
             self.last_capture_time = 0
+            self.capture_timeout = 1.0  # 1 second timeout for capture
             print("[CAM_INIT_DEBUG] Starting _update thread.", file=sys.stderr)
             threading.Thread(target=self._update, daemon=True).start()
             logger.info("[CAM_INIT] Camera _update thread started.")
@@ -71,30 +71,44 @@ class Camera:
                     continue
                 
                 print("[CAM_UPDATE_DEBUG] Attempting capture...", file=sys.stderr)
-                arr = self.picam.capture_array()
-                self.last_capture_time = current_time
+                start_capture = time.time()
                 
-                print(f"[CAM_UPDATE_DEBUG] Array captured. Shape: {arr.shape if arr is not None else 'None'}", file=sys.stderr)
+                # Set up a timer thread to detect capture timeout
+                capture_success = threading.Event()
+                def capture_with_timeout():
+                    try:
+                        arr = self.picam.capture_array()
+                        if arr is not None:
+                            self.last_capture_time = time.time()
+                            print(f"[CAM_UPDATE_DEBUG] Array captured. Shape: {arr.shape}", file=sys.stderr)
+                            if not self.running:  # Check if we should exit
+                                return
+                            # Convert RGB to BGR for OpenCV
+                            bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+                            ret, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                            if ret:
+                                self.frame = jpg.tobytes()
+                                self._update_counter += 1
+                                if self._update_counter % (self.fps * 2) == 0:
+                                    print(f"[CAM_UPDATE_DEBUG] Frame {self._update_counter} captured and encoded, size: {len(self.frame)} bytes", file=sys.stderr)
+                            capture_success.set()
+                    except Exception as e:
+                        print(f"[CAM_UPDATE_DEBUG] Capture thread exception: {e}", file=sys.stderr)
+                        capture_success.set()  # Set event to prevent hanging
                 
-                if arr is None:
-                    print("[CAM_UPDATE_DEBUG_WARN] capture_array returned None. Skipping encode.", file=sys.stderr)
+                # Start capture in a separate thread
+                capture_thread = threading.Thread(target=capture_with_timeout)
+                capture_thread.daemon = True
+                capture_thread.start()
+                
+                # Wait for capture with timeout
+                if not capture_success.wait(self.capture_timeout):
+                    print(f"[CAM_UPDATE_DEBUG] Capture timeout after {self.capture_timeout}s", file=sys.stderr)
                     continue
-
-                print("[CAM_UPDATE_DEBUG] Attempting cv2.imencode...", file=sys.stderr)
-                # Convert RGB to BGR for OpenCV
-                bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
-                ret, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                print(f"[CAM_UPDATE_DEBUG] cv2.imencode complete. Success: {ret}", file=sys.stderr)
                 
-                if ret:
-                    self.frame = jpg.tobytes()
-                    self._update_counter += 1
-                    if self._update_counter % (self.fps * 2) == 0:
-                        print(f"[CAM_UPDATE_DEBUG] Frame {self._update_counter} captured and encoded, size: {len(self.frame)} bytes", file=sys.stderr)
-                else:
-                    logger.warning("[CAM_UPDATE_WARN] cv2.imencode failed.")
-                    print("[CAM_UPDATE_DEBUG_ERROR] cv2.imencode failed.", file=sys.stderr)
-                    
+                capture_time = time.time() - start_capture
+                print(f"[CAM_UPDATE_DEBUG] Capture completed in {capture_time:.3f}s", file=sys.stderr)
+                
             except Exception as e:
                 print(f"[CAM_UPDATE_DEBUG_ERROR] Exception in _update: {e}", file=sys.stderr)
                 logger.error(f"[CAM_UPDATE_ERROR] Error in Camera _update loop: {e}", exc_info=True)
