@@ -37,6 +37,7 @@ class Camera:
             logger.info("[CAM_INIT] Picamera2 started successfully.")
             self.frame = None
             self.running = True
+            self._update_counter = 0 # Add counter for periodic print
             print("[CAM_INIT_DEBUG] Starting _update thread.", file=sys.stderr)
             threading.Thread(target=self._update, daemon=True).start()
             logger.info("[CAM_INIT] Camera _update thread started.")
@@ -55,10 +56,14 @@ class Camera:
                 ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 if ret:
                     self.frame = jpg.tobytes()
+                    self._update_counter += 1
+                    if self._update_counter % 30 == 0: # Print every 30 frames (approx every 2 secs at 15fps)
+                        print(f"[CAM_UPDATE_DEBUG] Frame captured and encoded, size: {len(self.frame) if self.frame else 0} bytes", file=sys.stderr)
                 else:
                     logger.warning("[CAM_UPDATE_WARN] cv2.imencode failed.")
+                    print("[CAM_UPDATE_DEBUG] cv2.imencode failed.", file=sys.stderr) # also print this
                     self.frame = None
-                time.sleep(1/30)
+                time.sleep(1/30) # Keep this sleep
             except Exception as e:
                 print(f"[CAM_UPDATE_DEBUG_ERROR] Exception in _update: {e}", file=sys.stderr)
                 logger.error(f"[CAM_UPDATE_ERROR] Error in Camera _update loop: {e}", exc_info=True)
@@ -68,16 +73,20 @@ class Camera:
         print("[CAM_GEN_DEBUG] get_generator called.", file=sys.stderr)
         logger.info("[CAM_GEN] Camera get_generator called by a client.")
         boundary = b'--frame'
-        frames_sent_count = 0
+        frames_yielded_count = 0 # Add counter for periodic print
         while True:
             try:
                 if self.frame:
                     yield boundary + b'\r\n'
                     yield b'Content-Type: image/jpeg\r\n\r\n' + self.frame + b'\r\n'
-                    frames_sent_count += 1
+                    frames_yielded_count += 1
+                    if frames_yielded_count % 30 == 0: # Print every 30 frames
+                        print(f"[CAM_GEN_DEBUG] Frame yielded (total {frames_yielded_count})", file=sys.stderr)
                 else:
+                    # Optional: print if no frame is available, but can be noisy
+                    # print("[CAM_GEN_DEBUG] No frame available to yield, sleeping.", file=sys.stderr)
                     pass
-                time.sleep(1 / 15)
+                time.sleep(1 / 15) # Keep this sleep, matches configured FPS
             except Exception as e:
                 print(f"[CAM_GEN_DEBUG_ERROR] Exception in get_generator: {e}", file=sys.stderr)
                 logger.error(f"[CAM_GEN_ERROR] Error in Camera get_generator loop: {e}", exc_info=True)
