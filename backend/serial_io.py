@@ -7,7 +7,7 @@ TIMEOUT = 120 # Timeout for waiting for 'done'
 DISCOVERY_TIMEOUT = 2 # Specific timeout for WHO command during discovery
 ECHO_TIMEOUT = 3 # Timeout for waiting for command echo
 WHO_CMD = b"WHO\n"
-RACKS   = {"A", "B", "C"}
+RACKS   = {"A", "B", "C", "M"}
 
 DEFAULT_MAX_ECHO_ATTEMPTS = 6    # Default number of attempts (1 initial + 5 retries) to get command echo
 RESET_COMMAND_MAX_ECHO_ATTEMPTS = 15 # More attempts for the critical reset command
