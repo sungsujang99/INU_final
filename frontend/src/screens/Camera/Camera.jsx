@@ -118,7 +118,8 @@ export const Camera = () => {
       return;
     }
 
-    const apiBaseUrl = getApiBaseUrl(); // Get your API base URL
+    // const apiBaseUrl = getApiBaseUrl(); // Get your API base URL
+    const apiBaseUrl = "http://192.168.0.18:5001"; // Hardcoded backend URL
     const downloadUrl = `${apiBaseUrl}/api/download-batch-task/${batchId}`;
 
     try {
