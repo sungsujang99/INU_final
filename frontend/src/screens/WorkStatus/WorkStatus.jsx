@@ -26,9 +26,9 @@ export const WorkStatus = () => {
   const [userDisplayName, setUserDisplayName] = useState('');
 
   const [activeBatch, setActiveBatch] = useState({
-    id: null,         // batch_id from the server
-    totalTasks: 0,    // Total tasks in this batch
-    completedTasks: 0 // Tasks completed from this batch
+    id: null,
+    totalTasks: 0,
+    completedTasks: 0
   });
 
   // Create a ref for the hidden file input
@@ -116,52 +116,49 @@ export const WorkStatus = () => {
 
           console.log('Parsed Tasks from CSV:', tasks);
           try {
-            const result = await uploadTasksBatch(tasks); // Call the API function
-            console.log('[handleFileChange] Upload tasks API response:', JSON.stringify(result, null, 2)); // Log the full response
+            const result = await uploadTasksBatch(tasks);
+            console.log('[handleFileChange] Upload tasks API response:', result);
 
-            // Alert based on backend message (covers success and batch-level errors)
             if (result && result.message) {
               alert(result.message);
-            } else {
-              alert('Tasks submitted. Status unknown or unexpected response format.');
             }
 
-            // If backend confirms successful batch submission and provides batch_id & processed_count
+            // Initialize new batch progress tracking
             if (result && result.batch_id && typeof result.processed_count === 'number') {
-              console.log("[handleFileChange] New active batch being set. ID:", result.batch_id, "Total Tasks:", result.processed_count);
+              console.log("[handleFileChange] Initializing new batch:", {
+                id: result.batch_id,
+                totalTasks: result.processed_count
+              });
+              
               const newBatch = {
                 id: result.batch_id,
                 totalTasks: result.processed_count,
-                completedTasks: 0, // Reset for the new batch
+                completedTasks: 0
               };
               setActiveBatch(newBatch);
-              console.log("[handleFileChange] setActiveBatch called with:", JSON.stringify(newBatch, null, 2));
 
-              // Fetch initial progress for this new batch only if there are tasks
+              // Initial progress check
               if (result.processed_count > 0) {
-                console.log("[handleFileChange] Calling fetchAndSetBatchProgress for new batch.");
-                fetchAndSetBatchProgress(result.batch_id, result.processed_count);
-            }
+                await fetchAndSetBatchProgress(result.batch_id, result.processed_count);
+              }
             } else {
-              console.log("[handleFileChange] Batch info not in result or invalid. Resetting activeBatch. Result:", JSON.stringify(result, null, 2));
-              // If batch info isn't available (e.g. full batch processing error from backend),
-              // reset progress tracking.
-              const resetBatch = { id: null, totalTasks: 0, completedTasks: 0 };
-              setActiveBatch(resetBatch);
-              console.log("[handleFileChange] setActiveBatch (reset) called with:", JSON.stringify(resetBatch, null, 2));
+              // Reset progress tracking if batch creation failed
+              setActiveBatch({ id: null, totalTasks: 0, completedTasks: 0 });
             }
 
-            // Refresh general UI elements
+            // Refresh UI
             localStorage.setItem('dashboard_needs_refresh', 'true');
-            fetchInventoryData();
-            fetchPendingTasks();
-            fetchInProgressTasks();
-            fetchDoneTasks();
+            await Promise.all([
+              fetchInventoryData(),
+              fetchPendingTasks(),
+              fetchInProgressTasks(),
+              fetchDoneTasks()
+            ]);
 
           } catch (error) {
-            console.error('Error in uploadTasksBatch call:', error);
+            console.error('Error in uploadTasksBatch:', error);
             alert('Failed to upload tasks: ' + (error.message || "Unknown error"));
-            setActiveBatch({ id: null, totalTasks: 0, completedTasks: 0 }); // Reset on critical error
+            setActiveBatch({ id: null, totalTasks: 0, completedTasks: 0 });
           }
         } catch (error) {
           console.error('Error processing CSV or uploading tasks:', error);
@@ -175,9 +172,9 @@ export const WorkStatus = () => {
       reader.readAsArrayBuffer(file); // Read as ArrayBuffer for TextDecoder
     }
 
-    // Reset the input value to allow selecting the same file again
-    if (event && event.target) {
-    event.target.value = null;
+    // Reset file input
+    if (event.target) {
+      event.target.value = null;
     }
   };
 
@@ -288,6 +285,7 @@ export const WorkStatus = () => {
       });
 
       setActiveBatch(prevBatch => {
+        // Only update if this is still the active batch
         if (prevBatch.id === batchId) {
           const updatedBatch = {
             id: batchId,
@@ -530,31 +528,32 @@ export const WorkStatus = () => {
 
   // Update the progress bar render
   const renderProgressBar = () => {
-    // Calculate percentage based on activeBatch state
     const currentBatchProgressPercentage = activeBatch.totalTasks > 0
       ? Math.round((activeBatch.completedTasks / activeBatch.totalTasks) * 100)
       : 0;
 
-    console.log("Rendering progress bar with:", activeBatch, `Percentage: ${currentBatchProgressPercentage}%`);
+    console.log("Rendering progress bar:", {
+      activeBatch,
+      percentage: currentBatchProgressPercentage
+    });
 
     return (
-    <div className="frame-33">
-      <div className="group-21">
-        <div className="text-wrapper-54">전체 작업률</div>
+      <div className="frame-33">
+        <div className="group-21">
+          <div className="text-wrapper-54">전체 작업률</div>
           <div className="text-wrapper-55">{currentBatchProgressPercentage}%</div>
-      </div>
-
-      <div className="rectangle-wrapper">
-        <div 
-          className="rectangle-7" 
-          style={{ 
+        </div>
+        <div className="rectangle-wrapper">
+          <div 
+            className="rectangle-7" 
+            style={{ 
               width: `${currentBatchProgressPercentage}%`,
-            transition: 'width 0.5s ease-in-out'
-          }}
-        />
+              transition: 'width 0.5s ease-in-out'
+            }}
+          />
+        </div>
       </div>
-    </div>
-  );
+    );
   };
 
   return (
