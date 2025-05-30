@@ -14,7 +14,6 @@ from .inventory import add_records
 from .stats import fetch_logs, logs_to_csv
 from .serial_io import serial_mgr
 from . import task_queue
-from . import camera_stream # Import the new camera_stream module
 from .error_messages import get_error_message
 
 # Define SECRET_KEY for the application
@@ -258,7 +257,14 @@ def upload_tasks_route():
     app.logger.debug(f"--- /api/upload-tasks: Received {len(tasks_data)} tasks. Processing as a single batch. ---")
     
     batch_id = str(uuid.uuid4())
-    success, message = add_records(tasks_data, batch_id)
+    # Get user info from token_required decorator
+    user_info = getattr(request, 'user', None)
+    if not user_info:
+        return jsonify({
+            "error": get_error_message("invalid_credentials")
+        }), 401
+
+    success, message = add_records(tasks_data, batch_id, user_info)
 
     if success:
         app.logger.info(f"--- /api/upload-tasks: Batch {batch_id} processed successfully. {len(tasks_data)} tasks queued. ---")
@@ -335,14 +341,6 @@ def download_batch_task(batch_id):
     finally:
         if conn:
             conn.close()
-
-# ---- Camera Stream Route ----
-@app.route('/api/camera/live_feed')
-# @token_required # MJPEG streams are often not token-protected for simplicity in <img> tags,
-                 # but can be if your client-side can handle adding tokens to image requests (less common).
-                 # For now, let's assume it might be open or protected by network ACLs if needed.
-def camera_live_feed_route():
-    return camera_stream.mjpeg_feed()
 
 @app.after_request
 def after_request(response):

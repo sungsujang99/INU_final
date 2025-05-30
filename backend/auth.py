@@ -11,12 +11,13 @@ SECRET = "ChangeThisSecret!"  # 환경변수로 바꾸길 권장
 def authenticate(username, password):
     conn = sqlite3.connect(DB_NAME)
     cur  = conn.cursor()
-    cur.execute("SELECT hashed_password FROM users WHERE username=?", (username,))
+    cur.execute("SELECT id, hashed_password FROM users WHERE username=?", (username,))
     row = cur.fetchone()
     conn.close()
-    if row and bcrypt.verify(password, row[0]):
+    if row and bcrypt.verify(password, row[1]):
         return jwt.encode(
             {"sub": username,
+             "user_id": row[0],
              "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12)},
             SECRET, algorithm="HS256")
     return None
@@ -29,7 +30,12 @@ def token_required(f):
             return jsonify({"error": get_error_message("token_required")}), 401
         token = hdr.split()[1]
         try:
-            jwt.decode(token, SECRET, algorithms=["HS256"])
+            decoded = jwt.decode(token, SECRET, algorithms=["HS256"])
+            # Set user info in request object
+            request.user = {
+                'id': decoded['user_id'],
+                'username': decoded['sub']
+            }
         except jwt.ExpiredSignatureError:
             return jsonify({"error": get_error_message("token_expired")}), 401
         except jwt.InvalidTokenError:
