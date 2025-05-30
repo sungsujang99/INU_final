@@ -466,11 +466,7 @@ export const WorkStatus = () => {
 
   // Render left menu
   const renderLeftMenu = () => (
-    <div className="left-menu">
-      <div className="user-info">
-        <div className="user-name">User #1</div>
-        <div className="user-role">Operator</div>
-      </div>
+    <div className="left-menu-3">
       <Menu
         className="menu-3"
         icon={<Ic162Thone10 className="ic-5" />}
