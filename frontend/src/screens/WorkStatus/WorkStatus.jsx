@@ -13,8 +13,7 @@ import { useNavigate } from "react-router-dom";
 import addDocumentUrl from '../../icons/add-document.svg'; // Default import gives URL
 import inboxInUrl from '../../icons/inbox-in.svg';       // Default import gives URL
 import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs, getWorkTasksByStatus } from "../../lib/api";
-import { socket } from '../../socket'; // Add this line
-import { jwtDecode } from "jwt-decode";
+import { socket } from '../../socket';
 
 export const WorkStatus = () => {
   const navigate = useNavigate();
@@ -23,7 +22,6 @@ export const WorkStatus = () => {
   const [pendingTasks, setPendingTasks] = useState([]);
   const [inProgressTasks, setInProgressTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
-  const [userDisplayName, setUserDisplayName] = useState('');
 
   const [activeBatch, setActiveBatch] = useState({
     id: null,         // batch_id from the server
@@ -254,19 +252,6 @@ export const WorkStatus = () => {
     // For now, progress starts when a new CSV is uploaded.
   }, [selectedRack]);
 
-  useEffect(() => {
-    const token = localStorage.getItem('inu_token');
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        setUserDisplayName(decoded.display_name || 'Unknown User');
-      } catch (error) {
-        console.error('Error decoding token:', error);
-        setUserDisplayName('Unknown User');
-      }
-    }
-  }, []);
-
   // Memoize fetchAndSetBatchProgress
   const fetchAndSetBatchProgress = useCallback(async (batchIdToUpdate, totalTasksInBatch) => {
     console.log(`[fetchAndSetBatchProgress] Called with batchId: ${batchIdToUpdate}, totalTasksInBatch: ${totalTasksInBatch}`);
@@ -483,7 +468,7 @@ export const WorkStatus = () => {
   const renderLeftMenu = () => (
     <div className="left-menu">
       <div className="user-info">
-        <div className="user-name">{userDisplayName}</div>
+        <div className="user-name">User #1</div>
         <div className="user-role">Operator</div>
       </div>
       <Menu
