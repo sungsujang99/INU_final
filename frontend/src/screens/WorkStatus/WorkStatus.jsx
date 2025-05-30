@@ -14,6 +14,7 @@ import addDocumentUrl from '../../icons/add-document.svg'; // Default import giv
 import inboxInUrl from '../../icons/inbox-in.svg';       // Default import gives URL
 import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs, getWorkTasksByStatus } from "../../lib/api";
 import { socket } from '../../socket';
+import { jwtDecode } from "jwt-decode";
 
 export const WorkStatus = () => {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export const WorkStatus = () => {
   const [pendingTasks, setPendingTasks] = useState([]);
   const [inProgressTasks, setInProgressTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
+  const [userDisplayName, setUserDisplayName] = useState('');
 
   const [activeBatch, setActiveBatch] = useState({
     id: null,         // batch_id from the server
@@ -251,6 +253,19 @@ export const WorkStatus = () => {
     // you could call fetchAndSetBatchProgress here to load initial progress on page load.
     // For now, progress starts when a new CSV is uploaded.
   }, [selectedRack]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('inu_token');
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        setUserDisplayName(decoded.display_name || 'Unknown User');
+      } catch (error) {
+        console.error('Error decoding token:', error);
+        setUserDisplayName('Unknown User');
+      }
+    }
+  }, []);
 
   // Memoize fetchAndSetBatchProgress
   const fetchAndSetBatchProgress = useCallback(async (batchIdToUpdate, totalTasksInBatch) => {
@@ -625,7 +640,7 @@ export const WorkStatus = () => {
           {renderWaitingWorkStatus()}
         </div>
 
-        <div className="text-7">User #1</div>
+        <div className="text-7">{userDisplayName}</div>
         <img className="line-3" alt="Line" src="/img/line-1.svg" />
         <div className="logo-6">
           <img
