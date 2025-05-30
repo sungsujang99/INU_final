@@ -603,9 +603,6 @@ export const WorkStatus = () => {
             </button>
           </div>
 
-          {/* Progress Bar Section - Moved outside frame-18 */}
-          {renderProgressBar()}
-
           {/* Main Content */}
           <div className="frame-18">
             {renderRackSelectionButtons()}
@@ -614,6 +611,7 @@ export const WorkStatus = () => {
                 {renderRackGrid()}
               </div>
             </div>
+            {renderProgressBar()}
           </div>
 
           {renderCurrentWorkStatus()}
