@@ -10,6 +10,7 @@ import { Property1LogOut } from "../../icons/Property1LogOut";
 import "./style.css";
 import { useNavigate } from "react-router-dom";
 import { getActivityLogs } from "../../lib/api";
+import jwt_decode from 'jwt-decode';
 
 // Helper to format time, you might want to make this more robust or use a library
 const formatLogTime = (timestamp) => {
@@ -27,6 +28,7 @@ export const Camera = () => {
   const navigate = useNavigate();
   const [selectedCamera, setSelectedCamera] = useState(1); // Default to camera 1
   const [groupedActivityLogs, setGroupedActivityLogs] = useState({}); // State for grouped logs
+  const [userDisplayName, setUserDisplayName] = useState('');
 
   // Navigation handlers
   const handleDashboard = () => navigate('/dashboardu40onu41');
@@ -213,6 +215,19 @@ export const Camera = () => {
       }
     };
     fetchAndGroupLogs();
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('inu_token');
+    if (token) {
+      try {
+        const decoded = jwt_decode(token);
+        setUserDisplayName(decoded.display_name || 'Unknown User');
+      } catch (error) {
+        console.error('Error decoding token:', error);
+        setUserDisplayName('Unknown User');
+      }
+    }
   }, []);
 
   return (

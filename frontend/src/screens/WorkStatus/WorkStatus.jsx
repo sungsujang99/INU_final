@@ -14,6 +14,7 @@ import addDocumentUrl from '../../icons/add-document.svg'; // Default import giv
 import inboxInUrl from '../../icons/inbox-in.svg';       // Default import gives URL
 import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs, getWorkTasksByStatus } from "../../lib/api";
 import { socket } from '../../socket'; // Add this line
+import jwt_decode from 'jwt-decode';
 
 export const WorkStatus = () => {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export const WorkStatus = () => {
   const [pendingTasks, setPendingTasks] = useState([]);
   const [inProgressTasks, setInProgressTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
+  const [userDisplayName, setUserDisplayName] = useState('');
 
   const [activeBatch, setActiveBatch] = useState({
     id: null,         // batch_id from the server
@@ -252,6 +254,19 @@ export const WorkStatus = () => {
     // For now, progress starts when a new CSV is uploaded.
   }, [selectedRack]);
 
+  useEffect(() => {
+    const token = localStorage.getItem('inu_token');
+    if (token) {
+      try {
+        const decoded = jwt_decode(token);
+        setUserDisplayName(decoded.display_name || 'Unknown User');
+      } catch (error) {
+        console.error('Error decoding token:', error);
+        setUserDisplayName('Unknown User');
+      }
+    }
+  }, []);
+
   // Memoize fetchAndSetBatchProgress
   const fetchAndSetBatchProgress = useCallback(async (batchIdToUpdate, totalTasksInBatch) => {
     console.log(`[fetchAndSetBatchProgress] Called with batchId: ${batchIdToUpdate}, totalTasksInBatch: ${totalTasksInBatch}`);
@@ -466,7 +481,11 @@ export const WorkStatus = () => {
 
   // Render left menu
   const renderLeftMenu = () => (
-    <div className="left-menu-3">
+    <div className="left-menu">
+      <div className="user-info">
+        <div className="user-name">{userDisplayName}</div>
+        <div className="user-role">Operator</div>
+      </div>
       <Menu
         className="menu-3"
         icon={<Ic162Thone10 className="ic-5" />}

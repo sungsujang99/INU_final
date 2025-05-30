@@ -15,9 +15,11 @@ import { RackCProgress } from '../../components/RackProgress/RackCProgress';
 import { TotalRackProgress } from '../../components/TotalRackProgress/TotalRackProgress';
 import { getInventory, pingBackend, getWorkTasksByStatus, getPendingTaskCounts } from "../../lib/api";
 import { socket } from '../../socket';
+import jwt_decode from 'jwt-decode';
 
 export const DashboardOn = () => {
   const navigate = useNavigate();
+  const [userDisplayName, setUserDisplayName] = useState('');
   
   const RACK_CAPACITY = 80;
   const TOTAL_CAPACITY = RACK_CAPACITY * 3;
@@ -173,6 +175,19 @@ export const DashboardOn = () => {
       socket.off('task_status_changed', handleTaskStatusChanged);
     };
   }, [fetchData]); // fetchData is now a stable dependency
+
+  useEffect(() => {
+    const token = localStorage.getItem('inu_token');
+    if (token) {
+      try {
+        const decoded = jwt_decode(token);
+        setUserDisplayName(decoded.display_name || 'Unknown User');
+      } catch (error) {
+        console.error('Error decoding token:', error);
+        setUserDisplayName('Unknown User');
+      }
+    }
+  }, []);
 
   const handleWorkStatus = () => {
     navigate('/work-status');
@@ -388,7 +403,7 @@ export const DashboardOn = () => {
           </div>
         </div>
 
-        <div className="text">User #1</div>
+        <div className="text">{userDisplayName}</div>
 
         <img className="line" alt="Line" src="/img/line-1.svg" />
 
