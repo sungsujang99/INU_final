@@ -1,6 +1,6 @@
 import sqlite3
 from passlib.hash import bcrypt as bcrypt_hasher # Use the same as in auth.py
-import .db # Use absolute import
+from . import db # Fix the import statement to use relative import correctly
 
 # Define valid roles
 VALID_ROLES = ['admin', 'user', 'notouch']
