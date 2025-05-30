@@ -4,8 +4,8 @@ from flask import current_app
 
 BAUD = 19200
 TIMEOUT = 120 # Timeout for waiting for 'done'
-DISCOVERY_TIMEOUT = 2 # Specific timeout for WHO command during discovery
-ECHO_TIMEOUT = 3 # Timeout for waiting for command echo
+DISCOVERY_TIMEOUT = 1 # Specific timeout for WHO command during discovery
+ECHO_TIMEOUT = 1 # Timeout for waiting for command echo
 WHO_CMD = b"WHO\n"
 RACKS   = {"A", "B", "C", "M"}
 #A: 1, B: 2, C: 3, M: main rack
