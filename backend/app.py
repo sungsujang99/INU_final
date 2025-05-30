@@ -342,21 +342,7 @@ def download_batch_task(batch_id):
                  # but can be if your client-side can handle adding tokens to image requests (less common).
                  # For now, let's assume it might be open or protected by network ACLs if needed.
 def camera_live_feed_route():
-    # Start the camera if it's not already active
-    if not camera_stream.camera.active:
-        try:
-            camera_stream.camera.start()
-        except Exception as e:
-            app.logger.error(f"Failed to start camera: {str(e)}")
-            return jsonify({"error": "Failed to start camera"}), 500
-    
-    return camera_stream.get_camera_stream()
-
-# Make sure to stop the camera when the application shuts down
-@app.teardown_appcontext
-def shutdown_camera(exception=None):
-    if camera_stream.camera.active:
-        camera_stream.camera.stop()
+    return camera_stream.mjpeg_feed()
 
 @app.after_request
 def after_request(response):
