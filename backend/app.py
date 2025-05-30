@@ -212,7 +212,14 @@ def record_inventory_and_queue_tasks():
 def get_work_tasks_route():
     status = request.args.get("status")
     try:
-        tasks = task_queue.get_work_tasks_by_status(status)
+        # Get user info from token_required decorator
+        user_info = getattr(request, 'user', None)
+        if not user_info:
+            return jsonify({
+                "error": get_error_message("invalid_credentials")
+            }), 401
+            
+        tasks = task_queue.get_work_tasks_by_status(status, user_info)
         return jsonify(tasks), 200
     except Exception as e:
         current_app.logger.error(f"Error fetching work tasks: {e}", exc_info=True)
@@ -225,7 +232,14 @@ def get_work_tasks_route():
 @token_required
 def get_pending_task_counts_route():
     try:
-        counts = task_queue.get_pending_task_counts()
+        # Get user info from token_required decorator
+        user_info = getattr(request, 'user', None)
+        if not user_info:
+            return jsonify({
+                "error": get_error_message("invalid_credentials")
+            }), 401
+            
+        counts = task_queue.get_pending_task_counts(user_info)
         return jsonify(counts), 200
     except Exception as e:
         current_app.logger.error(f"Error fetching pending task counts: {e}", exc_info=True)

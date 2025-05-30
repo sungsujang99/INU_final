@@ -286,34 +286,86 @@ def start_global_worker():
     worker.start()
 
 # --- API Helper ---
-def get_work_tasks_by_status(status=None):
+def get_work_tasks_by_status(status=None, user_info=None):
+    """
+    Get work tasks filtered by status and user permissions.
+    Admin users can see all tasks, regular users only see their own tasks.
+    
+    Args:
+        status (str, optional): Filter tasks by status
+        user_info (dict): User information including id and role
+    """
+    if not user_info:
+        return []
+        
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     
-    base_query = "SELECT wt.*, btl.batch_id FROM work_tasks wt LEFT JOIN batch_task_links btl ON wt.id = btl.task_id"
+    base_query = """
+        SELECT wt.*, btl.batch_id, u.username as created_by_username 
+        FROM work_tasks wt 
+        LEFT JOIN batch_task_links btl ON wt.id = btl.task_id
+        LEFT JOIN users u ON wt.created_by = u.id
+    """
     
+    params = []
+    where_clauses = []
+    
+    # Add status filter if provided
     if status:
-        query = f"{base_query} WHERE wt.status=? ORDER BY wt.created_at ASC"
-        cur.execute(query, (status,))
-    else:
-        query = f"{base_query} ORDER BY wt.created_at ASC"
-        cur.execute(query)
-        
+        where_clauses.append("wt.status = ?")
+        params.append(status)
+    
+    # Add user filter based on role
+    if user_info.get('role') != 'admin':
+        where_clauses.append("wt.created_by = ?")
+        params.append(user_info['id'])
+    
+    # Combine where clauses if any exist
+    if where_clauses:
+        base_query += " WHERE " + " AND ".join(where_clauses)
+    
+    base_query += " ORDER BY wt.created_at ASC"
+    
+    cur.execute(base_query, params)
     rows = cur.fetchall()
     columns = [desc[0] for desc in cur.description]
     conn.close()
     return [dict(zip(columns, row)) for row in rows]
 
-def get_pending_task_counts():
+def get_pending_task_counts(user_info=None):
+    """
+    Get pending task counts filtered by user permissions.
+    Admin users see all pending tasks, regular users only see their own.
+    
+    Args:
+        user_info (dict): User information including id and role
+    """
+    if not user_info:
+        return {"pending_in_count": 0, "pending_out_count": 0}
+        
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     
+    base_query = "SELECT COUNT(*) FROM work_tasks WHERE status='pending' AND movement=?"
+    params = []
+    
+    # Add user filter for non-admin users
+    if user_info.get('role') != 'admin':
+        base_query += " AND created_by = ?"
+        params = ['IN', user_info['id']]
+    else:
+        params = ['IN']
+    
     # Count pending IN tasks
-    cur.execute("SELECT COUNT(*) FROM work_tasks WHERE status='pending' AND movement='IN'")
+    cur.execute(base_query, params)
     pending_in_count = cur.fetchone()[0]
     
+    # Update params for OUT query
+    params[0] = 'OUT'
+    
     # Count pending OUT tasks
-    cur.execute("SELECT COUNT(*) FROM work_tasks WHERE status='pending' AND movement='OUT'")
+    cur.execute(base_query, params)
     pending_out_count = cur.fetchone()[0]
     
     conn.close()
