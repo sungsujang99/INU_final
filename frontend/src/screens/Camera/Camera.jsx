@@ -298,7 +298,7 @@ export const Camera = () => {
           </div>
         </div>
 
-        <div className="text-6">User #1</div>
+        <div className="text-6">{userDisplayName}</div>
 
         <img className="devider" alt="Devider" src="/img/line-1.svg" />
 
