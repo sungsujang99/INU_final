@@ -14,7 +14,7 @@ import addDocumentUrl from '../../icons/add-document.svg'; // Default import giv
 import inboxInUrl from '../../icons/inbox-in.svg';       // Default import gives URL
 import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs, getWorkTasksByStatus } from "../../lib/api";
 import { socket } from '../../socket'; // Add this line
-import jwt_decode from 'jwt-decode';
+import { jwtDecode } from "jwt-decode";
 
 export const WorkStatus = () => {
   const navigate = useNavigate();
@@ -258,7 +258,7 @@ export const WorkStatus = () => {
     const token = localStorage.getItem('inu_token');
     if (token) {
       try {
-        const decoded = jwt_decode(token);
+        const decoded = jwtDecode(token);
         setUserDisplayName(decoded.display_name || 'Unknown User');
       } catch (error) {
         console.error('Error decoding token:', error);

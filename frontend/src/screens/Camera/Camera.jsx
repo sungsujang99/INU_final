@@ -10,7 +10,7 @@ import { Property1LogOut } from "../../icons/Property1LogOut";
 import "./style.css";
 import { useNavigate } from "react-router-dom";
 import { getActivityLogs } from "../../lib/api";
-import jwt_decode from 'jwt-decode';
+import { jwtDecode } from "jwt-decode";
 
 // Helper to format time, you might want to make this more robust or use a library
 const formatLogTime = (timestamp) => {
@@ -221,7 +221,7 @@ export const Camera = () => {
     const token = localStorage.getItem('inu_token');
     if (token) {
       try {
-        const decoded = jwt_decode(token);
+        const decoded = jwtDecode(token);
         setUserDisplayName(decoded.display_name || 'Unknown User');
       } catch (error) {
         console.error('Error decoding token:', error);

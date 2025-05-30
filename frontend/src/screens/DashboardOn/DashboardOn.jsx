@@ -15,7 +15,7 @@ import { RackCProgress } from '../../components/RackProgress/RackCProgress';
 import { TotalRackProgress } from '../../components/TotalRackProgress/TotalRackProgress';
 import { getInventory, pingBackend, getWorkTasksByStatus, getPendingTaskCounts } from "../../lib/api";
 import { socket } from '../../socket';
-import jwt_decode from 'jwt-decode';
+import { jwtDecode } from "jwt-decode";
 
 export const DashboardOn = () => {
   const navigate = useNavigate();
@@ -180,7 +180,7 @@ export const DashboardOn = () => {
     const token = localStorage.getItem('inu_token');
     if (token) {
       try {
-        const decoded = jwt_decode(token);
+        const decoded = jwtDecode(token);
         setUserDisplayName(decoded.display_name || 'Unknown User');
       } catch (error) {
         console.error('Error decoding token:', error);
