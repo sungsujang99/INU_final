@@ -15,6 +15,7 @@ from .stats import fetch_logs, logs_to_csv
 from .serial_io import serial_mgr
 from . import task_queue
 from .error_messages import get_error_message
+from .camera_stream import mjpeg_feed  # Import the mjpeg_feed function
 
 # Define SECRET_KEY for the application
 # This should be a long, random, and secret string in production
@@ -341,6 +342,10 @@ def download_batch_task(batch_id):
     finally:
         if conn:
             conn.close()
+
+@app.route("/api/camera/live_feed")
+def camera_live_feed():
+    return mjpeg_feed()
 
 @app.after_request
 def after_request(response):
