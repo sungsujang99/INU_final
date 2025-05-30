@@ -568,38 +568,27 @@ export const WorkStatus = () => {
           {/* Icons positioned absolutely relative to container-3 */}
           <div style={{
             position: 'absolute',
-            // --- VERTICAL POSITIONING ---
-            // **ACTION NEEDED:** Inspect the "Work Status" title (text-wrapper-49)
-            // in your browser's dev tools. Find its exact 'top' position relative to
-            // 'container-3' and its height or line-height.
-            // Adjust this 'top' value until the icons align vertically with the title.
-            // Example: If title starts 20px down, set top close to 20px.
-            top: '25px', // <--- FINE-TUNE THIS VALUE based on inspection
-
-            // --- HORIZONTAL POSITIONING ---
-            // **ACTION NEEDED:** Inspect the position/width of the Rack C button
-            // (frame-22). Adjust 'right' until the icons are horizontally centered above it.
-            right: '60px', // <--- FINE-TUNE THIS VALUE based on inspection
-
+            top: '25px',
+            right: '60px',
             display: 'flex',
-            gap: '6px', // Adjusted gap for new size
-            zIndex: 1, // Ensure icons are on top
-            alignItems: 'center' // Vertically align icons with each other
+            gap: '6px',
+            zIndex: 1,
+            alignItems: 'center'
           }}>
             {/* Hidden File Input */}
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              style={{ display: 'none' }} // Keep it hidden
-              accept=".csv" // Only accept .csv files
+              style={{ display: 'none' }}
+              accept=".csv"
             />
 
-            {/* Add Document Button - Now triggers the hidden input */}
+            {/* Add Document Button */}
             <button
-              onClick={handleAddDocumentClick} // Use the new click handler
+              onClick={handleAddDocumentClick}
               style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer', lineHeight: 0 }}
-              title="Import CSV" // Updated tooltip
+              title="Import CSV"
             >
               <img src={addDocumentUrl} alt="Import CSV" style={{ width: '34px', height: '34px', display: 'block' }} />
             </button>
@@ -614,15 +603,17 @@ export const WorkStatus = () => {
             </button>
           </div>
 
-          {/* Rest of the content */}
+          {/* Progress Bar Section - Moved outside frame-18 */}
+          {renderProgressBar()}
+
+          {/* Main Content */}
           <div className="frame-18">
-            {renderRackSelectionButtons()} {/* Render buttons without icons */}
-             <div className="group-20">
+            {renderRackSelectionButtons()}
+            <div className="group-20">
               <div className="frame-23">
                 {renderRackGrid()}
               </div>
             </div>
-            {renderProgressBar()}
           </div>
 
           {renderCurrentWorkStatus()}
