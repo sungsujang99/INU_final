@@ -6,13 +6,14 @@ from .serial_io import serial_mgr, DEFAULT_MAX_ECHO_ATTEMPTS
 from flask import current_app
 from .inventory_updater import update_inventory_on_done
 from .db import DB_NAME
+from .error_messages import get_error_message
 
 io = None                           # SocketIO 인스턴스 홀더
 def set_socketio(sock):             # app.py 가 주입
     global io; io = sock
 
 # --- DB Task Management ---
-def enqueue_work_task(task, conn=None, cur=None):
+def enqueue_work_task(task, user_info, conn=None, cur=None):
     now = datetime.datetime.now().isoformat(timespec="seconds")
     
     own_connection = False
@@ -23,10 +24,12 @@ def enqueue_work_task(task, conn=None, cur=None):
 
     new_task_id = None
     try:
+        # Add start_time and end_time columns, initially NULL
         cur.execute("""
             INSERT INTO work_tasks
-            (rack, slot, product_code, product_name, movement, quantity, cargo_owner, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            (rack, slot, product_code, product_name, movement, quantity, cargo_owner, status, 
+             created_at, updated_at, start_time, end_time, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL, NULL, ?)
         """, (
             task['rack'].upper(),
             int(task['slot']),
@@ -35,7 +38,8 @@ def enqueue_work_task(task, conn=None, cur=None):
             task['movement'].upper(),
             int(task['quantity']),
             task.get('cargo_owner', ''),
-            now, now
+            now, now,
+            user_info['id']
         ))
         new_task_id = cur.lastrowid
         if own_connection:
@@ -51,8 +55,8 @@ def enqueue_work_task(task, conn=None, cur=None):
                 "action": "created", 
                 "rack": task['rack'].upper(), 
                 "slot": int(task['slot']), 
-                "movement": task['movement'].upper()
-                # batch_id will be added by set_task_status for subsequent events
+                "movement": task['movement'].upper(),
+                "created_by": user_info['username']  # Include username in the event
             })
             logger.info(f"[enqueue_work_task] Emitted task_status_changed for new task ID: {new_task_id} (pending, no batch_id yet)")
 
@@ -65,14 +69,38 @@ def set_task_status(task_id, status):
     now = datetime.datetime.now().isoformat(timespec="seconds")
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    cur.execute("UPDATE work_tasks SET status=?, updated_at=? WHERE id=?", (status, now, task_id))
+    
+    # Update timestamps based on status
+    if status == 'in_progress':
+        # When task starts, set start_time
+        cur.execute("""
+            UPDATE work_tasks 
+            SET status=?, updated_at=?, start_time=? 
+            WHERE id=?
+        """, (status, now, now, task_id))
+    elif status == 'done' or status.startswith('failed_'):
+        # When task ends (success or failure), set end_time
+        cur.execute("""
+            UPDATE work_tasks 
+            SET status=?, updated_at=?, end_time=? 
+            WHERE id=?
+        """, (status, now, now, task_id))
+    else:
+        # For other status changes, just update status and updated_at
+        cur.execute("""
+            UPDATE work_tasks 
+            SET status=?, updated_at=? 
+            WHERE id=?
+        """, (status, now, task_id))
+    
     conn.commit()
     
     task_details_for_event = {"id": task_id, "status": status}
     
     if status != 'pending': 
         cur.execute("""
-            SELECT wt.id, wt.rack, wt.slot, wt.movement, wt.product_name, wt.product_code, btl.batch_id 
+            SELECT wt.id, wt.rack, wt.slot, wt.movement, wt.product_name, wt.product_code, 
+                   wt.start_time, wt.end_time, btl.batch_id 
             FROM work_tasks wt
             LEFT JOIN batch_task_links btl ON wt.id = btl.task_id
             WHERE wt.id=?
@@ -165,22 +193,22 @@ class GlobalWorker(threading.Thread):
                 if final_task_status: # Error from M command generation
                     pass # Skip to end
                 elif not serial_mgr.enabled:
-                    logger.warning(f"[Worker] Task {task_id}: Serial DISABLED. Simulating success.")
+                    logger.warning(f"[Worker] Task {task_id}: {get_error_message('serial_disabled')}")
                     physical_op_successful = True
                 
                 elif movement == 'IN':
                     # 1. Main equipment (M) delivers to rack approach area
                     if main_equipment_id not in serial_mgr.ports:
-                        logger.error(f"[Worker] Task {task_id} (IN): Main equip '{main_equipment_id}' not found.")
+                        logger.error(f"[Worker] Task {task_id} (IN): {get_error_message('failed_m_not_found')}")
                         final_task_status = 'failed_m_not_found'
                     else:
                         logger.info(f"[Worker] Task {task_id} (IN) - M Op: Cmd '{cmd_for_m}' to '{main_equipment_id}'.")
                         res_m = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
-                        if res_m["status"] == "done": # 'done' from send means main_done_token ('fin') received
+                        if res_m["status"] == "done":
                             logger.info(f"[Worker] Task {task_id} (IN) - M Op SUCCESS.")
                             # 2. Target rack stores item
                             if target_rack_id not in serial_mgr.ports:
-                                logger.error(f"[Worker] Task {task_id} (IN): Rack '{target_rack_id}' not found.")
+                                logger.error(f"[Worker] Task {task_id} (IN): {get_error_message('failed_rack_not_found')}")
                                 final_task_status = 'failed_rack_not_found'
                             else:
                                 logger.info(f"[Worker] Task {task_id} (IN) - Rack Op: Cmd '{cmd_for_rack}' to '{target_rack_id}'.")
@@ -188,17 +216,17 @@ class GlobalWorker(threading.Thread):
                                 if res_rack["status"] == "done":
                                     logger.info(f"[Worker] Task {task_id} (IN) - Rack Op SUCCESS.")
                                     physical_op_successful = True
-                                else: # Rack failed
+                                else:
                                     final_task_status = 'failed_rack_echo' if res_rack["status"] == "echo_error_max_retries" else 'failed_rack_timeout'
-                                    logger.error(f"[Worker] Task {task_id} (IN) - Rack Op FAILED: {final_task_status}")
-                        else: # M failed
+                                    logger.error(f"[Worker] Task {task_id} (IN) - Rack Op FAILED: {get_error_message(final_task_status)}")
+                        else:
                             final_task_status = 'failed_m_echo' if res_m["status"] == "echo_error_max_retries" else 'failed_m_timeout'
-                            logger.error(f"[Worker] Task {task_id} (IN) - M Op FAILED: {final_task_status}")
+                            logger.error(f"[Worker] Task {task_id} (IN) - M Op FAILED: {get_error_message(final_task_status)}")
 
                 elif movement == 'OUT':
                     # 1. Target rack dispenses item to approach area
                     if target_rack_id not in serial_mgr.ports:
-                        logger.error(f"[Worker] Task {task_id} (OUT): Rack '{target_rack_id}' not found.")
+                        logger.error(f"[Worker] Task {task_id} (OUT): {get_error_message('failed_rack_not_found')}")
                         final_task_status = 'failed_rack_not_found'
                     else:
                         logger.info(f"[Worker] Task {task_id} (OUT) - Rack Op: Cmd '{cmd_for_rack}' to '{target_rack_id}'.")
@@ -207,26 +235,26 @@ class GlobalWorker(threading.Thread):
                             logger.info(f"[Worker] Task {task_id} (OUT) - Rack Op SUCCESS.")
                             # 2. Main equipment (M) collects item
                             if main_equipment_id not in serial_mgr.ports:
-                                logger.error(f"[Worker] Task {task_id} (OUT): Main equip '{main_equipment_id}' not found.")
+                                logger.error(f"[Worker] Task {task_id} (OUT): {get_error_message('failed_m_not_found')}")
                                 final_task_status = 'failed_m_not_found'
                             else:
                                 logger.info(f"[Worker] Task {task_id} (OUT) - M Op: Cmd '{cmd_for_m}' to '{main_equipment_id}'.")
                                 res_m = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
-                                if res_m["status"] == "done": # 'done' from send means main_done_token ('fin') received
+                                if res_m["status"] == "done":
                                     logger.info(f"[Worker] Task {task_id} (OUT) - M Op SUCCESS.")
                                     physical_op_successful = True
-                                else: # M failed
+                                else:
                                     final_task_status = 'failed_m_echo' if res_m["status"] == "echo_error_max_retries" else 'failed_m_timeout'
-                                    logger.error(f"[Worker] Task {task_id} (OUT) - M Op FAILED: {final_task_status}")
-                        else: # Rack failed
+                                    logger.error(f"[Worker] Task {task_id} (OUT) - M Op FAILED: {get_error_message(final_task_status)}")
+                        else:
                             final_task_status = 'failed_rack_echo' if res_rack["status"] == "echo_error_max_retries" else 'failed_rack_timeout'
-                            logger.error(f"[Worker] Task {task_id} (OUT) - Rack Op FAILED: {final_task_status}")
+                            logger.error(f"[Worker] Task {task_id} (OUT) - Rack Op FAILED: {get_error_message(final_task_status)}")
                 else:
-                    logger.error(f"[Worker] Task {task_id}: Unknown movement '{movement}'.")
-                    final_task_status = 'failed_unknown_movement' # Should be caught by validation earlier
-
+                    logger.error(f"[Worker] Task {task_id}: {get_error_message('failed_unknown_movement')}")
+                    final_task_status = 'failed_unknown_movement'
+                        
             except Exception as e:
-                logger.error(f"[Worker] Task {task_id}: EXCEPTION during processing: {e}", exc_info=True)
+                logger.error(f"[Worker] Task {task_id}: {get_error_message('failed_exception')}: {e}", exc_info=True)
                 final_task_status = 'failed_exception'
 
             # Post-operation: Update inventory and set final task status
@@ -246,14 +274,12 @@ class GlobalWorker(threading.Thread):
                     logger.info(f"[Worker] Task {task_id}: Inventory updated. Marked 'done'.")
                 else:
                     final_task_status = 'failed_inventory_update'
-                    logger.error(f"[Worker] Task {task_id}: Inventory update FAILED. Marked '{final_task_status}'.")
+                    logger.error(f"[Worker] Task {task_id}: {get_error_message('failed_inventory_update')}")
             
-            if final_task_status: # This will be 'done' or some error status
+            if final_task_status:
                 set_task_status(task_id, final_task_status)
             else:
-                # This implies physical_op_successful was false, but no specific error status was set.
-                # This case should ideally be covered by specific error handling above.
-                logger.error(f"[Worker] Task {task_id}: No final status determined despite physical_op_successful=False. Defaulting to failed_exception.")
+                logger.error(f"[Worker] Task {task_id}: {get_error_message('failed_exception')}")
                 set_task_status(task_id, 'failed_exception')
             
             time.sleep(0.1)

@@ -243,10 +243,9 @@ export const Camera = () => {
                       {batch.logs.map((logEntry) => (
                         <div className="individual-job-item" key={logEntry.id}>
                           {/* Title bar for THIS specific job */}
-                          <div className="group-11"> {/* Re-using .group-11 for job title bar style */}
-                            <div className="overlap-group-6"> {/* Inner styling for job title bar */}
-                              {/* <div className="rectangle-5" /> If background is on .group-11 */}
-                              <div className="log-title"> {/* Title for the individual job */}
+                          <div className="group-11">
+                            <div className="overlap-group-6">
+                              <div className="log-title">
                                 {logEntry.rack}랙 {logEntry.slot}칸 {logEntry.movement_type === 'IN' ? '입고' : '출고'}
                               </div>
                             </div>
@@ -255,11 +254,11 @@ export const Camera = () => {
                           <div className="log-times-container individual-job-times">
                             <div className="log-time-entry">
                               <span className="log-time-label">시작시간</span>
-                              <span className="log-time-value">{formatLogTime(logEntry.timestamp)}</span>
+                              <span className="log-time-value">{formatLogTime(logEntry.start_time)}</span>
                             </div>
                             <div className="log-time-entry">
                               <span className="log-time-label">종료시간</span>
-                              <span className="log-time-value">{formatLogTime(logEntry.timestamp)}</span>
+                              <span className="log-time-value">{formatLogTime(logEntry.end_time)}</span>
                             </div>
                           </div>
                         </div>

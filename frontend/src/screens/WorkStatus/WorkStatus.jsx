@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Frame } from "../../components/Frame";
 import { Menu } from "../../components/Menu";
 import { Ic162Thone1 } from "../../icons/Ic162Thone1";
@@ -139,7 +139,7 @@ export const WorkStatus = () => {
               if (result.processed_count > 0) {
                 console.log("[handleFileChange] Calling fetchAndSetBatchProgress for new batch.");
                 fetchAndSetBatchProgress(result.batch_id, result.processed_count);
-              }
+            }
             } else {
               console.log("[handleFileChange] Batch info not in result or invalid. Resetting activeBatch. Result:", JSON.stringify(result, null, 2));
               // If batch info isn't available (e.g. full batch processing error from backend),
@@ -175,7 +175,7 @@ export const WorkStatus = () => {
 
     // Reset the input value to allow selecting the same file again
     if (event && event.target) {
-        event.target.value = null;
+    event.target.value = null;
     }
   };
 
@@ -252,24 +252,67 @@ export const WorkStatus = () => {
     // For now, progress starts when a new CSV is uploaded.
   }, [selectedRack]);
 
-  // Listen for real-time updates
+  // Memoize fetchAndSetBatchProgress
+  const fetchAndSetBatchProgress = useCallback(async (batchIdToUpdate, totalTasksInBatch) => {
+    console.log(`[fetchAndSetBatchProgress] Called with batchId: ${batchIdToUpdate}, totalTasksInBatch: ${totalTasksInBatch}`);
+
+    if (!batchIdToUpdate || totalTasksInBatch === 0) {
+      console.log('[fetchAndSetBatchProgress] batchIdToUpdate is null/undefined or totalTasksInBatch is 0. Resetting activeBatch and not fetching.');
+      const resetBatch = { id: null, totalTasks: 0, completedTasks: 0 };
+      setActiveBatch(resetBatch);
+      console.log("[fetchAndSetBatchProgress] setActiveBatch (reset) called with:", JSON.stringify(resetBatch, null, 2));
+      return;
+    }
+
+    try {
+      console.log('[fetchAndSetBatchProgress] Fetching "done" tasks from API.');
+      const doneTasksFromAPI = await getWorkTasksByStatus("done");
+      console.log('[fetchAndSetBatchProgress] Raw "done" tasks from API:', JSON.stringify(doneTasksFromAPI, null, 2));
+
+      // Filter these tasks to include only those matching the batchIdToUpdate
+      const filteredDoneTasks = doneTasksFromAPI.filter(task => task.batch_id === batchIdToUpdate);
+      console.log(`[fetchAndSetBatchProgress] Filtered "done" tasks for batch ${batchIdToUpdate}:`, JSON.stringify(filteredDoneTasks, null, 2));
+
+      const newCompletedCount = filteredDoneTasks.length;
+      console.log(`[fetchAndSetBatchProgress] New completed count for batch ${batchIdToUpdate}: ${newCompletedCount}`);
+
+      // Update activeBatch state
+      setActiveBatch(prevBatch => {
+        // Only update if this is still the active batch
+        if (prevBatch.id === batchIdToUpdate) {
+          const updatedBatch = {
+            id: batchIdToUpdate,
+            totalTasks: totalTasksInBatch,
+            completedTasks: newCompletedCount
+          };
+          console.log("[fetchAndSetBatchProgress] setActiveBatch (update) called with:", JSON.stringify(updatedBatch, null, 2));
+          return updatedBatch;
+        }
+        return prevBatch;
+      });
+
+    } catch (error) {
+      console.error('[fetchAndSetBatchProgress] Error fetching or processing done tasks for batch progress:', error);
+    }
+  }, []); // Empty dependency array since it only uses stable functions
+
+  // Update the socket effect to include all necessary dependencies
   useEffect(() => {
     const handleTaskStatusChanged = (data) => {
       console.log('[SocketIO] WorkStatus: Received task_status_changed event:', JSON.stringify(data, null, 2));
       
       // General data refresh for lists (pending, in_progress, done)
-      // These are important to keep the detailed lists up-to-date
       fetchPendingTasks();
       fetchInProgressTasks();
       fetchDoneTasks();
-      fetchInventoryData(); // Also refresh inventory view if a task affects it
+      fetchInventoryData();
 
       // Update overall batch progress if the completed task belongs to the currently tracked batch
-      if (data.status === "done" && data.batch_id && activeBatch.id && data.batch_id === activeBatch.id) {
+      if (data.status === "done" && data.batch_id && activeBatch.id === data.batch_id) {
         console.log('[SocketIO] Done task belongs to active batch. Calling fetchAndSetBatchProgress.');
         fetchAndSetBatchProgress(activeBatch.id, activeBatch.totalTasks);
       } else if (data.status === "done" && data.batch_id && activeBatch.id && data.batch_id !== activeBatch.id) {
-        console.log('[SocketIO] Done task does NOT belong to active batch, or activeBatch.id is null. Not updating progress bar based on this event.');
+        console.log('[SocketIO] Done task does NOT belong to active batch. Not updating progress bar.');
       } else if (data.status === "done" && !data.batch_id) {
         console.warn("[SocketIO] Received a 'done' task without a batch_id. Cannot update batch progress. Task data:", data);
       }
@@ -279,9 +322,7 @@ export const WorkStatus = () => {
     return () => {
       socket.off("task_status_changed", handleTaskStatusChanged);
     };
-  // Re-run effect if the active batch context (id or totalTasks) changes by other means,
-  // or if the fetch functions themselves change (though they are stable with useCallback if used).
-  }, [activeBatch.id, activeBatch.totalTasks]);
+  }, [activeBatch.id, activeBatch.totalTasks, fetchAndSetBatchProgress, fetchPendingTasks, fetchInProgressTasks, fetchDoneTasks, fetchInventoryData]);
 
   // Update renderRackGrid to show product info
   const renderRackGrid = () => {
@@ -493,64 +534,23 @@ export const WorkStatus = () => {
     console.log("Rendering progress bar with:", activeBatch, `Percentage: ${currentBatchProgressPercentage}%`);
 
     return (
-      <div className="frame-33">
-        <div className="group-21">
-          <div className="text-wrapper-54">전체 작업률</div>
+    <div className="frame-33">
+      <div className="group-21">
+        <div className="text-wrapper-54">전체 작업률</div>
           <div className="text-wrapper-55">{currentBatchProgressPercentage}%</div>
-        </div>
-
-        <div className="rectangle-wrapper">
-          <div
-            className="rectangle-7"
-            style={{
-              width: `${currentBatchProgressPercentage}%`,
-              transition: 'width 0.5s ease-in-out'
-            }}
-          />
-        </div>
       </div>
-    );
-  };
 
-  const fetchAndSetBatchProgress = async (batchIdToUpdate, totalTasksInBatch) => {
-    console.log(`[fetchAndSetBatchProgress] Called with batchId: ${batchIdToUpdate}, totalTasksInBatch: ${totalTasksInBatch}`);
-
-    if (!batchIdToUpdate || totalTasksInBatch === 0) {
-      console.log('[fetchAndSetBatchProgress] batchIdToUpdate is null/undefined or totalTasksInBatch is 0. Resetting activeBatch and not fetching.');
-      // If no valid batch or no tasks, ensure progress is reset.
-      const resetBatch = { id: null, totalTasks: 0, completedTasks: 0 };
-      setActiveBatch(resetBatch);
-      console.log("[fetchAndSetBatchProgress] setActiveBatch (reset) called with:", JSON.stringify(resetBatch, null, 2));
-      return;
-    }
-
-    try {
-      console.log('[fetchAndSetBatchProgress] Fetching "done" tasks from API.');
-      const doneTasksFromAPI = await getWorkTasksByStatus("done");
-      console.log('[fetchAndSetBatchProgress] Raw "done" tasks from API:', JSON.stringify(doneTasksFromAPI, null, 2));
-
-      // Filter these tasks to include only those matching the batchIdToUpdate
-      const filteredDoneTasks = doneTasksFromAPI.filter(task => task.batch_id === batchIdToUpdate);
-      console.log(`[fetchAndSetBatchProgress] Filtered "done" tasks for batch ${batchIdToUpdate}:`, JSON.stringify(filteredDoneTasks, null, 2));
-
-      const newCompletedCount = filteredDoneTasks.length;
-      console.log(`[fetchAndSetBatchProgress] New completed count for batch ${batchIdToUpdate}: ${newCompletedCount}`);
-
-      // Update activeBatch state
-      // Ensure we are using the correct total tasks for *this specific batch*
-      const updatedBatch = {
-        id: batchIdToUpdate, 
-        totalTasks: totalTasksInBatch, 
-        completedTasks: newCompletedCount
-      };
-      setActiveBatch(updatedBatch);
-      console.log("[fetchAndSetBatchProgress] setActiveBatch (update) called with:", JSON.stringify(updatedBatch, null, 2));
-
-    } catch (error) {
-      console.error('[fetchAndSetBatchProgress] Error fetching or processing done tasks for batch progress:', error);
-      // Optionally, you might want to reset or handle the UI for this error case
-      // For now, just logging the error.
-    }
+      <div className="rectangle-wrapper">
+        <div 
+          className="rectangle-7" 
+          style={{ 
+              width: `${currentBatchProgressPercentage}%`,
+            transition: 'width 0.5s ease-in-out'
+          }}
+        />
+      </div>
+    </div>
+  );
   };
 
   return (

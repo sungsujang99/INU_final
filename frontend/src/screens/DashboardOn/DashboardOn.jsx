@@ -93,7 +93,7 @@ export const DashboardOn = () => {
           } else if (task.movement === 'OUT') {
             completedOutgoingCount++;
           }
-        });
+            });
       } catch (completedError) {
         console.error("Dashboard - Failed to fetch completed tasks:", completedError);
       }
@@ -145,7 +145,7 @@ export const DashboardOn = () => {
     const handleTaskDone = (data) => {
       console.log('Dashboard: Received task_done (OLD LISTENER - TO BE REMOVED/REPLACED):', data);
       if (data.status === "done") {
-        fetchData(); 
+      fetchData(); 
       }
     };
 

@@ -15,6 +15,7 @@ from .stats import fetch_logs, logs_to_csv
 from .serial_io import serial_mgr
 from . import task_queue
 from . import camera_stream # Import the new camera_stream module
+from .error_messages import get_error_message
 
 # Define SECRET_KEY for the application
 # This should be a long, random, and secret string in production
@@ -129,7 +130,7 @@ def login():
         return {"token": tok}, 200
     else:
         print(f"Login failed for '{username}'.")
-        return {"error": "invalid credentials"}, 401
+        return {"error": get_error_message("invalid_credentials")}, 401
 
 # ---- 인벤토리 ----
 @app.route("/api/inventory")
@@ -185,18 +186,25 @@ def get_activity_logs():
 @app.route("/api/record", methods=["POST"])
 @token_required
 def record_inventory_and_queue_tasks():
-    data = request.get_json() # data should be a list of record dictionaries
+    data = request.get_json()
     if not isinstance(data, list):
-        return jsonify({"success": False, "message": "Invalid data format. Expected a list of records."}), 400
+        return jsonify({
+            "success": False, 
+            "message": get_error_message("invalid_data_format")
+        }), 400
     
-    # The add_records function in inventory.py expects a list of dictionaries
-    # and returns (True, "") on success or (False, error_message) on failure.
-    success, message = add_records(data) 
+    success, message = add_records(data)
     
     if success:
-        return jsonify({"success": True, "message": "Records processed successfully."}), 200
+        return jsonify({
+            "success": True, 
+            "message": "작업이 성공적으로 처리되었습니다"
+        }), 200
     else:
-        return jsonify({"success": False, "message": message}), 500
+        return jsonify({
+            "success": False, 
+            "message": message
+        }), 500
 
 # ---- New Work Tasks Endpoint ----
 @app.route("/api/work-tasks")
@@ -208,7 +216,10 @@ def get_work_tasks_route():
         return jsonify(tasks), 200
     except Exception as e:
         current_app.logger.error(f"Error fetching work tasks: {e}", exc_info=True)
-        return jsonify({"error": "Failed to fetch work tasks", "message": str(e)}), 500
+        return jsonify({
+            "error": get_error_message("fetch_tasks_error"),
+            "message": str(e)
+        }), 500
 
 @app.route("/api/pending-task-counts")
 @token_required
@@ -218,50 +229,60 @@ def get_pending_task_counts_route():
         return jsonify(counts), 200
     except Exception as e:
         current_app.logger.error(f"Error fetching pending task counts: {e}", exc_info=True)
-        return jsonify({"error": "Failed to fetch pending task counts", "message": str(e)}), 500
+        return jsonify({
+            "error": get_error_message("fetch_counts_error"),
+            "message": str(e)
+        }), 500
 
 @app.route("/api/upload-tasks", methods=["POST"])
 @token_required
 def upload_tasks_route():
     if not request.is_json:
-        return jsonify({"error": "JSON body required"}), 400
+        return jsonify({
+            "error": get_error_message("json_body_required")
+        }), 400
 
-    tasks_data = request.get_json() # tasks_data is the list of task objects from the frontend
+    tasks_data = request.get_json()
     if not isinstance(tasks_data, list):
-        return jsonify({"error": "Request body must be a JSON array of tasks"}), 400
+        return jsonify({
+            "error": get_error_message("invalid_request_body")
+        }), 400
 
-    if not tasks_data: # Handle empty list of tasks
-        return jsonify({"message": "No tasks provided in the request.", "processed_count": 0, "errors": []}), 200 # Or 400 if empty list is an error
+    if not tasks_data:
+        return jsonify({
+            "message": get_error_message("no_tasks_provided"),
+            "processed_count": 0,
+            "errors": []
+        }), 200
 
     app.logger.debug(f"--- /api/upload-tasks: Received {len(tasks_data)} tasks. Processing as a single batch. ---")
     
-    batch_id = str(uuid.uuid4()) # Generate a single batch_id for this entire upload
-
-    # Call add_records ONCE with the entire list of tasks
-    success, message = add_records(tasks_data, batch_id) 
+    batch_id = str(uuid.uuid4())
+    success, message = add_records(tasks_data, batch_id)
 
     if success:
         app.logger.info(f"--- /api/upload-tasks: Batch {batch_id} processed successfully. {len(tasks_data)} tasks queued. ---")
         return jsonify({
-            "message": f"{len(tasks_data)} tasks successfully processed and queued.", 
+            "message": f"{len(tasks_data)}개의 작업이 성공적으로 처리되어 대기열에 추가되었습니다",
             "processed_count": len(tasks_data),
             "errors": [],
-            "batch_id": batch_id # Optionally return batch_id
+            "batch_id": batch_id
         }), 200
     else:
-        # add_records returns a single error message for the batch if validation fails
         app.logger.error(f"--- /api/upload-tasks: Error processing batch {batch_id}: {message}. Attempted {len(tasks_data)} tasks. ---")
         return jsonify({
-            "message": f"Error processing batch: {message}", 
-            "processed_count": 0, # Batch failed
-            "errors": [message]   # Present the single error message
-        }), 400 # Use 400 for client-side error (e.g., validation) or 500 for server-side
+            "message": f"배치 처리 중 오류 발생: {message}",
+            "processed_count": 0,
+            "errors": [message]
+        }), 400
 
 @app.route("/api/download-batch-task/<batch_id>")
-@token_required # Assuming downloads also require authentication
+@token_required
 def download_batch_task(batch_id):
     if not batch_id:
-        return jsonify({"error": "batch_id is required"}), 400
+        return jsonify({
+            "error": get_error_message("batch_not_found")
+        }), 400
 
     conn = None
     try:
@@ -269,8 +290,6 @@ def download_batch_task(batch_id):
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
-        # Fetch all logs for the given batch_id
-        # Adjust columns as needed for your CSV output
         cur.execute("""
             SELECT product_code, product_name, rack, slot, movement_type, quantity, cargo_owner, timestamp 
             FROM product_logs 
@@ -280,18 +299,17 @@ def download_batch_task(batch_id):
         log_rows = cur.fetchall()
 
         if not log_rows:
-            return jsonify({"error": "No logs found for this batch_id or batch_id is invalid"}), 404
+            return jsonify({
+                "error": get_error_message("batch_not_found")
+            }), 404
 
-        # Prepare CSV data in memory
         si = io.StringIO()
-        # Define CSV fieldnames - these will be the header row
-        # These should match the keys you'll use from the log_rows or how you structure dict(row)
         fieldnames = ['product_code', 'product_name', 'rack', 'slot', 'movement_type', 'quantity', 'cargo_owner', 'timestamp']
         writer = csv.DictWriter(si, fieldnames=fieldnames)
 
         writer.writeheader()
         for row in log_rows:
-            writer.writerow(dict(row)) # Convert sqlite3.Row to dict for DictWriter
+            writer.writerow(dict(row))
 
         output = si.getvalue()
         si.close()
@@ -304,10 +322,16 @@ def download_batch_task(batch_id):
 
     except sqlite3.Error as e:
         current_app.logger.error(f"Database error in download_batch_task for batch_id {batch_id}: {str(e)}")
-        return jsonify({"error": "Database error", "message": str(e)}), 500
+        return jsonify({
+            "error": get_error_message("database_error"),
+            "message": str(e)
+        }), 500
     except Exception as e:
         current_app.logger.error(f"Unexpected error in download_batch_task for batch_id {batch_id}: {str(e)}", exc_info=True)
-        return jsonify({"error": "An unexpected error occurred", "message": str(e)}), 500
+        return jsonify({
+            "error": get_error_message("unexpected_error"),
+            "message": str(e)
+        }), 500
     finally:
         if conn:
             conn.close()

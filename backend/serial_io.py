@@ -348,7 +348,7 @@ class SerialManager:
         
         main_equipment_id = "M" # Define M equipment ID
         main_reset_done_token = b"fin" # M uses "fin" for reset completion
-
+        
         for rack_id in self.ports.keys(): 
             print(f"INFO: Rack {rack_id}: Sending reset command '{reset_cmd_code}'...")
             

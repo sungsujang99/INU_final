@@ -13,7 +13,8 @@ def _now() -> str:
 
 def update_inventory_on_done(rack: str, slot: int, movement: str, product_code: str, product_name: str, quantity: int, cargo_owner: str):
     """
-    Update the inventory database when a task is completed (done signal received)
+    Update the inventory database when a task is completed (done signal received).
+    This updates the physical state of the equipment in current_inventory table.
     """
     logger = current_app.logger if current_app else logging.getLogger(__name__)
     logger.debug("update_inventory_on_done: Updating inventory for rack=%s, slot=%d, movement=%s", rack, slot, movement)

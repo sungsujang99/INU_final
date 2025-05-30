@@ -4,6 +4,7 @@ from functools import wraps
 from flask import request, jsonify
 from passlib.hash import bcrypt
 from .db import DB_NAME
+from .error_messages import get_error_message
 
 SECRET = "ChangeThisSecret!"  # 환경변수로 바꾸길 권장
 
@@ -25,13 +26,13 @@ def token_required(f):
     def wrapper(*args, **kwargs):
         hdr = request.headers.get("Authorization", "")
         if not hdr.startswith("Bearer "):
-            return jsonify({"error": "token required"}), 401
+            return jsonify({"error": get_error_message("token_required")}), 401
         token = hdr.split()[1]
         try:
             jwt.decode(token, SECRET, algorithms=["HS256"])
         except jwt.ExpiredSignatureError:
-            return jsonify({"error": "token expired"}), 401
+            return jsonify({"error": get_error_message("token_expired")}), 401
         except jwt.InvalidTokenError:
-            return jsonify({"error": "invalid token"}), 401
+            return jsonify({"error": get_error_message("invalid_token")}), 401
         return f(*args, **kwargs)
     return wrapper

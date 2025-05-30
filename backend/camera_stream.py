@@ -42,7 +42,7 @@ class Camera:
             print("[CAM_INIT_DEBUG] Picam configured.", file=sys.stderr)
             
             print("[CAM_INIT_DEBUG] Starting picam.", file=sys.stderr)
-            self.picam.start()
+        self.picam.start()
             print("[CAM_INIT_DEBUG] Picam started.", file=sys.stderr)
             
             print("[CAM_INIT_DEBUG] Waiting 2 seconds for camera to settle after start...", file=sys.stderr)
@@ -50,14 +50,14 @@ class Camera:
             print("[CAM_INIT_DEBUG] Finished 2-second settle time.", file=sys.stderr)
             
             logger.info("[CAM_INIT] Picamera2 started successfully.")
-            self.frame = None
-            self.running = True
+        self.frame = None
+        self.running = True
             self._update_counter = 0
             self.fps = fps
             self.last_capture_time = 0
             self.capture_errors = 0  # Track consecutive capture errors
             print("[CAM_INIT_DEBUG] Starting _update thread.", file=sys.stderr)
-            threading.Thread(target=self._update, daemon=True).start()
+        threading.Thread(target=self._update, daemon=True).start()
             logger.info("[CAM_INIT] Camera _update thread started.")
             print("[CAM_INIT_DEBUG] Camera __init__ completed successfully.", file=sys.stderr)
         except Exception as e:
@@ -90,10 +90,10 @@ class Camera:
                             import cv2
                             cv2.imwrite("test_frame.jpg", arr)
                         # Directly encode RGB888 to JPEG
-                        ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
                         
-                        if ret:
-                            self.frame = jpg.tobytes()
+            if ret:
+                self.frame = jpg.tobytes()
                             self._update_counter += 1
                             capture_time = time.time() - start_capture
                             # if self._update_counter % (self.fps * 2) == 0:
@@ -137,10 +137,10 @@ class Camera:
         
         while True:
             try:
-                if self.frame:
+            if self.frame:
                     # print(f"[CAM_GEN_DEBUG] Yielding frame {frames_yielded_count+1}", file=sys.stderr)
-                    yield boundary + b'\r\n'
-                    yield b'Content-Type: image/jpeg\r\n\r\n' + self.frame + b'\r\n'
+                yield boundary + b'\r\n'
+                yield b'Content-Type: image/jpeg\r\n\r\n' + self.frame + b'\r\n'
                     frames_yielded_count += 1
                     # if frames_yielded_count % (self.fps * 2) == 0:
                     #     print(f"[CAM_GEN_DEBUG] Frame yielded (total {frames_yielded_count})", file=sys.stderr)
