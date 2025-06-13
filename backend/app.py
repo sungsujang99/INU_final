@@ -193,7 +193,7 @@ def record_inventory_and_queue_tasks():
             "message": get_error_message("invalid_data_format")
         }), 400
     
-    success, message = add_records(data)
+    success, message = add_records(data) 
     
     if success:
         return jsonify({
@@ -281,7 +281,7 @@ def upload_tasks_route():
 
     success, message = add_records(tasks_data, batch_id, user_info)
 
-    if success:
+            if success:
         app.logger.info(f"--- /api/upload-tasks: Batch {batch_id} processed successfully. {len(tasks_data)} tasks queued. ---")
         return jsonify({
             "message": f"{len(tasks_data)}개의 작업이 성공적으로 처리되어 대기열에 추가되었습니다",
@@ -289,7 +289,7 @@ def upload_tasks_route():
             "errors": [],
             "batch_id": batch_id
         }), 200
-    else:
+            else:
         app.logger.error(f"--- /api/upload-tasks: Error processing batch {batch_id}: {message}. Attempted {len(tasks_data)} tasks. ---")
         return jsonify({
             "message": f"배치 처리 중 오류 발생: {message}",

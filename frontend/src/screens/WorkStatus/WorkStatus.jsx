@@ -174,7 +174,7 @@ export const WorkStatus = () => {
 
     // Reset file input
     if (event.target) {
-      event.target.value = null;
+    event.target.value = null;
     }
   };
 
@@ -538,22 +538,22 @@ export const WorkStatus = () => {
     });
 
     return (
-      <div className="frame-33">
-        <div className="group-21">
-          <div className="text-wrapper-54">전체 작업률</div>
+    <div className="frame-33">
+      <div className="group-21">
+        <div className="text-wrapper-54">전체 작업률</div>
           <div className="text-wrapper-55">{currentBatchProgressPercentage}%</div>
-        </div>
-        <div className="rectangle-wrapper">
-          <div 
-            className="rectangle-7" 
-            style={{ 
-              width: `${currentBatchProgressPercentage}%`,
-              transition: 'width 0.5s ease-in-out'
-            }}
-          />
-        </div>
       </div>
-    );
+      <div className="rectangle-wrapper">
+        <div 
+          className="rectangle-7" 
+          style={{ 
+              width: `${currentBatchProgressPercentage}%`,
+            transition: 'width 0.5s ease-in-out'
+          }}
+        />
+      </div>
+    </div>
+  );
   };
 
   return (
@@ -605,7 +605,7 @@ export const WorkStatus = () => {
           {/* Main Content */}
           <div className="frame-18">
             {renderRackSelectionButtons()}
-            <div className="group-20">
+             <div className="group-20">
               <div className="frame-23">
                 {renderRackGrid()}
               </div>

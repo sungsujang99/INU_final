@@ -231,7 +231,7 @@ class GlobalWorker(threading.Thread):
                 
                 else:
                     final_task_status = 'failed_unknown_movement'
-
+                        
             except Exception as e:
                 logger.error(f"[Worker] Task {task_id}: Exception during execution: {e}", exc_info=True)
                 final_task_status = 'failed_exception'

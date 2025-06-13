@@ -67,7 +67,7 @@ def add_records(records: list[dict], batch_id: str = None, user_info: dict = Non
             rack = record['rack'].upper()
             slot = int(record['slot'])
             movement = record['movement'].upper()
-            
+
             if movement == 'IN':
                 if (rack, slot) in current_inventory:
                     return False, get_error_message("slot_occupied", rack=rack, slot=slot)

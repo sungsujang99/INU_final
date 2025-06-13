@@ -1,6 +1,4 @@
 import io, threading, time, logging, sys
-from picamera2 import Picamera2
-from libcamera import controls
 from flask import Response, current_app
 
 # Set Picamera2 logging to WARNING to suppress DEBUG output
@@ -15,10 +13,30 @@ class Camera:
             print("[CAM_INIT_DEBUG] Entering Camera __init__ try block.", file=sys.stderr)
             logger.info("[CAM_INIT] Attempting to initialize Picamera2...")
             
+            # Import picamera2 only when needed
+            try:
+                from picamera2 import Picamera2
+                from libcamera import controls
+            except ImportError as e:
+                print(f"[CAM_INIT_DEBUG] Failed to import picamera2: {e}", file=sys.stderr)
+                logger.error(f"[CAM_INIT_ERROR] picamera2 not available: {e}")
+                raise Exception("Camera hardware not available")
+            
             print("[CAM_INIT_DEBUG] About to import picamera2.", file=sys.stderr)
             print("[CAM_INIT_DEBUG] picamera2 imported successfully.", file=sys.stderr)
 
             print("[CAM_INIT_DEBUG] Initializing picamera2.Picamera2().", file=sys.stderr)
+            
+            # Check if cameras are available before initializing
+            try:
+                available_cameras = Picamera2.global_camera_info()
+                if not available_cameras:
+                    raise Exception("No cameras detected on the system")
+                print(f"[CAM_INIT_DEBUG] Found {len(available_cameras)} camera(s)", file=sys.stderr)
+            except Exception as e:
+                print(f"[CAM_INIT_DEBUG] Camera detection failed: {e}", file=sys.stderr)
+                raise Exception("No cameras available")
+            
             self.picam = Picamera2()
             print("[CAM_INIT_DEBUG] picamera2.Picamera2() initialized.", file=sys.stderr)
             
@@ -56,6 +74,7 @@ class Camera:
             self.fps = fps
             self.last_capture_time = 0
             self.capture_errors = 0  # Track consecutive capture errors
+            self.camera_available = True
             
             print("[CAM_INIT_DEBUG] Starting _update thread.", file=sys.stderr)
             threading.Thread(target=self._update, daemon=True).start()
@@ -65,9 +84,16 @@ class Camera:
         except Exception as e:
             print(f"[CAM_INIT_DEBUG] Exception in Camera __init__: {e}", file=sys.stderr)
             logger.error(f"[CAM_INIT_ERROR] Error during Camera __init__: {e}", exc_info=True)
-            raise
+            # Instead of raising, mark camera as unavailable
+            self.camera_available = False
+            self.frame = None
+            self.running = False
+            logger.warning("[CAM_INIT] Camera initialization failed, running without camera support")
 
     def _update(self):
+        if not self.camera_available:
+            return
+            
         # print("[CAM_UPDATE_DEBUG] _update thread has started.", file=sys.stderr)
         logger.info("[CAM_UPDATE] Camera _update thread loop started.")
         frame_interval = 1.0 / self.fps if self.fps > 0 else 0.1
@@ -83,13 +109,15 @@ class Camera:
                 start_capture = time.time()
                 
                 try:
+                    # Import cv2 only when needed
+                    import cv2
+                    
                     # print("[CAM_UPDATE_DEBUG] Calling self.picam.capture_array()", file=sys.stderr)
                     arr = self.picam.capture_array()
                     # print(f"[CAM_UPDATE_DEBUG] capture_array() returned. Type: {type(arr)}, Value: {repr(arr)[:200]}", file=sys.stderr)
                     if arr is not None:
                         # Save a test frame to disk for inspection (only once)
                         if self._update_counter == 0:
-                            import cv2
                             cv2.imwrite("test_frame.jpg", arr)
                         # Directly encode RGB888 to JPEG
                         ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
@@ -132,6 +160,16 @@ class Camera:
                 time.sleep(0.1)  # Brief pause on error
 
     def get_generator(self):
+        if not self.camera_available:
+            # Return a placeholder image or error message
+            placeholder_frame = b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.\' ",#\x1c\x1c(7),01444\x1f\'9=82<.342\xff\xc0\x00\x11\x08\x00\xf0\x01@\x03\x01"\x00\x02\x11\x01\x03\x11\x01\xff\xc4\x00\x14\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\xff\xc4\x00\x14\x10\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xda\x00\x0c\x03\x01\x00\x02\x11\x03\x11\x00\x3f\x00\xaa\xff\xd9'
+            
+            boundary = b'--frame'
+            while True:
+                yield boundary + b'\r\n'
+                yield b'Content-Type: image/jpeg\r\n\r\n' + placeholder_frame + b'\r\n'
+                time.sleep(1.0)  # Slow refresh for placeholder
+        
         # print("[CAM_GEN_DEBUG] get_generator called.", file=sys.stderr)
         logger.info("[CAM_GEN] Camera get_generator called by a client.")
         boundary = b'--frame'
@@ -155,10 +193,27 @@ class Camera:
                 logger.error(f"[CAM_GEN_ERROR] Error in Camera get_generator loop: {e}", exc_info=True)
                 break
 
-camera_singleton = Camera() # Default FPS is 15
+# Initialize camera singleton, but don't fail if camera is not available
+camera_singleton = None
+
+def get_camera():
+    global camera_singleton
+    if camera_singleton is None:
+        try:
+            camera_singleton = Camera()  # Default FPS is 15
+        except Exception as e:
+            logger.error(f"Failed to initialize camera: {e}")
+            # Create a dummy camera object
+            camera_singleton = Camera.__new__(Camera)
+            camera_singleton.camera_available = False
+            camera_singleton.frame = None
+            camera_singleton.running = False
+    return camera_singleton
+
 def mjpeg_feed():
     logger.info("[MJPEG_FEED] mjpeg_feed accessed.")
+    camera = get_camera()
     return Response(
-        camera_singleton.get_generator(),
+        camera.get_generator(),
         mimetype='multipart/x-mixed-replace; boundary=frame'
     )
