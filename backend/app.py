@@ -34,7 +34,7 @@ app.config['SERIAL_COMMUNICATION_ENABLED'] = SERIAL_COMMUNICATION_ENABLED
 # Initialize SocketIO
 # Make sure to replace 192.168.0.16 with your Mac's actual current IP if it changes,
 # or use a more dynamic solution for production on Pi later.
-allowed_origins_list = ["http://localhost:5173", "http://192.168.0.18:5173", "http://192.168.0.16:8080"]
+allowed_origins_list = ["http://localhost:5173", "http://192.168.0.37:5173", "http://192.168.0.18:5173", "http://192.168.0.16:8080"]
 socketio = SocketIO(app, async_mode='threading', cors_allowed_origins=allowed_origins_list, logger=True, engineio_logger=True)
 
 # Configure basic logging

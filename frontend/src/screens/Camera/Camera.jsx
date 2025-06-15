@@ -45,7 +45,7 @@ export const Camera = () => {
     // Construct the stream URL directly.
     // Assumes backend is served from the same origin, so /api path works.
     // const mjpegStreamUrl = `${getApiBaseUrl()}/api/camera/live_feed`;
-    const mjpegStreamUrl = `http://192.168.0.18:5001/api/camera/live_feed`;
+    const mjpegStreamUrl = `http://192.168.0.37:5001/api/camera/live_feed`;
 
     if (selectedCamera === 1) { // Only show the stream if Camera 1 is selected
       return (
@@ -121,7 +121,7 @@ export const Camera = () => {
     }
 
     // const apiBaseUrl = getApiBaseUrl(); // Get your API base URL
-    const apiBaseUrl = "http://192.168.0.18:5001"; // Hardcoded backend URL
+    const apiBaseUrl = "http://192.168.0.37:5001"; // Hardcoded backend URL
     const downloadUrl = `${apiBaseUrl}/api/download-batch-task/${batchId}`;
 
     try {
