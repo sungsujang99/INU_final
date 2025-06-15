@@ -1,16 +1,19 @@
 import { io } from 'socket.io-client';
 
 // Raspberry Pi's IP address
-const SOCKET_URL = 'http://192.168.0.18:5001'; 
+const SOCKET_URL = 'http://192.168.0.37:5001'; 
 
 export const socket = io(SOCKET_URL, {
-  transports: ['websocket', 'polling'],
-  // autoConnect: true, // You can uncomment this if you want it to connect immediately upon import
+  autoConnect: true,
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionAttempts: 5,
+  timeout: 20000,
 });
 
 // Optional: Add listeners for connect/disconnect/error for debugging
 socket.on('connect', () => {
-  console.log('Socket connected to:', SOCKET_URL, 'ID:', socket.id);
+  console.log('Socket connected:', socket.id);
 });
 
 socket.on('disconnect', (reason) => {
