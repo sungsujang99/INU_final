@@ -357,6 +357,44 @@ def download_batch_task(batch_id):
         if conn:
             conn.close()
 
+@app.route("/api/reset", methods=["POST"])
+@token_required
+def reset_system():
+    """Reset all racks and clear task queues"""
+    try:
+        app.logger.info("Reset signal received - resetting all racks and clearing queues")
+        
+        # Reset all racks if serial communication is enabled
+        if app.config.get('SERIAL_COMMUNICATION_ENABLED', True):
+            if serial_mgr.ports:
+                app.logger.info("Resetting all discovered racks...")
+                serial_mgr.reset_all_racks()
+                app.logger.info("All racks reset successfully")
+            else:
+                app.logger.warning("No racks discovered for reset")
+        else:
+            app.logger.info("Serial communication disabled - skipping rack reset")
+        
+        # Clear task queues
+        task_queue.clear_all_queues()
+        app.logger.info("Task queues cleared")
+        
+        # Emit reset signal to all connected clients
+        socketio.emit('system_reset', {'message': '시스템이 초기화되었습니다.'})
+        
+        return jsonify({
+            "success": True,
+            "message": "시스템이 성공적으로 초기화되었습니다."
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"Error during system reset: {str(e)}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "시스템 초기화 중 오류가 발생했습니다.",
+            "message": str(e)
+        }), 500
+
 @app.route("/api/camera/live_feed")
 def camera_live_feed():
     return mjpeg_feed()

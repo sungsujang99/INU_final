@@ -7,6 +7,7 @@ import { Ic162Thone2 } from "../../icons/Ic162Thone2";
 import { Ic162Thone4 } from "../../icons/Ic162Thone4";
 import { Ic162Thone6 } from "../../icons/Ic162Thone6";
 import { Property1LogOut } from "../../icons/Property1LogOut";
+import { Property1Variant5 } from "../../icons/Property1Variant5";
 import "./style.css";
 import { useNavigate } from "react-router-dom";
 import { getActivityLogs } from "../../lib/api";
@@ -34,6 +35,26 @@ export const Camera = () => {
   const handleDashboard = () => navigate('/dashboardu40onu41');
   const handleWorkStatus = () => navigate('/work-status');
   const handleLogout = () => navigate('/');
+
+  const handleReset = () => {
+    // Send reset signal to backend
+    fetch('/api/reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('inu_token')}`
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('Reset signal sent:', data);
+      alert('초기화 신호가 전송되었습니다.');
+    })
+    .catch(error => {
+      console.error('Error sending reset signal:', error);
+      alert('초기화 신호 전송에 실패했습니다.');
+    });
+  };
 
   // Camera selection handler with swap functionality
   const handleCameraSelect = (cameraNumber) => {
@@ -346,6 +367,13 @@ export const Camera = () => {
             icon={<Ic162Thone4 className="ic-3" color="#0177FB" />}
             menu="selected"
             text="운영캠 확인"
+          />
+          <Menu
+            className="menu-2"
+            icon={<Property1Variant5 className="ic-3" color="#39424A" />}
+            menu="default"
+            text1="초기화"
+            onClick={handleReset}
           />
           <Menu
             className="menu-2"

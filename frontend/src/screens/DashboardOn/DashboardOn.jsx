@@ -7,6 +7,7 @@ import { Ic162Thone4 } from "../../icons/Ic162Thone4";
 import { Ic242Tone2 } from "../../icons/Ic242Tone2";
 import { Ic242Tone6 } from "../../icons/Ic242Tone6";
 import { Property1LogOut } from "../../icons/Property1LogOut";
+import { Property1Variant5 } from "../../icons/Property1Variant5";
 import "./style.css";
 import { useNavigate } from "react-router-dom";
 import { RackAProgress } from '../../components/RackProgress/RackAProgress';
@@ -199,6 +200,26 @@ export const DashboardOn = () => {
 
   const handleLogout = () => {
     navigate('/'); // Navigate back to login screen
+  };
+
+  const handleReset = () => {
+    // Send reset signal to backend
+    fetch('/api/reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('inu_token')}`
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('Reset signal sent:', data);
+      alert('초기화 신호가 전송되었습니다.');
+    })
+    .catch(error => {
+      console.error('Error sending reset signal:', error);
+      alert('초기화 신호 전송에 실패했습니다.');
+    });
   };
 
   return (
@@ -435,6 +456,13 @@ export const DashboardOn = () => {
             menu="default"
             text1="운영캠 확인"
             onClick={handleCamera}
+          />
+          <Menu
+            className="menu-instance"
+            icon={<Property1Variant5 className="ic-2" color="#39424A" />}
+            menu="default"
+            text1="초기화"
+            onClick={handleReset}
           />
           <Menu
             className="menu-instance"

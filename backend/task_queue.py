@@ -370,3 +370,34 @@ def get_pending_task_counts(user_info=None):
     
     conn.close()
     return {"pending_in_count": pending_in_count, "pending_out_count": pending_out_count}
+
+def clear_all_queues():
+    """
+    Clear all pending tasks from the work_tasks table.
+    This is used during system reset.
+    """
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    
+    try:
+        # Delete all pending tasks
+        cur.execute("DELETE FROM work_tasks WHERE status='pending'")
+        deleted_count = cur.rowcount
+        
+        # Also clear any batch task links for deleted tasks
+        cur.execute("DELETE FROM batch_task_links WHERE task_id NOT IN (SELECT id FROM work_tasks)")
+        
+        conn.commit()
+        
+        logger = current_app.logger if current_app else logging.getLogger(__name__)
+        logger.info(f"[clear_all_queues] Cleared {deleted_count} pending tasks from queue")
+        
+        return deleted_count
+        
+    except Exception as e:
+        logger = current_app.logger if current_app else logging.getLogger(__name__)
+        logger.error(f"[clear_all_queues] Error clearing queues: {e}", exc_info=True)
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
