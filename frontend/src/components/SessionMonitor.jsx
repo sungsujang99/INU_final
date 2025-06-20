@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { getSessionStatus } from '../lib/api';
 
 const SessionMonitor = () => {
-  console.log('🚨 SessionMonitor component is loading! 🚨');
+  console.log('🚨🚨🚨 SessionMonitor component is loading! 🚨🚨🚨');
+  console.warn('🚨🚨🚨 SessionMonitor component is loading! 🚨🚨🚨');
+  console.error('🚨🚨🚨 SessionMonitor component is loading! 🚨🚨🚨');
+  alert('SessionMonitor is loading - you should see this alert!');
   
   const navigate = useNavigate();
   const consecutiveFailures = useRef(0);
@@ -11,7 +14,11 @@ const SessionMonitor = () => {
   const lastCheckTime = useRef(0);
 
   useEffect(() => {
-    console.log('🚨 SessionMonitor useEffect is running! 🚨');
+    console.log('🚨🚨🚨 SessionMonitor useEffect is running! 🚨🚨🚨');
+    console.warn('🚨🚨🚨 SessionMonitor useEffect is running! 🚨🚨🚨');
+    console.error('🚨🚨🚨 SessionMonitor useEffect is running! 🚨🚨🚨');
+    alert('SessionMonitor useEffect is running - you should see this alert!');
+    
     // Check session status every 30 seconds
     const checkSession = async () => {
       const now = Date.now();
