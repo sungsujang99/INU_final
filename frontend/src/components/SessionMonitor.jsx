@@ -88,8 +88,11 @@ const SessionMonitor = () => {
 
         console.log(`[SessionMonitor] Token found: ${token.substring(0, 20)}...`);
         
+        console.log('[SessionMonitor] About to call getSessionStatus()...');
         const sessionData = await getSessionStatus();
         console.log('[SessionMonitor] Session status response:', sessionData);
+        console.log('[SessionMonitor] Session status response type:', typeof sessionData);
+        console.log('[SessionMonitor] Session status response keys:', Object.keys(sessionData || {}));
         
         // If we get here, session is valid - reset failure counter AND alert flag
         consecutiveFailures.current = 0;
@@ -100,6 +103,8 @@ const SessionMonitor = () => {
         consecutiveFailures.current++;
         console.error(`[SessionMonitor] Session check failed (attempt ${consecutiveFailures.current}):`, error);
         console.log(`[SessionMonitor] Error type: ${typeof error}, message: ${error.message}`);
+        console.log(`[SessionMonitor] Error object:`, error);
+        console.log(`[SessionMonitor] Error stack:`, error.stack);
         
         // Only act on consecutive failures to avoid false positives from network issues
         if (consecutiveFailures.current < 2) {
@@ -114,14 +119,18 @@ const SessionMonitor = () => {
         }
         
         console.log('[SessionMonitor] Processing error after consecutive failures...');
+        console.log('[SessionMonitor] Raw error message for parsing:', JSON.stringify(error.message));
         
         // Check if it's a session invalidation error
         try {
           const errorData = JSON.parse(error.message);
           console.log('[SessionMonitor] Parsed error data:', errorData);
+          console.log('[SessionMonitor] Error data type:', typeof errorData);
+          console.log('[SessionMonitor] Error data keys:', Object.keys(errorData || {}));
           
           if (errorData.code === 'session_invalidated') {
             console.log('[SessionMonitor] *** TRIGGERING SESSION INVALIDATED ALERT ***');
+            console.log('[SessionMonitor] This means the backend rejected the session');
             isAlertShown.current = true;
             localStorage.removeItem('inu_token');
             alert('다른 사용자가 로그인했습니다. 로그인 페이지로 이동합니다.');
@@ -131,10 +140,12 @@ const SessionMonitor = () => {
         } catch (e) {
           console.log('[SessionMonitor] Error parsing failed, checking for 401 status');
           console.log('[SessionMonitor] Parse error:', e);
+          console.log('[SessionMonitor] Original error message:', error.message);
           
           // Error parsing, check for 401 status
           if (error.message.includes('401')) {
             console.log('[SessionMonitor] *** TRIGGERING 401 ERROR ALERT ***');
+            console.log('[SessionMonitor] This means authentication failed');
             isAlertShown.current = true;
             localStorage.removeItem('inu_token');
             alert('세션이 만료되었습니다. 다시 로그인해주세요.');
