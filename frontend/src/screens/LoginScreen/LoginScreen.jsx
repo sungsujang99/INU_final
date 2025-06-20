@@ -10,6 +10,7 @@ export const LoginScreen = () => {
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
     // Check if we have the login ID from the previous step
@@ -17,19 +18,50 @@ export const LoginScreen = () => {
     if (!loginId) {
       navigate('/'); // Go back to first login page if no ID
     }
+
+    // Check if user is already logged in
+    const existingToken = localStorage.getItem('inu_token');
+    if (existingToken) {
+      console.log('[LoginScreen] User already has a token, redirecting to dashboard');
+      navigate('/dashboardu40onu41');
+    }
   }, [navigate]);
 
   const handleLogin = async () => {
+    if (isLoggingIn) {
+      console.log('[LoginScreen] Login already in progress, ignoring duplicate attempt');
+      return;
+    }
+
     try {
+      setIsLoggingIn(true);
       setError("");
+      
+      // Check if there's already a token (in case of multiple tabs)
+      const existingToken = localStorage.getItem('inu_token');
+      if (existingToken) {
+        console.log('[LoginScreen] Token already exists, user might be logged in another tab');
+        setError("이미 로그인되어 있습니다. 다른 탭을 확인해주세요.");
+        setIsLoggingIn(false);
+        return;
+      }
+
       const loginId = localStorage.getItem('temp_login_id');
+      console.log('[LoginScreen] Attempting login for user:', loginId);
+      
       const response = await login(loginId, password);
+      console.log('[LoginScreen] Login successful, setting token');
+      
       setToken(response.token);
       localStorage.removeItem('temp_login_id'); // Clean up
+      
+      console.log('[LoginScreen] Redirecting to dashboard');
       navigate('/dashboardu40onu41');
     } catch (err) {
       console.error('Login failed:', err);
       setError("비밀번호가 올바르지 않습니다.");
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -44,6 +76,10 @@ export const LoginScreen = () => {
             </p>
 
             <div className="text-3">비밀번호를 입력해주세요.</div>
+            
+            <div style={{ fontSize: '12px', color: '#666', textAlign: 'center', marginBottom: '10px' }}>
+              ⚠️ 여러 탭에서 동시에 로그인하지 마세요
+            </div>
 
             <div className="logo-3">
               <img
@@ -72,13 +108,15 @@ export const LoginScreen = () => {
                 type="password"
                 value={password}
                 onChange={(value) => setPassword(value)}
+                disabled={isLoggingIn}
               />
               <Btn
                 className="design-component-instance-node-2"
                 divClassName="btn-instance"
-                property1="active"
-                text="Login"
+                property1={isLoggingIn ? "disabled" : "active"}
+                text={isLoggingIn ? "로그인 중..." : "Login"}
                 onClick={handleLogin}
+                disabled={isLoggingIn}
               />
             </div>
           </div>

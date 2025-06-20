@@ -20,9 +20,30 @@ localStorage.setItem = function(key, value) {
   if (key === 'inu_token') {
     console.log('🟢🟢🟢 TOKEN BEING SET! 🟢🟢🟢');
     console.log('Token value:', value ? value.substring(0, 20) + '...' : 'null');
+    
+    // Check if we're setting a different token than what's already stored
+    const currentToken = originalGetItem.call(localStorage, 'inu_token');
+    if (currentToken && currentToken !== value) {
+      console.log('⚠️⚠️⚠️ WARNING: Token is being replaced with a different token! ⚠️⚠️⚠️');
+      console.log('Previous token:', currentToken ? currentToken.substring(0, 20) + '...' : 'null');
+      console.log('New token:', value ? value.substring(0, 20) + '...' : 'null');
+      console.trace('Token replacement stack trace');
+    }
   }
   console.log(`[localStorage] setItem called for key: ${key}`);
   return originalSetItem.call(this, key, value);
+};
+
+const originalGetItem = localStorage.getItem;
+localStorage.getItem = function(key) {
+  const result = originalGetItem.call(this, key);
+  if (key === 'inu_token' && result) {
+    // Occasionally log token retrieval to track usage
+    if (Math.random() < 0.1) { // Log 10% of token retrievals
+      console.log(`[localStorage] getItem for token: ${result.substring(0, 20)}...`);
+    }
+  }
+  return result;
 };
 
 localStorage.clear = function() {
@@ -133,7 +154,7 @@ const SessionMonitor = () => {
             console.log('[SessionMonitor] This means the backend rejected the session');
             isAlertShown.current = true;
             localStorage.removeItem('inu_token');
-            alert('다른 사용자가 로그인했습니다. 로그인 페이지로 이동합니다.');
+            alert('다른 사용자가 로그인했거나 다른 탭에서 로그인했습니다. 로그인 페이지로 이동합니다.');
             navigate('/');
             return;
           }

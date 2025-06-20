@@ -27,7 +27,9 @@ def authenticate(username, password):
         # Log previous session before invalidating
         previous_session = current_active_session
         if previous_session:
-            current_app.logger.info(f"Previous session invalidated: user '{previous_session['username']}' with session ID: {previous_session['session_id']}")
+            current_app.logger.warning(f"🔄 MULTIPLE LOGIN DETECTED: Previous session invalidated for user '{previous_session['username']}' with session ID: {previous_session['session_id']}")
+            current_app.logger.warning(f"🔄 New login attempt by user '{username}' - this will create session ID: {session_id}")
+            current_app.logger.warning(f"🔄 This indicates multiple browser tabs or duplicate login attempts")
         
         # Invalidate any previous session by updating the global session
         current_active_session = {
@@ -47,7 +49,7 @@ def authenticate(username, password):
              "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12)},
             SECRET, algorithm="HS256")
         
-        current_app.logger.info(f"New session created for user '{username}' with session ID: {session_id}")
+        current_app.logger.info(f"✅ New session created for user '{username}' with session ID: {session_id}")
         
         return token
     return None
@@ -56,7 +58,7 @@ def logout_current_session():
     """Logout the current active session"""
     global current_active_session
     if current_active_session:
-        current_app.logger.info(f"Session {current_active_session['session_id']} for user '{current_active_session['username']}' logged out")
+        current_app.logger.info(f"🚪 Session {current_active_session['session_id']} for user '{current_active_session['username']}' logged out")
         current_active_session = None
         return True
     return False
@@ -81,16 +83,16 @@ def token_required(f):
             token_session_id = decoded.get('session_id')
             
             # Add detailed logging for session validation
-            current_app.logger.debug(f"Token validation for user '{username}' with session ID: {token_session_id}")
+            current_app.logger.debug(f"🔍 Token validation for user '{username}' with session ID: {token_session_id}")
             if current_active_session:
-                current_app.logger.debug(f"Current active session: user '{current_active_session['username']}' with session ID: {current_active_session['session_id']}")
+                current_app.logger.debug(f"🔍 Current active session: user '{current_active_session['username']}' with session ID: {current_active_session['session_id']}")
             else:
-                current_app.logger.debug("No current active session")
+                current_app.logger.debug("🔍 No current active session")
             
             # Special case: if no active session exists (e.g., after server restart)
             # and we have a valid JWT token, re-establish the session
             if not current_active_session and token_session_id:
-                current_app.logger.info(f"Re-establishing session for user '{username}' after server restart")
+                current_app.logger.info(f"🔄 Re-establishing session for user '{username}' after server restart")
                 current_active_session = {
                     'session_id': token_session_id,
                     'username': username,
@@ -100,10 +102,11 @@ def token_required(f):
             
             # Check if this token's session is the current active session
             elif current_active_session['session_id'] != token_session_id:
-                current_app.logger.warning(f"Session validation failed for user '{username}' with session ID: {token_session_id}")
-                current_app.logger.warning(f"Expected session ID: {current_active_session['session_id']}")
+                current_app.logger.warning(f"❌ Session validation failed for user '{username}' with session ID: {token_session_id}")
+                current_app.logger.warning(f"❌ Expected session ID: {current_active_session['session_id']}")
+                current_app.logger.warning(f"❌ This usually means multiple browser tabs or a new login invalidated this session")
                 return jsonify({
-                    "error": "세션이 만료되었습니다. 다른 사용자가 로그인했거나 세션이 무효화되었습니다.",
+                    "error": "세션이 만료되었습니다. 다른 사용자가 로그인했거나 다른 탭에서 로그인했습니다.",
                     "code": "session_invalidated"
                 }), 401
             
@@ -116,7 +119,7 @@ def token_required(f):
                 user_row = cur.fetchone()
                 
                 if not user_row:
-                    current_app.logger.error(f"User {username} not found in database")
+                    current_app.logger.error(f"❌ User {username} not found in database")
                     return jsonify({"error": get_error_message("invalid_credentials")}), 401
                 
                 # Set user info in request object
@@ -128,23 +131,23 @@ def token_required(f):
                     'session_id': token_session_id
                 }
                 
-                current_app.logger.debug(f"Token validation successful for user '{username}'")
+                current_app.logger.debug(f"✅ Token validation successful for user '{username}'")
                 
             except sqlite3.Error as e:
-                current_app.logger.error(f"Database error in token validation: {str(e)}")
+                current_app.logger.error(f"❌ Database error in token validation: {str(e)}")
                 return jsonify({"error": get_error_message("database_error")}), 500
             finally:
                 if conn:
                     conn.close()
                     
         except jwt.ExpiredSignatureError:
-            current_app.logger.info(f"Expired token for user")
+            current_app.logger.info(f"⏰ Expired token for user")
             return jsonify({"error": get_error_message("token_expired")}), 401
         except jwt.InvalidTokenError:
-            current_app.logger.warning(f"Invalid token received")
+            current_app.logger.warning(f"❌ Invalid token received")
             return jsonify({"error": get_error_message("invalid_token")}), 401
         except Exception as e:
-            current_app.logger.error(f"Unexpected error in token validation: {str(e)}")
+            current_app.logger.error(f"❌ Unexpected error in token validation: {str(e)}")
             return jsonify({"error": get_error_message("unexpected_error")}), 500
             
         return f(*args, **kwargs)
