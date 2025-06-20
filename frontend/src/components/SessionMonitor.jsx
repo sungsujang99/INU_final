@@ -2,6 +2,16 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSessionStatus } from '../lib/api';
 
+// Override localStorage.removeItem to track token removal
+const originalRemoveItem = localStorage.removeItem;
+localStorage.removeItem = function(key) {
+  if (key === 'inu_token') {
+    console.log('🔥🔥🔥 TOKEN BEING REMOVED! 🔥🔥🔥');
+    console.trace('Token removal stack trace');
+  }
+  return originalRemoveItem.call(this, key);
+};
+
 const SessionMonitor = () => {
   console.log('🚨🚨🚨 SessionMonitor component is loading! 🚨🚨🚨');
   

@@ -175,6 +175,8 @@ export const handleApiError = (error, navigate) => {
     const errorData = JSON.parse(error.message);
     if (errorData.code === 'session_invalidated') {
       // Clear local storage and redirect to login
+      console.log('🔥🔥🔥 handleApiError is clearing token! 🔥🔥🔥');
+      console.trace('Token cleared by handleApiError');
       localStorage.removeItem('inu_token');
       alert('다른 사용자가 로그인했습니다. 다시 로그인해주세요.');
       if (navigate) {
