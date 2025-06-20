@@ -7,6 +7,8 @@ import secrets
 import uuid
 import io # Standard io module for StringIO
 import csv # Standard csv module
+import threading
+import time
 
 from .auth import authenticate, token_required, logout_current_session, get_current_session_info
 from .db import DB_NAME, init_db
@@ -42,6 +44,43 @@ logging.basicConfig(level=logging.DEBUG)
 
 # ---- Pass the socketio instance to the task_queue module ----
 task_queue.set_socketio(socketio)
+
+# ---- Optional Module Health Check Service ----
+def optional_module_health_check_service():
+    """Background service to check optional module health every minute"""
+    while True:
+        try:
+            time.sleep(60)  # Check every 1 minute
+            
+            if serial_mgr.is_optional_module_connected():
+                is_healthy = serial_mgr.check_optional_module_health()
+                
+                # Emit status update to connected clients
+                socketio.emit('optional_module_status', {
+                    'connected': True,
+                    'healthy': is_healthy,
+                    'status': 'online' if is_healthy else 'offline',
+                    'timestamp': time.time()
+                })
+                
+                if not is_healthy:
+                    print(f"WARNING: Optional module health check failed at {time.ctime()}")
+            else:
+                # Module not connected
+                socketio.emit('optional_module_status', {
+                    'connected': False,
+                    'healthy': False,
+                    'status': 'disconnected',
+                    'timestamp': time.time()
+                })
+                
+        except Exception as e:
+            print(f"Error in optional module health check service: {e}")
+
+# Start health check service in background thread
+health_check_thread = threading.Thread(target=optional_module_health_check_service, daemon=True)
+health_check_thread.start()
+print("Optional module health check service started")
 
 # ---- DEBUG: Log all incoming request paths ----
 @app.before_request
@@ -458,6 +497,70 @@ def reset_system():
         return jsonify({
             "success": False,
             "error": "시스템 초기화 중 오류가 발생했습니다.",
+            "message": str(e)
+        }), 500
+
+@app.route("/api/optional-module/activate", methods=["POST"])
+@token_required
+def activate_optional_module():
+    """Activate the optional module by sending '1' command"""
+    try:
+        app.logger.info("Optional module activation requested")
+        
+        if not serial_mgr.is_optional_module_connected():
+            return jsonify({
+                "success": False,
+                "error": "선택적 모듈이 연결되지 않았습니다.",
+                "message": "Optional module not connected"
+            }), 404
+        
+        success = serial_mgr.activate_optional_module()
+        
+        if success:
+            app.logger.info("Optional module activated successfully")
+            return jsonify({
+                "success": True,
+                "message": "선택적 모듈이 성공적으로 활성화되었습니다."
+            }), 200
+        else:
+            app.logger.error("Failed to activate optional module")
+            return jsonify({
+                "success": False,
+                "error": "선택적 모듈 활성화에 실패했습니다.",
+                "message": "Failed to send activation command"
+            }), 500
+        
+    except Exception as e:
+        app.logger.error(f"Error during optional module activation: {str(e)}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "선택적 모듈 활성화 중 오류가 발생했습니다.",
+            "message": str(e)
+        }), 500
+
+@app.route("/api/optional-module/status")
+@token_required
+def get_optional_module_status():
+    """Get the status of the optional module"""
+    try:
+        is_connected = serial_mgr.is_optional_module_connected()
+        is_healthy = False
+        
+        if is_connected:
+            is_healthy = serial_mgr.check_optional_module_health()
+        
+        return jsonify({
+            "success": True,
+            "connected": is_connected,
+            "healthy": is_healthy,
+            "status": "online" if (is_connected and is_healthy) else "offline"
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"Error checking optional module status: {str(e)}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "선택적 모듈 상태 확인 중 오류가 발생했습니다.",
             "message": str(e)
         }), 500
 

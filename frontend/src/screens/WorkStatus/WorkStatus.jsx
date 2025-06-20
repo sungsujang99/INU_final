@@ -25,6 +25,11 @@ export const WorkStatus = () => {
   const [inProgressTasks, setInProgressTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
   const [userDisplayName, setUserDisplayName] = useState('');
+  const [optionalModuleStatus, setOptionalModuleStatus] = useState({
+    connected: false,
+    healthy: false,
+    status: 'offline'
+  });
 
   const [activeBatch, setActiveBatch] = useState({
     id: null,
@@ -77,6 +82,33 @@ export const WorkStatus = () => {
     .catch(error => {
       console.error('Error sending reset signal:', error);
       alert('초기화 신호 전송에 실패했습니다.');
+    });
+  };
+
+  // Optional module activation handler
+  const handleOptionalModuleActivate = () => {
+    const apiUrl = getApiBaseUrl();
+    const activateUrl = apiUrl ? `${apiUrl}/api/optional-module/activate` : '/api/optional-module/activate';
+    
+    fetch(activateUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('inu_token')}`
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('Optional module activation result:', data);
+      if (data.success) {
+        alert('선택적 모듈이 활성화되었습니다.');
+      } else {
+        alert(`모듈 활성화 실패: ${data.error || data.message}`);
+      }
+    })
+    .catch(error => {
+      console.error('Error activating optional module:', error);
+      alert('모듈 활성화 중 오류가 발생했습니다.');
     });
   };
 
@@ -224,6 +256,33 @@ export const WorkStatus = () => {
     // Add logic for this button
   };
 
+  // Fetch optional module status
+  const fetchOptionalModuleStatus = async () => {
+    try {
+      const apiUrl = getApiBaseUrl();
+      const statusUrl = apiUrl ? `${apiUrl}/api/optional-module/status` : '/api/optional-module/status';
+      
+      const response = await fetch(statusUrl, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('inu_token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setOptionalModuleStatus({
+            connected: data.connected,
+            healthy: data.healthy,
+            status: data.status
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching optional module status:', error);
+    }
+  };
+
   // Split fetch functions
   const fetchInventoryData = async () => {
     try {
@@ -280,14 +339,12 @@ export const WorkStatus = () => {
     setDoneTasks(tasks.filter(t => t.rack === selectedRack));
   };
 
-  // Fetch all on mount and when rack changes
+  // Initial data fetch
   useEffect(() => {
     fetchInventoryData();
-    fetchPendingTasks();
-    fetchInProgressTasks();
-    fetchDoneTasks();
-    // If activeBatch.id and activeBatch.totalTasks are already set (e.g. from session state in future),
-    // you could call fetchAndSetBatchProgress here to load initial progress on page load.
+    fetchCompletedJobs();
+    fetchWaitingTasks(); // This will fetch both pending and in-progress tasks
+    fetchOptionalModuleStatus(); // Fetch initial optional module status
     // For now, progress starts when a new CSV is uploaded.
   }, [selectedRack]);
 
@@ -302,6 +359,21 @@ export const WorkStatus = () => {
         setUserDisplayName('Unknown User');
       }
     }
+  }, []);
+
+  // Socket listener for optional module status updates
+  useEffect(() => {
+    const handleOptionalModuleStatus = (data) => {
+      console.log('[SocketIO] Optional module status update:', data);
+      setOptionalModuleStatus({
+        connected: data.connected,
+        healthy: data.healthy,
+        status: data.status
+      });
+    };
+
+    socket.on('optional_module_status', handleOptionalModuleStatus);
+    return () => socket.off('optional_module_status', handleOptionalModuleStatus);
   }, []);
 
   // Add fetchAndSetBatchProgress as a memoized callback
@@ -637,6 +709,25 @@ export const WorkStatus = () => {
               title="Import CSV"
             >
               <img src={addDocumentUrl} alt="Import CSV" style={{ width: '34px', height: '34px', display: 'block' }} />
+            </button>
+
+            {/* Optional Module Button */}
+            <button
+              onClick={handleOptionalModuleActivate}
+              style={{ 
+                background: optionalModuleStatus.connected ? (optionalModuleStatus.healthy ? '#00BB80' : '#FF6B6B') : '#8C8C8C', 
+                border: 'none', 
+                padding: '8px 12px', 
+                cursor: optionalModuleStatus.connected ? 'pointer' : 'not-allowed', 
+                borderRadius: '4px',
+                color: 'white',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}
+              title={`Optional Module: ${optionalModuleStatus.status}`}
+              disabled={!optionalModuleStatus.connected}
+            >
+              모듈
             </button>
 
             {/* Inbox In Button */}

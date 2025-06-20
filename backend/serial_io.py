@@ -8,6 +8,7 @@ DISCOVERY_TIMEOUT = 1 # Specific timeout for WHO command during discovery
 ECHO_TIMEOUT = 1 # Timeout for waiting for command echo
 WHO_CMD = b"WHO\n"
 RACKS   = {"A", "B", "C", "M"}
+OPTIONAL_MODULE_ID = "X"  # Optional module responds with "X" to WHO command
 #A: 1, B: 2, C: 3, M: main rack
 
 DEFAULT_MAX_ECHO_ATTEMPTS = 6    # Default number of attempts (1 initial + 5 retries) to get command echo
@@ -106,6 +107,10 @@ class SerialManager:
                                 print(f"⚠️ Port {port}: WHO Attempt {attempt}/3: Rack '{decoded_reply}' already discovered. This port will be closed.")
                                 found_rack_id = None # Explicitly ensure this port isn't re-used for a duplicate rack
                                 break # Stop attempts for this port, it's a duplicate
+                        elif decoded_reply == OPTIONAL_MODULE_ID:
+                            print(f"INFO: Port {port}: WHO Attempt {attempt}/3: Optional module detected.")
+                            found_rack_id = decoded_reply
+                            break
                         else:
                             print(f"⚠️ Port {port}: WHO Attempt {attempt}/3: Received unknown reply '{decoded_reply}'.")
                     else:
@@ -383,6 +388,45 @@ class SerialManager:
                 print(f"ERROR: Rack {rack_id}: Exception during reset command '{reset_cmd_code}': {e}")
                 # traceback.print_exc() # Uncomment if more detail is needed here
         print("INFO: Finished attempting to reset all connected racks.")
+
+    def check_optional_module_health(self):
+        """Check if optional module is responding to WHO command.
+        Returns True if module responds with 'X', False otherwise.
+        """
+        if not self.enabled:
+            return False
+            
+        if OPTIONAL_MODULE_ID not in self.ports:
+            return False
+            
+        try:
+            result = self.send(OPTIONAL_MODULE_ID, "WHO", wait_done=False)
+            # For WHO command, we just check if we got the echo back
+            return result.get("status") == "sent_echo_confirmed"
+        except Exception as e:
+            print(f"ERROR: Optional module health check failed: {e}")
+            return False
+    
+    def activate_optional_module(self):
+        """Send activation command '1' to optional module.
+        Returns True if command was sent successfully, False otherwise.
+        """
+        if not self.enabled:
+            return False
+            
+        if OPTIONAL_MODULE_ID not in self.ports:
+            return False
+            
+        try:
+            result = self.send(OPTIONAL_MODULE_ID, "1", wait_done=False)
+            return result.get("status") == "sent_echo_confirmed"
+        except Exception as e:
+            print(f"ERROR: Optional module activation failed: {e}")
+            return False
+    
+    def is_optional_module_connected(self):
+        """Check if optional module is discovered and connected."""
+        return OPTIONAL_MODULE_ID in self.ports
 
 # ───── 전역 인스턴스 (모듈 import 시 1번만 생성) ─────
 serial_mgr = SerialManager()
