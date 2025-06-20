@@ -38,9 +38,10 @@ After=network-online.target
 Type=simple
 User=inu
 Group=inu
-WorkingDirectory=$PROJECT_DIR/backend
+WorkingDirectory=$PROJECT_DIR
 Environment=PATH=$PROJECT_DIR/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ExecStart=$PROJECT_DIR/backend/venv/bin/python app.py
+Environment=PYTHONPATH=$PROJECT_DIR
+ExecStart=$PROJECT_DIR/backend/venv/bin/python -m backend.app
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -50,7 +51,6 @@ StandardError=journal
 TimeoutStartSec=60
 
 # Environment variables
-Environment=PYTHONPATH=$PROJECT_DIR/backend
 Environment=FLASK_ENV=production
 
 [Install]
