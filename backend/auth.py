@@ -24,6 +24,11 @@ def authenticate(username, password):
         # Generate a unique session ID
         session_id = str(uuid.uuid4())
         
+        # Log previous session before invalidating
+        previous_session = current_active_session
+        if previous_session:
+            current_app.logger.info(f"Previous session invalidated: user '{previous_session['username']}' with session ID: {previous_session['session_id']}")
+        
         # Invalidate any previous session by updating the global session
         current_active_session = {
             'session_id': session_id,
@@ -43,8 +48,6 @@ def authenticate(username, password):
             SECRET, algorithm="HS256")
         
         current_app.logger.info(f"New session created for user '{username}' with session ID: {session_id}")
-        if current_active_session:
-            current_app.logger.info(f"Previous session invalidated")
         
         return token
     return None
@@ -77,9 +80,28 @@ def token_required(f):
             username = decoded['sub']
             token_session_id = decoded.get('session_id')
             
+            # Add detailed logging for session validation
+            current_app.logger.debug(f"Token validation for user '{username}' with session ID: {token_session_id}")
+            if current_active_session:
+                current_app.logger.debug(f"Current active session: user '{current_active_session['username']}' with session ID: {current_active_session['session_id']}")
+            else:
+                current_app.logger.debug("No current active session")
+            
+            # Special case: if no active session exists (e.g., after server restart)
+            # and we have a valid JWT token, re-establish the session
+            if not current_active_session and token_session_id:
+                current_app.logger.info(f"Re-establishing session for user '{username}' after server restart")
+                current_active_session = {
+                    'session_id': token_session_id,
+                    'username': username,
+                    'user_id': decoded['user_id'],
+                    'login_time': datetime.datetime.utcnow()  # Use current time since we don't have original
+                }
+            
             # Check if this token's session is the current active session
-            if not current_active_session or current_active_session['session_id'] != token_session_id:
-                current_app.logger.warning(f"Invalid session attempt by user '{username}' with session ID: {token_session_id}")
+            elif current_active_session['session_id'] != token_session_id:
+                current_app.logger.warning(f"Session validation failed for user '{username}' with session ID: {token_session_id}")
+                current_app.logger.warning(f"Expected session ID: {current_active_session['session_id']}")
                 return jsonify({
                     "error": "세션이 만료되었습니다. 다른 사용자가 로그인했거나 세션이 무효화되었습니다.",
                     "code": "session_invalidated"
@@ -105,6 +127,9 @@ def token_required(f):
                     'display_name': user_row[2],
                     'session_id': token_session_id
                 }
+                
+                current_app.logger.debug(f"Token validation successful for user '{username}'")
+                
             except sqlite3.Error as e:
                 current_app.logger.error(f"Database error in token validation: {str(e)}")
                 return jsonify({"error": get_error_message("database_error")}), 500
@@ -113,8 +138,10 @@ def token_required(f):
                     conn.close()
                     
         except jwt.ExpiredSignatureError:
+            current_app.logger.info(f"Expired token for user")
             return jsonify({"error": get_error_message("token_expired")}), 401
         except jwt.InvalidTokenError:
+            current_app.logger.warning(f"Invalid token received")
             return jsonify({"error": get_error_message("invalid_token")}), 401
         except Exception as e:
             current_app.logger.error(f"Unexpected error in token validation: {str(e)}")

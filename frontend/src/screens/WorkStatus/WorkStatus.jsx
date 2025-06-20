@@ -56,7 +56,10 @@ export const WorkStatus = () => {
         navigate('/');
       });
   };
-  const handleRackSelection = (rack) => setSelectedRack(rack);
+  const handleRackSelection = (rack) => {
+    console.log(`[handleRackSelection] Changing from rack ${selectedRack} to rack ${rack}`);
+    setSelectedRack(rack);
+  };
 
   const handleReset = () => {
     // Send reset signal to backend using dynamic URL
@@ -366,6 +369,7 @@ export const WorkStatus = () => {
 
   // Initial data fetch
   useEffect(() => {
+    console.log(`[useEffect] selectedRack changed to: ${selectedRack}, fetching data...`);
     fetchInventoryData();
     fetchPendingTasks();
     fetchInProgressTasks();

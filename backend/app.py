@@ -160,15 +160,15 @@ def login():
     username = data.get("username")
     password = data.get("password")
     
-    print(f"Login attempt: username='{username}'")
+    app.logger.info(f"Login attempt: username='{username}'")
     
     tok = authenticate(username, password)
     
     if tok:
-        print(f"Login successful for '{username}', token generated.")
+        app.logger.info(f"Login successful for '{username}', token generated.")
         return {"token": tok}, 200
     else:
-        print(f"Login failed for '{username}'.")
+        app.logger.warning(f"Login failed for '{username}' - invalid credentials.")
         return {"error": get_error_message("invalid_credentials")}, 401
 
 @app.route("/api/logout", methods=["POST"])
@@ -590,6 +590,34 @@ def get_available_cameras_endpoint():
             "error": "카메라 정보를 가져오는 중 오류가 발생했습니다.",
             "message": str(e)
         }), 500
+
+# Debug endpoint to help troubleshoot session issues
+@app.route("/api/debug/session-info")
+@token_required
+def debug_session_info():
+    """Debug endpoint to get detailed session information"""
+    try:
+        from .auth import get_current_session_info
+        session_info = get_current_session_info()
+        user_info = getattr(request, 'user', None)
+        
+        return jsonify({
+            "current_session": {
+                "session_id": session_info['session_id'] if session_info else None,
+                "username": session_info['username'] if session_info else None,
+                "login_time": session_info['login_time'].isoformat() if session_info else None
+            } if session_info else None,
+            "token_info": {
+                "username": user_info['username'] if user_info else None,
+                "session_id": user_info['session_id'] if user_info else None,
+                "user_id": user_info['id'] if user_info else None
+            } if user_info else None,
+            "session_match": session_info['session_id'] == user_info['session_id'] if (session_info and user_info) else False
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"Error in debug session info: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 @app.after_request
 def after_request(response):
