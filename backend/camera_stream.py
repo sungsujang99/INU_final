@@ -1,5 +1,5 @@
 import io, threading, time, logging, sys, os
-import RPi.GPIO as gp
+import lgpio
 from picamera2 import Picamera2
 from libcamera import controls
 from flask import Response, current_app
@@ -11,12 +11,20 @@ logging.getLogger('picamera2').setLevel(logging.WARNING)
 # Get a logger instance
 logger = logging.getLogger(__name__)
 
-# Initialize GPIO for camera switching
-gp.setwarnings(False)
-gp.setmode(gp.BOARD)
-gp.setup(7, gp.OUT)
-gp.setup(11, gp.OUT)
-gp.setup(12, gp.OUT)
+# Initialize GPIO for camera switching using lgpio (Pi 5 compatible)
+try:
+    gpio_chip = lgpio.gpiochip_open(0)  # Open GPIO chip 0
+    # Setup GPIO pins as outputs (using BCM pin numbers)
+    # BOARD pin 7 = BCM pin 4
+    # BOARD pin 11 = BCM pin 17  
+    # BOARD pin 12 = BCM pin 18
+    lgpio.gpio_claim_output(gpio_chip, 4)   # Pin 7 (BOARD) = Pin 4 (BCM)
+    lgpio.gpio_claim_output(gpio_chip, 17)  # Pin 11 (BOARD) = Pin 17 (BCM)
+    lgpio.gpio_claim_output(gpio_chip, 18)  # Pin 12 (BOARD) = Pin 18 (BCM)
+    logger.info("GPIO pins initialized successfully with lgpio")
+except Exception as e:
+    logger.error(f"GPIO initialization failed: {e}")
+    gpio_chip = None
 
 # Camera switching configurations (same as working demo)
 CAMERA_CONFIGS = {
@@ -31,6 +39,10 @@ def switch_camera(camera_num):
     if camera_num not in CAMERA_CONFIGS:
         logger.error(f"Invalid camera number: {camera_num}")
         return False
+    
+    if gpio_chip is None:
+        logger.error("GPIO not available")
+        return False
         
     try:
         config = CAMERA_CONFIGS[camera_num]
@@ -40,11 +52,11 @@ def switch_camera(camera_num):
         # Execute I2C command
         os.system(config["i2c_cmd"])
         
-        # Set GPIO pins
+        # Set GPIO pins using lgpio
         gpio_7, gpio_11, gpio_12 = config["gpio"]
-        gp.output(7, gpio_7)
-        gp.output(11, gpio_11)
-        gp.output(12, gpio_12)
+        lgpio.gpio_write(gpio_chip, 4, 1 if gpio_7 else 0)
+        lgpio.gpio_write(gpio_chip, 17, 1 if gpio_11 else 0)
+        lgpio.gpio_write(gpio_chip, 18, 1 if gpio_12 else 0)
         
         # Delay for camera switching (same as demo)
         time.sleep(1)
@@ -185,9 +197,9 @@ class MultiCamera:
                 self.picam.stop()
                 self.picam.close()
             # Reset GPIO to default state
-            gp.output(7, False)
-            gp.output(11, False)
-            gp.output(12, True)
+            lgpio.gpio_write(gpio_chip, 4, 0)
+            lgpio.gpio_write(gpio_chip, 17, 0)
+            lgpio.gpio_write(gpio_chip, 18, 1)
         except Exception as e:
             logger.error(f"Error stopping camera system: {e}")
 
@@ -253,10 +265,10 @@ def get_available_cameras():
 def cleanup_gpio():
     """Cleanup GPIO on shutdown"""
     try:
-        gp.output(7, False)
-        gp.output(11, False)
-        gp.output(12, True)
-        gp.cleanup()
+        lgpio.gpio_write(gpio_chip, 4, 0)
+        lgpio.gpio_write(gpio_chip, 17, 0)
+        lgpio.gpio_write(gpio_chip, 18, 1)
+        lgpio.gpio_close(gpio_chip)
     except:
         pass
 
