@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { getSessionStatus } from '../lib/api';
 
 const SessionMonitor = () => {
+  console.log('🚨 SessionMonitor component is loading! 🚨');
+  
   const navigate = useNavigate();
   const consecutiveFailures = useRef(0);
   const isAlertShown = useRef(false);
   const lastCheckTime = useRef(0);
 
   useEffect(() => {
+    console.log('🚨 SessionMonitor useEffect is running! 🚨');
     // Check session status every 30 seconds
     const checkSession = async () => {
       const now = Date.now();
@@ -62,11 +65,11 @@ const SessionMonitor = () => {
           console.log('[SessionMonitor] Parsed error data:', errorData);
           
           if (errorData.code === 'session_invalidated') {
-            console.log('[SessionMonitor] *** TRIGGERING SESSION INVALIDATED ALERT ***');
-            isAlertShown.current = true;
-            localStorage.removeItem('inu_token');
-            alert('다른 사용자가 로그인했습니다. 로그인 페이지로 이동합니다.');
-            navigate('/');
+            console.log('[SessionMonitor] *** WOULD TRIGGER SESSION INVALIDATED ALERT (DISABLED FOR DEBUG) ***');
+            // TEMPORARILY DISABLED: isAlertShown.current = true;
+            // TEMPORARILY DISABLED: localStorage.removeItem('inu_token');
+            // TEMPORARILY DISABLED: alert('다른 사용자가 로그인했습니다. 로그인 페이지로 이동합니다.');
+            // TEMPORARILY DISABLED: navigate('/');
             return;
           }
         } catch (e) {
@@ -75,11 +78,11 @@ const SessionMonitor = () => {
           
           // Error parsing, check for 401 status
           if (error.message.includes('401')) {
-            console.log('[SessionMonitor] *** TRIGGERING 401 ERROR ALERT ***');
-            isAlertShown.current = true;
-            localStorage.removeItem('inu_token');
-            alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-            navigate('/');
+            console.log('[SessionMonitor] *** WOULD TRIGGER 401 ERROR ALERT (DISABLED FOR DEBUG) ***');
+            // TEMPORARILY DISABLED: isAlertShown.current = true;
+            // TEMPORARILY DISABLED: localStorage.removeItem('inu_token');
+            // TEMPORARILY DISABLED: alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+            // TEMPORARILY DISABLED: navigate('/');
             return;
           }
         }
