@@ -3,6 +3,7 @@ import RPi.GPIO as gp
 from picamera2 import Picamera2
 from libcamera import controls
 from flask import Response, current_app
+import cv2
 
 # Set Picamera2 logging to WARNING to suppress DEBUG output
 logging.getLogger('picamera2').setLevel(logging.WARNING)
@@ -17,22 +18,24 @@ gp.setup(7, gp.OUT)
 gp.setup(11, gp.OUT)
 gp.setup(12, gp.OUT)
 
-# Camera switching configurations
+# Camera switching configurations (same as working demo)
 CAMERA_CONFIGS = {
-    0: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x04", "gpio": (False, False, True)},   # Camera A
-    1: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x05", "gpio": (True, False, True)},   # Camera B  
-    2: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x06", "gpio": (False, True, False)},  # Camera C
-    3: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x07", "gpio": (True, True, False)}    # Camera D
+    0: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x04", "gpio": (False, False, True), "name": "Camera A"},
+    1: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x05", "gpio": (True, False, True), "name": "Camera B"},
+    2: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x06", "gpio": (False, True, False), "name": "Camera C"},
+    3: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x07", "gpio": (True, True, False), "name": "Camera D"}
 }
 
 def switch_camera(camera_num):
-    """Switch to the specified camera using I2C and GPIO"""
+    """Switch to the specified camera using I2C and GPIO (from working demo)"""
     if camera_num not in CAMERA_CONFIGS:
         logger.error(f"Invalid camera number: {camera_num}")
         return False
         
     try:
         config = CAMERA_CONFIGS[camera_num]
+        
+        logger.info(f"Switching to {config['name']} (Camera {camera_num})...")
         
         # Execute I2C command
         os.system(config["i2c_cmd"])
@@ -43,10 +46,10 @@ def switch_camera(camera_num):
         gp.output(11, gpio_11)
         gp.output(12, gpio_12)
         
-        # Small delay for camera switching
-        time.sleep(0.5)
+        # Delay for camera switching (same as demo)
+        time.sleep(1)
         
-        logger.info(f"Switched to camera {camera_num}")
+        logger.info(f"GPIO set: Pin 7={gpio_7}, Pin 11={gpio_11}, Pin 12={gpio_12}")
         return True
         
     except Exception as e:
@@ -61,34 +64,26 @@ class MultiCamera:
         self.current_camera = 0
         self.frame = None
         self.running = True
-        self._update_counter = 0
-        self.last_capture_time = 0
-        self.capture_errors = 0
         self.camera_lock = threading.Lock()
         
         try:
             logger.info("Initializing multi-camera system...")
             
-            # Initialize with camera 0
+            # Initialize with camera 0 (same as demo)
             switch_camera(0)
             
             # Initialize Picamera2 (using camera index 0 since we switch via hardware)
             self.picam = Picamera2(0)
             
-            # Create configuration
+            # Create simple configuration (similar to demo)
             config = self.picam.create_preview_configuration(
-                main={"size": (width, height), "format": "RGB888"},
-                buffer_count=4,
-                controls={
-                    "FrameDurationLimits": (int(1/fps * 1000000), int(1/fps * 1000000)),
-                    "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Fast
-                }
+                main={"size": (width, height), "format": "RGB888"}
             )
             
             self.picam.configure(config)
             self.picam.start()
             
-            # Wait for camera to settle
+            # Wait for camera to settle (same as demo)
             time.sleep(2)
             
             logger.info("Multi-camera system initialized successfully")
@@ -117,10 +112,9 @@ class MultiCamera:
                 if switch_camera(camera_num):
                     # Restart camera
                     self.picam.start()
-                    time.sleep(1)  # Allow camera to settle
+                    time.sleep(2)  # Allow camera to settle (same as demo)
                     
                     self.current_camera = camera_num
-                    self.capture_errors = 0  # Reset error counter
                     logger.info(f"Successfully switched to camera {camera_num}")
                     return True
                 else:
@@ -143,56 +137,24 @@ class MultiCamera:
     def _update(self):
         """Capture frames continuously"""
         logger.info("Multi-camera capture thread started")
-        frame_interval = 1.0 / self.fps if self.fps > 0 else 0.1
         
         while self.running:
             try:
-                current_time = time.time()
-                if current_time - self.last_capture_time < frame_interval:
-                    time.sleep(0.001)
-                    continue
-                
                 with self.camera_lock:
                     try:
+                        # Capture array (same as demo)
                         arr = self.picam.capture_array()
                         if arr is not None:
-                            # Save test frame for first capture of each camera
-                            if self._update_counter == 0:
-                                import cv2
-                                cv2.imwrite(f"test_frame_multicam_{self.current_camera}.jpg", arr)
-                            
                             # Encode to JPEG
-                            import cv2
                             ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
                             
                             if ret:
                                 self.frame = jpg.tobytes()
-                                self._update_counter += 1
-                                self.capture_errors = 0
-                                self.last_capture_time = time.time()
-                            else:
-                                self.capture_errors += 1
-                        else:
-                            self.capture_errors += 1
-                            
+                        
                     except Exception as e:
-                        self.capture_errors += 1
-                        if self.capture_errors % 10 == 0:  # Log every 10 errors
-                            logger.warning(f"Capture error on camera {self.current_camera}: {e}")
+                        logger.warning(f"Capture error on camera {self.current_camera}: {e}")
                 
-                # Reset camera if too many errors
-                if self.capture_errors >= 10:
-                    logger.warning(f"Too many capture errors on camera {self.current_camera}, attempting reset...")
-                    try:
-                        with self.camera_lock:
-                            self.picam.stop()
-                            time.sleep(1)
-                            switch_camera(self.current_camera)
-                            self.picam.start()
-                            time.sleep(2)
-                            self.capture_errors = 0
-                    except Exception as e:
-                        logger.error(f"Camera reset failed: {e}")
+                time.sleep(1.0 / self.fps)
                         
             except Exception as e:
                 logger.error(f"Error in capture loop: {e}")
@@ -204,12 +166,11 @@ class MultiCamera:
             self.set_camera(camera_num)
             
         logger.info(f"Frame generator requested for camera {self.current_camera}")
-        boundary = b'--frame'
         
         while True:
             try:
                 if self.frame:
-                    yield boundary + b'\r\n'
+                    yield b'--frame\r\n'
                     yield b'Content-Type: image/jpeg\r\n\r\n' + self.frame + b'\r\n'
                 time.sleep(1.0 / self.fps)
             except Exception as e:
@@ -233,7 +194,7 @@ class MultiCamera:
 class CameraManager:
     def __init__(self):
         self.multi_camera = None
-        self.available_cameras = [0, 1, 2, 3]  # All 4 cameras should be available with the adapter
+        self.available_cameras = [0, 1, 2, 3]  # All 4 cameras available with adapter
         self.initialize_camera()
     
     def initialize_camera(self):
