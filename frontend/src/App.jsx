@@ -1,5 +1,5 @@
 import React from "react";
-import { RouterProvider, createBrowserRouter, Outlet } from "react-router-dom";
+import { RouterProvider, createBrowserRouter, Outlet, Navigate } from "react-router-dom";
 import { Camera } from "./screens/Camera";
 import { DashboardOn } from "./screens/DashboardOn";
 import { DivWrapper } from "./screens/DivWrapper";
@@ -24,8 +24,8 @@ const router = createBrowserRouter([
     element: <Layout />,
     children: [
       {
-        path: "/*",
-        element: <Login />,
+        index: true,
+        element: <Navigate to="/login1u40u4363u4449u4363u4469u4355u4469-u4363u4469u4536u4357u4455u4520u41" replace />,
       },
       {
         path: "/login1u40u4363u4449u4363u4469u4355u4469-u4363u4469u4536u4357u4455u4520u41",
@@ -50,6 +50,10 @@ const router = createBrowserRouter([
       {
         path: "/work-status",
         element: <WorkStatus />,
+      },
+      {
+        path: "*",
+        element: <Navigate to="/login1u40u4363u4449u4363u4469u4355u4469-u4363u4469u4536u4357u4455u4520u41" replace />,
       },
     ]
   },
