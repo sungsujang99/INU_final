@@ -26,6 +26,17 @@ const formatLogTime = (timestamp) => {
   });
 };
 
+// Get camera display name
+const getCameraName = (cameraNum) => {
+  const names = {
+    0: "메인화면",
+    1: "A", 
+    2: "B",
+    3: "C"
+  };
+  return names[cameraNum] || `카메라 ${cameraNum}`;
+};
+
 export const Camera = () => {
   const navigate = useNavigate();
   const [selectedCamera, setSelectedCamera] = useState(0); // Start with camera 0 selected
@@ -91,12 +102,12 @@ export const Camera = () => {
       return (
         <img 
           src={mjpegStreamUrl} 
-          alt={`카메라 ${selectedCamera} 라이브 스트림`} 
+          alt={`${getCameraName(selectedCamera)} 라이브 스트림`} 
           className="camera-mjpeg-stream" // Add a class for styling if needed
           style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
           // Basic error visual cue (you might want a more robust error handling)
           onError={(e) => {
-            e.target.alt = `카메라 ${selectedCamera} 스트림을 불러올 수 없습니다.`; 
+            e.target.alt = `${getCameraName(selectedCamera)} 스트림을 불러올 수 없습니다.`; 
             // Optionally, replace with a placeholder image or hide:
             // e.target.src = "/img/camera_error_placeholder.png"; 
             // e.target.style.display = 'none'; 
@@ -107,7 +118,7 @@ export const Camera = () => {
       // For unavailable cameras, show a placeholder or message
       return (
         <div className="camera-stream-placeholder">
-          카메라 {selectedCamera} 은(는) 현재 사용할 수 없습니다.
+          {getCameraName(selectedCamera)} 은(는) 현재 사용할 수 없습니다.
         </div>
       );
     }
@@ -136,7 +147,7 @@ export const Camera = () => {
       <div 
         className="frame-16 camera-button camera-selected"
       >
-        <div className="text-wrapper-31">운영 캠{selectedCamera}</div>
+        <div className="text-wrapper-31">{getCameraName(selectedCamera)}</div>
       </div>
       <div className="camera-display">
         {renderCameraStream()}
@@ -156,7 +167,7 @@ export const Camera = () => {
           onClick={() => handleCameraSelect(camNum)}
         >
           <div className="small-camera-button">
-            <div className="small-camera-text">운영 캠{camNum}</div>
+            <div className="small-camera-text">{getCameraName(camNum)}</div>
           </div>
           <div className="small-camera-display">
             {renderSmallCameraStream(camNum)}
