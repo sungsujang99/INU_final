@@ -414,6 +414,13 @@ export const WorkStatus = () => {
   useEffect(() => {
     console.log(`[useEffect] selectedRack changed to: ${selectedRack}, fetching data...`);
     
+    // Check if user is logged in before fetching data
+    const token = localStorage.getItem('inu_token');
+    if (!token) {
+      console.log('[useEffect] No token found, skipping data fetch');
+      return;
+    }
+    
     fetchInventoryData();
     fetchPendingTasks();
     fetchInProgressTasks();
@@ -433,6 +440,15 @@ export const WorkStatus = () => {
       const decoded = jwtDecode(token);
       console.log('[useEffect] Token decoded successfully:', decoded);
       setUserDisplayName(decoded.display_name || 'Unknown User');
+      
+      // Now that we have a valid token, fetch initial data
+      console.log('[useEffect] Token available, fetching initial data...');
+      fetchInventoryData();
+      fetchPendingTasks();
+      fetchInProgressTasks();
+      fetchCompletedJobs();
+      fetchOptionalModuleStatus();
+      
     } catch (error) {
       console.error('Error decoding token:', error);
       console.log('[useEffect] Invalid token, will let SessionMonitor handle this');
