@@ -28,8 +28,8 @@ const formatLogTime = (timestamp) => {
 
 export const Camera = () => {
   const navigate = useNavigate();
-  const [selectedCamera, setSelectedCamera] = useState(0); // Default to camera 0 (0-indexed)
-  const [availableCameras, setAvailableCameras] = useState([0]); // Default to camera 0
+  const [selectedCamera, setSelectedCamera] = useState(0); // Start with camera 0 selected
+  const [availableCameras, setAvailableCameras] = useState([0, 1, 2, 3]); // All 4 cameras available
   const [groupedActivityLogs, setGroupedActivityLogs] = useState({}); // State for grouped logs
   const [userDisplayName, setUserDisplayName] = useState('');
 
@@ -77,7 +77,7 @@ export const Camera = () => {
     });
   };
 
-  // Camera selection handler with swap functionality
+  // Camera selection handler - only start streaming when selected
   const handleCameraSelect = (cameraNumber) => {
     setSelectedCamera(cameraNumber);
   };
@@ -113,7 +113,7 @@ export const Camera = () => {
     }
   };
 
-  // Render small camera preview for non-selected cameras
+  // Render small camera preview - no streaming for unselected cameras
   const renderSmallCameraStream = (cameraNum) => {
     if (!availableCameras.includes(cameraNum)) {
       return (
@@ -123,17 +123,11 @@ export const Camera = () => {
       );
     }
 
-    const mjpegStreamUrl = `${getBackendUrl()}/api/camera/${cameraNum}/live_feed`;
+    // No streaming for unselected cameras - just show placeholder
     return (
-      <img 
-        src={mjpegStreamUrl} 
-        alt={`카메라 ${cameraNum} 미리보기`} 
-        className="small-camera-stream"
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-        onError={(e) => {
-          e.target.style.display = 'none';
-        }}
-      />
+      <div className="small-camera-placeholder">
+        클릭하여 선택
+      </div>
     );
   };
 
@@ -151,11 +145,11 @@ export const Camera = () => {
     </div>
   );
 
-  // Render the camera buttons (excluding the selected one)
+  // Render the camera buttons - show all cameras as selectable
   const renderCameraButtons = () => {
     const allCameras = [0, 1, 2, 3]; // 4 cameras (0-indexed)
     return allCameras
-      .filter(camNum => camNum !== selectedCamera)
+      .filter(camNum => camNum !== selectedCamera) // Don't show the currently selected camera
       .map(camNum => (
         <div 
           key={camNum}
@@ -312,8 +306,7 @@ export const Camera = () => {
           const data = await response.json();
           if (data.success && data.cameras.length > 0) {
             setAvailableCameras(data.cameras);
-            // Set the first available camera as selected
-            setSelectedCamera(data.cameras[0]);
+            // Don't automatically select any camera - let user choose
           }
         } else {
           console.warn('Failed to fetch available cameras, using defaults');
