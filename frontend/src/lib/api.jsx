@@ -169,3 +169,32 @@ export async function getWorkTasksByStatus(status) {
 }
 
 export const getPendingTaskCounts = () => req('/pending-task-counts');
+
+// Logout function
+export const logout = () => 
+  req('/logout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+// Session status function
+export const getSessionStatus = () => req('/session-status');
+
+// Enhanced error handler for session invalidation
+export const handleApiError = (error, navigate) => {
+  try {
+    const errorData = JSON.parse(error.message);
+    if (errorData.code === 'session_invalidated') {
+      // Clear local storage and redirect to login
+      localStorage.removeItem('inu_token');
+      alert('다른 사용자가 로그인했습니다. 다시 로그인해주세요.');
+      if (navigate) {
+        navigate('/');
+      }
+      return true; // Indicates session was invalidated
+    }
+  } catch (e) {
+    // Error message is not JSON, handle normally
+  }
+  return false; // Normal error, not session invalidation
+};

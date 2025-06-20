@@ -1,4 +1,5 @@
-import io, threading, time, logging, sys
+import io, threading, time, logging, sys, os
+import RPi.GPIO as gp
 from picamera2 import Picamera2
 from libcamera import controls
 from flask import Response, current_app
@@ -9,21 +10,72 @@ logging.getLogger('picamera2').setLevel(logging.WARNING)
 # Get a logger instance
 logger = logging.getLogger(__name__)
 
-class Camera:
-    def __init__(self, width=320, height=240, fps=15):  # Reduced resolution
-        try:
-            print("[CAM_INIT_DEBUG] Entering Camera __init__ try block.", file=sys.stderr)
-            logger.info("[CAM_INIT] Attempting to initialize Picamera2...")
-            
-            print("[CAM_INIT_DEBUG] About to import picamera2.", file=sys.stderr)
-            print("[CAM_INIT_DEBUG] picamera2 imported successfully.", file=sys.stderr)
+# Initialize GPIO for camera switching
+gp.setwarnings(False)
+gp.setmode(gp.BOARD)
+gp.setup(7, gp.OUT)
+gp.setup(11, gp.OUT)
+gp.setup(12, gp.OUT)
 
-            print("[CAM_INIT_DEBUG] Initializing picamera2.Picamera2().", file=sys.stderr)
-            self.picam = Picamera2()
-            print("[CAM_INIT_DEBUG] picamera2.Picamera2() initialized.", file=sys.stderr)
+# Camera switching configurations
+CAMERA_CONFIGS = {
+    0: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x04", "gpio": (False, False, True)},   # Camera A
+    1: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x05", "gpio": (True, False, True)},   # Camera B  
+    2: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x06", "gpio": (False, True, False)},  # Camera C
+    3: {"i2c_cmd": "i2cset -y 1 0x70 0x00 0x07", "gpio": (True, True, False)}    # Camera D
+}
+
+def switch_camera(camera_num):
+    """Switch to the specified camera using I2C and GPIO"""
+    if camera_num not in CAMERA_CONFIGS:
+        logger.error(f"Invalid camera number: {camera_num}")
+        return False
+        
+    try:
+        config = CAMERA_CONFIGS[camera_num]
+        
+        # Execute I2C command
+        os.system(config["i2c_cmd"])
+        
+        # Set GPIO pins
+        gpio_7, gpio_11, gpio_12 = config["gpio"]
+        gp.output(7, gpio_7)
+        gp.output(11, gpio_11)
+        gp.output(12, gpio_12)
+        
+        # Small delay for camera switching
+        time.sleep(0.5)
+        
+        logger.info(f"Switched to camera {camera_num}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error switching to camera {camera_num}: {e}")
+        return False
+
+class MultiCamera:
+    def __init__(self, width=320, height=240, fps=15):
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.current_camera = 0
+        self.frame = None
+        self.running = True
+        self._update_counter = 0
+        self.last_capture_time = 0
+        self.capture_errors = 0
+        self.camera_lock = threading.Lock()
+        
+        try:
+            logger.info("Initializing multi-camera system...")
             
-            # Use preview configuration for continuous capture, with RGB888 format
-            print("[CAM_INIT_DEBUG] Creating preview configuration.", file=sys.stderr)
+            # Initialize with camera 0
+            switch_camera(0)
+            
+            # Initialize Picamera2 (using camera index 0 since we switch via hardware)
+            self.picam = Picamera2(0)
+            
+            # Create configuration
             config = self.picam.create_preview_configuration(
                 main={"size": (width, height), "format": "RGB888"},
                 buffer_count=4,
@@ -32,133 +84,220 @@ class Camera:
                     "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Fast
                 }
             )
-
-            print(f"[CAM_INIT_DEBUG] Preview configuration created: {config}", file=sys.stderr)
-            logger.info(f"[CAM_INIT] Picamera2 raw configuration: {config}")
             
-            print("[CAM_INIT_DEBUG] Configuring picam.", file=sys.stderr)
             self.picam.configure(config)
-            print("[CAM_INIT_DEBUG] Picam configured.", file=sys.stderr)
-            
-            print("[CAM_INIT_DEBUG] Starting picam.", file=sys.stderr)
             self.picam.start()
-            print("[CAM_INIT_DEBUG] Picam started.", file=sys.stderr)
             
-            print("[CAM_INIT_DEBUG] Waiting 2 seconds for camera to settle after start...", file=sys.stderr)
-            time.sleep(2) # Allow camera to settle
-            print("[CAM_INIT_DEBUG] Finished 2-second settle time.", file=sys.stderr)
+            # Wait for camera to settle
+            time.sleep(2)
             
-            logger.info("[CAM_INIT] Picamera2 started successfully.")
+            logger.info("Multi-camera system initialized successfully")
             
-            self.frame = None
-            self.running = True
-            self._update_counter = 0
-            self.fps = fps
-            self.last_capture_time = 0
-            self.capture_errors = 0  # Track consecutive capture errors
-            
-            print("[CAM_INIT_DEBUG] Starting _update thread.", file=sys.stderr)
+            # Start capture thread
             threading.Thread(target=self._update, daemon=True).start()
-            logger.info("[CAM_INIT] Camera _update thread started.")
-            print("[CAM_INIT_DEBUG] Camera __init__ completed successfully.", file=sys.stderr)
             
         except Exception as e:
-            print(f"[CAM_INIT_DEBUG] Exception in Camera __init__: {e}", file=sys.stderr)
-            logger.error(f"[CAM_INIT_ERROR] Error during Camera __init__: {e}", exc_info=True)
+            logger.error(f"Error initializing multi-camera system: {e}")
             raise
 
+    def set_camera(self, camera_num):
+        """Switch to a specific camera"""
+        if camera_num == self.current_camera:
+            return True
+            
+        with self.camera_lock:
+            try:
+                logger.info(f"Switching from camera {self.current_camera} to camera {camera_num}")
+                
+                # Stop current camera
+                if hasattr(self, 'picam'):
+                    self.picam.stop()
+                
+                # Switch hardware to new camera
+                if switch_camera(camera_num):
+                    # Restart camera
+                    self.picam.start()
+                    time.sleep(1)  # Allow camera to settle
+                    
+                    self.current_camera = camera_num
+                    self.capture_errors = 0  # Reset error counter
+                    logger.info(f"Successfully switched to camera {camera_num}")
+                    return True
+                else:
+                    # If switch failed, try to restore previous camera
+                    switch_camera(self.current_camera)
+                    self.picam.start()
+                    logger.error(f"Failed to switch to camera {camera_num}, restored camera {self.current_camera}")
+                    return False
+                    
+            except Exception as e:
+                logger.error(f"Error switching to camera {camera_num}: {e}")
+                # Try to restore previous camera
+                try:
+                    switch_camera(self.current_camera)
+                    self.picam.start()
+                except:
+                    pass
+                return False
+
     def _update(self):
-        # print("[CAM_UPDATE_DEBUG] _update thread has started.", file=sys.stderr)
-        logger.info("[CAM_UPDATE] Camera _update thread loop started.")
+        """Capture frames continuously"""
+        logger.info("Multi-camera capture thread started")
         frame_interval = 1.0 / self.fps if self.fps > 0 else 0.1
         
         while self.running:
             try:
                 current_time = time.time()
                 if current_time - self.last_capture_time < frame_interval:
-                    time.sleep(0.001)  # Small sleep to prevent CPU spinning
+                    time.sleep(0.001)
                     continue
-                    
-                # print("[CAM_UPDATE_DEBUG] About to call capture_array()...", file=sys.stderr)
-                start_capture = time.time()
                 
-                try:
-                    # print("[CAM_UPDATE_DEBUG] Calling self.picam.capture_array()", file=sys.stderr)
-                    arr = self.picam.capture_array()
-                    # print(f"[CAM_UPDATE_DEBUG] capture_array() returned. Type: {type(arr)}, Value: {repr(arr)[:200]}", file=sys.stderr)
-                    if arr is not None:
-                        # Save a test frame to disk for inspection (only once)
-                        if self._update_counter == 0:
-                            import cv2
-                            cv2.imwrite("test_frame.jpg", arr)
-                        # Directly encode RGB888 to JPEG
-                        ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                        
-                        if ret:
-                            self.frame = jpg.tobytes()
-                            self._update_counter += 1
-                            capture_time = time.time() - start_capture
-                            # if self._update_counter % (self.fps * 2) == 0:
-                            #     print(f"[CAM_UPDATE_DEBUG] Frame {self._update_counter} captured and encoded in {capture_time:.3f}s, size: {len(self.frame)} bytes", file=sys.stderr)
-                            
-                            self.capture_errors = 0  # Reset error counter on successful capture
-                            self.last_capture_time = time.time()
-                        else:
-                            # print("[CAM_UPDATE_DEBUG] Failed to encode frame", file=sys.stderr)
-                            self.capture_errors += 1
-                    else:
-                        # print("[CAM_UPDATE_DEBUG] Capture returned None frame", file=sys.stderr)
-                        self.capture_errors += 1
-                
-                except Exception as e:
-                    # print(f"[CAM_UPDATE_DEBUG] Capture error: {e}", file=sys.stderr)
-                    self.capture_errors += 1
-                    
-                if self.capture_errors >= 5:  # Reset camera after 5 consecutive errors
-                    # print("[CAM_UPDATE_DEBUG] Too many capture errors, attempting camera reset...", file=sys.stderr)
+                with self.camera_lock:
                     try:
-                        self.picam.stop()
-                        time.sleep(1)
-                        self.picam.start()
-                        time.sleep(2)
-                        self.capture_errors = 0
+                        arr = self.picam.capture_array()
+                        if arr is not None:
+                            # Save test frame for first capture of each camera
+                            if self._update_counter == 0:
+                                import cv2
+                                cv2.imwrite(f"test_frame_multicam_{self.current_camera}.jpg", arr)
+                            
+                            # Encode to JPEG
+                            import cv2
+                            ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                            
+                            if ret:
+                                self.frame = jpg.tobytes()
+                                self._update_counter += 1
+                                self.capture_errors = 0
+                                self.last_capture_time = time.time()
+                            else:
+                                self.capture_errors += 1
+                        else:
+                            self.capture_errors += 1
+                            
                     except Exception as e:
-                        # print(f"[CAM_UPDATE_DEBUG] Camera reset failed: {e}", file=sys.stderr)
-                        pass
+                        self.capture_errors += 1
+                        if self.capture_errors % 10 == 0:  # Log every 10 errors
+                            logger.warning(f"Capture error on camera {self.current_camera}: {e}")
                 
+                # Reset camera if too many errors
+                if self.capture_errors >= 10:
+                    logger.warning(f"Too many capture errors on camera {self.current_camera}, attempting reset...")
+                    try:
+                        with self.camera_lock:
+                            self.picam.stop()
+                            time.sleep(1)
+                            switch_camera(self.current_camera)
+                            self.picam.start()
+                            time.sleep(2)
+                            self.capture_errors = 0
+                    except Exception as e:
+                        logger.error(f"Camera reset failed: {e}")
+                        
             except Exception as e:
-                print(f"[CAM_UPDATE_DEBUG_ERROR] Exception in _update: {e}", file=sys.stderr)
-                logger.error(f"[CAM_UPDATE_ERROR] Error in Camera _update loop: {e}", exc_info=True)
-                time.sleep(0.1)  # Brief pause on error
+                logger.error(f"Error in capture loop: {e}")
+                time.sleep(0.1)
 
-    def get_generator(self):
-        # print("[CAM_GEN_DEBUG] get_generator called.", file=sys.stderr)
-        logger.info("[CAM_GEN] Camera get_generator called by a client.")
+    def get_generator(self, camera_num=None):
+        """Get frame generator for specified camera"""
+        if camera_num is not None and camera_num != self.current_camera:
+            self.set_camera(camera_num)
+            
+        logger.info(f"Frame generator requested for camera {self.current_camera}")
         boundary = b'--frame'
-        frames_yielded_count = 0
         
         while True:
             try:
                 if self.frame:
-                    # print(f"[CAM_GEN_DEBUG] Yielding frame {frames_yielded_count+1}", file=sys.stderr)
                     yield boundary + b'\r\n'
                     yield b'Content-Type: image/jpeg\r\n\r\n' + self.frame + b'\r\n'
-                    frames_yielded_count += 1
-                    # if frames_yielded_count % (self.fps * 2) == 0:
-                    #     print(f"[CAM_GEN_DEBUG] Frame yielded (total {frames_yielded_count})", file=sys.stderr)
-                else:
-                    # print("[CAM_GEN_DEBUG] Waiting for frame (self.frame is None)", file=sys.stderr)
-                    pass
-                time.sleep(1.0 / self.fps)  # Control frame rate
+                time.sleep(1.0 / self.fps)
             except Exception as e:
-                print(f"[CAM_GEN_DEBUG_ERROR] Exception in get_generator: {e}", file=sys.stderr)
-                logger.error(f"[CAM_GEN_ERROR] Error in Camera get_generator loop: {e}", exc_info=True)
+                logger.error(f"Error in frame generator: {e}")
                 break
 
-camera_singleton = Camera() # Default FPS is 15
-def mjpeg_feed():
-    logger.info("[MJPEG_FEED] mjpeg_feed accessed.")
-    return Response(
-        camera_singleton.get_generator(),
-        mimetype='multipart/x-mixed-replace; boundary=frame'
-    )
+    def stop(self):
+        """Stop the camera system"""
+        self.running = False
+        try:
+            if hasattr(self, 'picam'):
+                self.picam.stop()
+                self.picam.close()
+            # Reset GPIO to default state
+            gp.output(7, False)
+            gp.output(11, False)
+            gp.output(12, True)
+        except Exception as e:
+            logger.error(f"Error stopping camera system: {e}")
+
+class CameraManager:
+    def __init__(self):
+        self.multi_camera = None
+        self.available_cameras = [0, 1, 2, 3]  # All 4 cameras should be available with the adapter
+        self.initialize_camera()
+    
+    def initialize_camera(self):
+        """Initialize the multi-camera system"""
+        try:
+            logger.info("Initializing camera manager with multi-camera adapter...")
+            self.multi_camera = MultiCamera()
+            logger.info("Camera manager initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize camera manager: {e}")
+            self.multi_camera = None
+    
+    def get_available_cameras(self):
+        """Get list of available camera numbers"""
+        return self.available_cameras if self.multi_camera else []
+    
+    def get_camera_feed(self, camera_num):
+        """Get MJPEG feed for a specific camera"""
+        if not self.multi_camera:
+            return Response(
+                "Camera system not available",
+                status=503,
+                mimetype='text/plain'
+            )
+        
+        if camera_num not in self.available_cameras:
+            return Response(
+                f"Camera {camera_num} not available",
+                status=404,
+                mimetype='text/plain'
+            )
+        
+        return Response(
+            self.multi_camera.get_generator(camera_num),
+            mimetype='multipart/x-mixed-replace; boundary=frame'
+        )
+    
+    def stop_all_cameras(self):
+        """Stop the camera system"""
+        if self.multi_camera:
+            self.multi_camera.stop()
+
+# Initialize camera manager
+camera_manager = CameraManager()
+
+def mjpeg_feed(camera_num=0):
+    """Get MJPEG feed for specified camera"""
+    logger.info(f"MJPEG feed requested for camera {camera_num}")
+    return camera_manager.get_camera_feed(camera_num)
+
+def get_available_cameras():
+    """Get list of available cameras"""
+    return camera_manager.get_available_cameras()
+
+# Cleanup function for graceful shutdown
+def cleanup_gpio():
+    """Cleanup GPIO on shutdown"""
+    try:
+        gp.output(7, False)
+        gp.output(11, False)
+        gp.output(12, True)
+        gp.cleanup()
+    except:
+        pass
+
+import atexit
+atexit.register(cleanup_gpio)

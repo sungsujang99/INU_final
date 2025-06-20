@@ -852,5 +852,72 @@
   gap: 5px; /* Smaller gap for job times */
 }
 .camera .individual-job-times .log-time-entry {
-  font-size: 13px; /* Smaller font for job times */
+  margin-bottom: 2px;
+}
+
+/* Camera stream styles */
+.camera-mjpeg-stream {
+  border-radius: 10px;
+  margin-top: 10px;
+  margin-left: 24px;
+  margin-right: 24px;
+  width: calc(100% - 48px) !important;
+  height: calc(100% - 80px) !important;
+  object-fit: cover;
+  background-color: #f0f0f0;
+}
+
+.camera-stream-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  margin-left: 24px;
+  margin-right: 24px;
+  width: calc(100% - 48px);
+  height: calc(100% - 80px);
+  background-color: #f0f0f0;
+  border-radius: 10px;
+  color: #666;
+  font-size: 16px;
+  font-family: "Pretendard", Helvetica;
+}
+
+.small-camera-stream {
+  border-radius: 8px;
+  object-fit: cover;
+  background-color: #f0f0f0;
+}
+
+.small-camera-unavailable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: #e0e0e0;
+  border-radius: 8px;
+  color: #999;
+  font-size: 12px;
+  font-family: "Pretendard", Helvetica;
+}
+
+.small-camera-wrapper:hover {
+  transform: scale(1.02);
+  transition: transform 0.2s ease-in-out;
+}
+
+.small-camera-wrapper:hover .small-camera-button {
+  background-color: #e6f3ff;
+}
+
+/* Update existing small camera styles */
+.camera .small-camera-display {
+  background-color: #f5f6f8;
+  border-radius: 8px;
+  height: 112px;
+  margin-top: 8px;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
 }

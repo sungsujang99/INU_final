@@ -12,9 +12,10 @@ import "./style.css";
 import { useNavigate } from "react-router-dom";
 import addDocumentUrl from '../../icons/add-document.svg'; // Default import gives URL
 import inboxInUrl from '../../icons/inbox-in.svg';       // Default import gives URL
-import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs, getWorkTasksByStatus } from "../../lib/api";
+import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs, getWorkTasksByStatus, logout, handleApiError } from "../../lib/api";
 import { socket } from '../../socket';
 import { jwtDecode } from "jwt-decode";
+import { getApiBaseUrl } from "../../config.js";
 
 export const WorkStatus = () => {
   const navigate = useNavigate();
@@ -37,12 +38,27 @@ export const WorkStatus = () => {
   // Navigation handlers
   const handleDashboard = () => navigate('/dashboardu40onu41');
   const handleCamera = () => navigate('/camera-1');
-  const handleLogout = () => navigate('/'); // Navigate to login page
+  const handleLogout = () => {
+    logout()
+      .then(() => {
+        localStorage.removeItem('inu_token');
+        navigate('/'); // Navigate to login page
+      })
+      .catch(error => {
+        console.error('Logout error:', error);
+        // Even if logout fails, clear local storage and redirect
+        localStorage.removeItem('inu_token');
+        navigate('/');
+      });
+  };
   const handleRackSelection = (rack) => setSelectedRack(rack);
 
   const handleReset = () => {
-    // Send reset signal to backend
-    fetch('/api/reset', {
+    // Send reset signal to backend using dynamic URL
+    const apiUrl = getApiBaseUrl();
+    const resetUrl = apiUrl ? `${apiUrl}/api/reset` : '/api/reset';
+    
+    fetch(resetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -52,7 +68,11 @@ export const WorkStatus = () => {
     .then(response => response.json())
     .then(data => {
       console.log('Reset signal sent:', data);
-      alert('초기화 신호가 전송되었습니다.');
+      if (data.success) {
+        alert('초기화 신호가 전송되었습니다.');
+      } else {
+        alert(`초기화 실패: ${data.message || data.error}`);
+      }
     })
     .catch(error => {
       console.error('Error sending reset signal:', error);

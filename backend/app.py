@@ -8,14 +8,14 @@ import uuid
 import io # Standard io module for StringIO
 import csv # Standard csv module
 
-from .auth import authenticate, token_required
+from .auth import authenticate, token_required, logout_current_session, get_current_session_info
 from .db import DB_NAME, init_db
 from .inventory import add_records
 from .stats import fetch_logs, logs_to_csv
 from .serial_io import serial_mgr
 from . import task_queue
 from .error_messages import get_error_message
-from .camera_stream import mjpeg_feed  # Import the mjpeg_feed function
+from .camera_stream import mjpeg_feed, get_available_cameras  # Import the mjpeg_feed function and camera list
 
 # Define SECRET_KEY for the application
 # This should be a long, random, and secret string in production
@@ -131,6 +131,72 @@ def login():
     else:
         print(f"Login failed for '{username}'.")
         return {"error": get_error_message("invalid_credentials")}, 401
+
+@app.route("/api/logout", methods=["POST"])
+@token_required
+def logout():
+    """Logout the current user and invalidate their session"""
+    try:
+        user_info = getattr(request, 'user', None)
+        if user_info:
+            username = user_info['username']
+            session_id = user_info['session_id']
+            
+            # Logout the current session
+            logout_success = logout_current_session()
+            
+            if logout_success:
+                app.logger.info(f"User '{username}' with session '{session_id}' logged out successfully")
+                return jsonify({
+                    "success": True,
+                    "message": "로그아웃되었습니다."
+                }), 200
+            else:
+                return jsonify({
+                    "success": False,
+                    "message": "로그아웃 처리 중 오류가 발생했습니다."
+                }), 500
+        else:
+            return jsonify({
+                "success": False,
+                "message": "사용자 정보를 찾을 수 없습니다."
+            }), 400
+            
+    except Exception as e:
+        app.logger.error(f"Error during logout: {str(e)}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "message": "로그아웃 처리 중 오류가 발생했습니다."
+        }), 500
+
+@app.route("/api/session-status")
+@token_required
+def session_status():
+    """Get current session status information"""
+    try:
+        session_info = get_current_session_info()
+        user_info = getattr(request, 'user', None)
+        
+        if session_info and user_info:
+            return jsonify({
+                "active": True,
+                "username": session_info['username'],
+                "login_time": session_info['login_time'].isoformat(),
+                "session_id": session_info['session_id'][:8] + "...",  # Partial session ID for security
+                "current_user": user_info['username']
+            }), 200
+        else:
+            return jsonify({
+                "active": False,
+                "message": "세션이 활성화되지 않았습니다."
+            }), 200
+            
+    except Exception as e:
+        app.logger.error(f"Error getting session status: {str(e)}", exc_info=True)
+        return jsonify({
+            "active": False,
+            "error": "세션 상태 확인 중 오류가 발생했습니다."
+        }), 500
 
 # ---- 인벤토리 ----
 @app.route("/api/inventory")
@@ -398,6 +464,29 @@ def reset_system():
 @app.route("/api/camera/live_feed")
 def camera_live_feed():
     return mjpeg_feed()
+
+@app.route("/api/camera/<int:camera_num>/live_feed")
+def camera_live_feed_specific(camera_num):
+    """Get live feed for a specific camera"""
+    return mjpeg_feed(camera_num)
+
+@app.route("/api/cameras/available")
+def get_available_cameras_endpoint():
+    """Get list of available cameras"""
+    try:
+        available_cameras = get_available_cameras()
+        return jsonify({
+            "success": True,
+            "cameras": available_cameras,
+            "total_cameras": len(available_cameras)
+        }), 200
+    except Exception as e:
+        current_app.logger.error(f"Error getting available cameras: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "카메라 정보를 가져오는 중 오류가 발생했습니다.",
+            "message": str(e)
+        }), 500
 
 @app.after_request
 def after_request(response):

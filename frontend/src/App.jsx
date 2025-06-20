@@ -6,6 +6,7 @@ import { DivWrapper } from "./screens/DivWrapper";
 import { Login } from "./screens/Login";
 import { LoginScreen } from "./screens/LoginScreen";
 import { WorkStatus } from "./screens/WorkStatus";
+import SessionMonitor from "./components/SessionMonitor";
 
 const router = createBrowserRouter([
   {
@@ -39,5 +40,10 @@ const router = createBrowserRouter([
 ]);
 
 export const App = () => {
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <SessionMonitor />
+      <RouterProvider router={router} />
+    </>
+  );
 };

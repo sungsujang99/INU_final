@@ -14,9 +14,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      // 프런트에서 /api/** 로 부르면 → 백엔드 http://192.168.0.37:5001 로 전달
+      // Use environment variable for backend URL, with fallback to default
       '/api': {
-        target: 'http://192.168.0.37:5001',
+        target: process.env.VITE_BACKEND_URL || 'http://192.168.0.37:5001',
         changeOrigin: true,
       }
     }

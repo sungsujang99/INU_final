@@ -10,8 +10,9 @@ import { Property1LogOut } from "../../icons/Property1LogOut";
 import { Property1Variant5 } from "../../icons/Property1Variant5";
 import "./style.css";
 import { useNavigate } from "react-router-dom";
-import { getActivityLogs } from "../../lib/api";
+import { getActivityLogs, logout, handleApiError } from "../../lib/api";
 import { jwtDecode } from "jwt-decode";
+import { getBackendUrl, getApiBaseUrl } from "../../config.js";
 
 // Helper to format time, you might want to make this more robust or use a library
 const formatLogTime = (timestamp) => {
@@ -27,18 +28,34 @@ const formatLogTime = (timestamp) => {
 
 export const Camera = () => {
   const navigate = useNavigate();
-  const [selectedCamera, setSelectedCamera] = useState(1); // Default to camera 1
+  const [selectedCamera, setSelectedCamera] = useState(0); // Default to camera 0 (0-indexed)
+  const [availableCameras, setAvailableCameras] = useState([0]); // Default to camera 0
   const [groupedActivityLogs, setGroupedActivityLogs] = useState({}); // State for grouped logs
   const [userDisplayName, setUserDisplayName] = useState('');
 
   // Navigation handlers
   const handleDashboard = () => navigate('/dashboardu40onu41');
   const handleWorkStatus = () => navigate('/work-status');
-  const handleLogout = () => navigate('/');
+  const handleLogout = () => {
+    logout()
+      .then(() => {
+        localStorage.removeItem('inu_token');
+        navigate('/');
+      })
+      .catch(error => {
+        console.error('Logout error:', error);
+        // Even if logout fails, clear local storage and redirect
+        localStorage.removeItem('inu_token');
+        navigate('/');
+      });
+  };
 
   const handleReset = () => {
-    // Send reset signal to backend
-    fetch('/api/reset', {
+    // Send reset signal to backend using dynamic URL
+    const apiUrl = getApiBaseUrl();
+    const resetUrl = apiUrl ? `${apiUrl}/api/reset` : '/api/reset';
+    
+    fetch(resetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -48,7 +65,11 @@ export const Camera = () => {
     .then(response => response.json())
     .then(data => {
       console.log('Reset signal sent:', data);
-      alert('초기화 신호가 전송되었습니다.');
+      if (data.success) {
+        alert('초기화 신호가 전송되었습니다.');
+      } else {
+        alert(`초기화 실패: ${data.message || data.error}`);
+      }
     })
     .catch(error => {
       console.error('Error sending reset signal:', error);
@@ -63,21 +84,19 @@ export const Camera = () => {
 
   // Render the selected camera's live stream
   const renderCameraStream = () => {
-    // Construct the stream URL directly.
-    // Assumes backend is served from the same origin, so /api path works.
-    // const mjpegStreamUrl = `${getApiBaseUrl()}/api/camera/live_feed`;
-    const mjpegStreamUrl = `http://192.168.0.37:5001/api/camera/live_feed`;
+    // Use dynamic backend URL instead of hardcoded one
+    const mjpegStreamUrl = `${getBackendUrl()}/api/camera/${selectedCamera}/live_feed`;
 
-    if (selectedCamera === 1) { // Only show the stream if Camera 1 is selected
+    if (availableCameras.includes(selectedCamera)) {
       return (
         <img 
           src={mjpegStreamUrl} 
-          alt="카메라 1 라이브 스트림" 
+          alt={`카메라 ${selectedCamera} 라이브 스트림`} 
           className="camera-mjpeg-stream" // Add a class for styling if needed
           style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
           // Basic error visual cue (you might want a more robust error handling)
           onError={(e) => {
-            e.target.alt = "카메라 스트림을 불러올 수 없습니다."; 
+            e.target.alt = `카메라 ${selectedCamera} 스트림을 불러올 수 없습니다.`; 
             // Optionally, replace with a placeholder image or hide:
             // e.target.src = "/img/camera_error_placeholder.png"; 
             // e.target.style.display = 'none'; 
@@ -85,14 +104,37 @@ export const Camera = () => {
         />
       );
     } else {
-      // For other camera selections, show a placeholder or message
-      // This maintains the 4-camera UI for future expansion if you add more streams later
+      // For unavailable cameras, show a placeholder or message
       return (
         <div className="camera-stream-placeholder">
-          카메라 {selectedCamera} 은(는) 현재 설정되지 않았습니다.
+          카메라 {selectedCamera} 은(는) 현재 사용할 수 없습니다.
         </div>
       );
     }
+  };
+
+  // Render small camera preview for non-selected cameras
+  const renderSmallCameraStream = (cameraNum) => {
+    if (!availableCameras.includes(cameraNum)) {
+      return (
+        <div className="small-camera-unavailable">
+          사용불가
+        </div>
+      );
+    }
+
+    const mjpegStreamUrl = `${getBackendUrl()}/api/camera/${cameraNum}/live_feed`;
+    return (
+      <img 
+        src={mjpegStreamUrl} 
+        alt={`카메라 ${cameraNum} 미리보기`} 
+        className="small-camera-stream"
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+        onError={(e) => {
+          e.target.style.display = 'none';
+        }}
+      />
+    );
   };
 
   // Render the main camera display
@@ -111,8 +153,8 @@ export const Camera = () => {
 
   // Render the camera buttons (excluding the selected one)
   const renderCameraButtons = () => {
-    const cameras = [1, 2, 3, 4];
-    return cameras
+    const allCameras = [0, 1, 2, 3]; // 4 cameras (0-indexed)
+    return allCameras
       .filter(camNum => camNum !== selectedCamera)
       .map(camNum => (
         <div 
@@ -123,7 +165,9 @@ export const Camera = () => {
           <div className="small-camera-button">
             <div className="small-camera-text">운영 캠{camNum}</div>
           </div>
-          <div className="small-camera-display"></div>
+          <div className="small-camera-display">
+            {renderSmallCameraStream(camNum)}
+          </div>
         </div>
       ));
   };
@@ -141,8 +185,8 @@ export const Camera = () => {
       return;
     }
 
-    // const apiBaseUrl = getApiBaseUrl(); // Get your API base URL
-    const apiBaseUrl = "http://192.168.0.37:5001"; // Hardcoded backend URL
+    // Use dynamic backend URL instead of hardcoded one
+    const apiBaseUrl = getBackendUrl();
     const downloadUrl = `${apiBaseUrl}/api/download-batch-task/${batchId}`;
 
     try {
@@ -249,6 +293,38 @@ export const Camera = () => {
         setUserDisplayName('Unknown User');
       }
     }
+  }, []);
+
+  // Fetch available cameras on component mount
+  useEffect(() => {
+    const fetchAvailableCameras = async () => {
+      try {
+        const apiUrl = getApiBaseUrl();
+        const camerasUrl = apiUrl ? `${apiUrl}/api/cameras/available` : '/api/cameras/available';
+        
+        const response = await fetch(camerasUrl, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('inu_token')}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.cameras.length > 0) {
+            setAvailableCameras(data.cameras);
+            // Set the first available camera as selected
+            setSelectedCamera(data.cameras[0]);
+          }
+        } else {
+          console.warn('Failed to fetch available cameras, using defaults');
+        }
+      } catch (error) {
+        console.error('Error fetching available cameras:', error);
+        // Keep default camera setup
+      }
+    };
+    
+    fetchAvailableCameras();
   }, []);
 
   return (

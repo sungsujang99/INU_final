@@ -1,7 +1,5 @@
 import { io } from 'socket.io-client';
-
-// Raspberry Pi's IP address
-const SOCKET_URL = 'http://192.168.0.37:5001'; 
+import { SOCKET_URL } from './config.js';
 
 export const socket = io(SOCKET_URL, {
   autoConnect: true,

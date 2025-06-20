@@ -14,9 +14,10 @@ import { RackAProgress } from '../../components/RackProgress/RackAProgress';
 import { RackBProgress } from '../../components/RackProgress/RackBProgress';
 import { RackCProgress } from '../../components/RackProgress/RackCProgress';
 import { TotalRackProgress } from '../../components/TotalRackProgress/TotalRackProgress';
-import { getInventory, pingBackend, getWorkTasksByStatus, getPendingTaskCounts } from "../../lib/api";
+import { getInventory, pingBackend, getWorkTasksByStatus, getPendingTaskCounts, logout, handleApiError, getSessionStatus } from "../../lib/api";
 import { socket } from '../../socket';
 import { jwtDecode } from "jwt-decode";
+import { getApiBaseUrl } from "../../config.js";
 
 export const DashboardOn = () => {
   const navigate = useNavigate();
@@ -40,6 +41,12 @@ export const DashboardOn = () => {
 
   const [deviceStatus, setDeviceStatus] = useState({
     isConnected: false // Default to false
+  });
+
+  const [sessionInfo, setSessionInfo] = useState({
+    active: false,
+    username: '',
+    loginTime: ''
   });
 
   // Define fetchData at component level, wrapped in useCallback
@@ -71,6 +78,19 @@ export const DashboardOn = () => {
       } catch (pingError) {
         console.error("Backend ping failed:", pingError);
         setDeviceStatus({ isConnected: false });
+      }
+
+      // Fetch session status
+      try {
+        const sessionData = await getSessionStatus();
+        setSessionInfo({
+          active: sessionData.active,
+          username: sessionData.username || '',
+          loginTime: sessionData.login_time || ''
+        });
+      } catch (sessionError) {
+        console.error("Session status fetch failed:", sessionError);
+        setSessionInfo({ active: false, username: '', loginTime: '' });
       }
 
       // Fetch pending task counts directly
@@ -199,12 +219,25 @@ export const DashboardOn = () => {
   };
 
   const handleLogout = () => {
-    navigate('/'); // Navigate back to login screen
+    logout()
+      .then(() => {
+        localStorage.removeItem('inu_token');
+        navigate('/'); // Navigate back to login screen
+      })
+      .catch(error => {
+        console.error('Logout error:', error);
+        // Even if logout fails, clear local storage and redirect
+        localStorage.removeItem('inu_token');
+        navigate('/');
+      });
   };
 
   const handleReset = () => {
-    // Send reset signal to backend
-    fetch('/api/reset', {
+    // Send reset signal to backend using dynamic URL
+    const apiUrl = getApiBaseUrl();
+    const resetUrl = apiUrl ? `${apiUrl}/api/reset` : '/api/reset';
+    
+    fetch(resetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -214,7 +247,11 @@ export const DashboardOn = () => {
     .then(response => response.json())
     .then(data => {
       console.log('Reset signal sent:', data);
-      alert('초기화 신호가 전송되었습니다.');
+      if (data.success) {
+        alert('초기화 신호가 전송되었습니다.');
+      } else {
+        alert(`초기화 실패: ${data.message || data.error}`);
+      }
     })
     .catch(error => {
       console.error('Error sending reset signal:', error);
@@ -362,6 +399,25 @@ export const DashboardOn = () => {
                   <div className="text-wrapper-19">{deviceStatus.isConnected ? 'ON' : 'OFF'}</div>
                 </div>
               </div>
+
+              <div className="frame-8">
+                <p className="div-3">
+                  <span className="text-wrapper-17">사용자 세션</span>
+                  <span className="text-wrapper-18">{sessionInfo.active ? '활성' : '비활성'}</span>
+                </p>
+                <div className="frame-9">
+                  <div className="text-wrapper-19">{sessionInfo.active ? 'ON' : 'OFF'}</div>
+                </div>
+              </div>
+
+              {sessionInfo.active && (
+                <div className="frame-8">
+                  <p className="div-3">
+                    <span className="text-wrapper-17">현재 사용자</span>
+                    <span className="text-wrapper-18">{sessionInfo.username}</span>
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
