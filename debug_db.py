@@ -8,38 +8,70 @@ conn = sqlite3.connect(db_path)
 conn.row_factory = sqlite3.Row
 cur = conn.cursor()
 
-print("=== TESTING FIXED QUERY ===\n")
+print("=== INVESTIGATING DUPLICATE ENTRIES ===\n")
 
-# Test the FIXED activity logs query
-print("Testing the FIXED query (with proper JOIN conditions):")
+# Check all product_logs entries for coffee pot
+print("1. All product_logs entries for coffee pot (5465433):")
 cur.execute("""
-    SELECT 
-        pl.id, pl.product_code, pl.product_name, pl.rack, pl.slot, 
-        pl.movement_type, pl.quantity, pl.cargo_owner, pl.timestamp, pl.batch_id,
-        wt.start_time, wt.end_time, wt.status as task_status
-    FROM product_logs pl
-    LEFT JOIN batch_task_links btl ON pl.batch_id = btl.batch_id
-    LEFT JOIN work_tasks wt ON btl.task_id = wt.id 
-        AND wt.rack = pl.rack 
-        AND wt.slot = pl.slot 
-        AND wt.movement = pl.movement_type
-        AND wt.product_code = pl.product_code
-    WHERE pl.product_code = '5465433'
-    ORDER BY pl.timestamp DESC
+    SELECT id, product_code, product_name, rack, slot, movement_type, 
+           quantity, cargo_owner, timestamp, batch_id 
+    FROM product_logs 
+    WHERE product_code = '5465433' 
+    ORDER BY timestamp DESC
 """)
-fixed_results = cur.fetchall()
+product_logs = cur.fetchall()
 
-print(f"FIXED query results: {len(fixed_results)} entries")
-for i, row in enumerate(fixed_results):
-    print(f"   {i+1}. {row['rack']}{row['slot']} {row['movement_type']} - "
-          f"Start: {row['start_time']}, End: {row['end_time']}, Status: {row['task_status']}")
+for i, row in enumerate(product_logs):
+    print(f"   {i+1}. ID: {row['id']}, {row['rack']}{row['slot']} {row['movement_type']}, "
+          f"Batch: {row['batch_id'][:8]}..., Timestamp: {row['timestamp']}")
 
-print(f"\n✅ Expected: 2 entries")
-print(f"🔧 Actual: {len(fixed_results)} entries")
+print(f"\nTotal product_logs entries: {len(product_logs)}")
 
-if len(fixed_results) == 2:
-    print("✅ QUERY IS FIXED! Restart backend to apply changes.")
-else:
-    print("❌ Query still has issues - need to investigate further.")
+# Check unique batch_ids
+unique_batches = set(row['batch_id'] for row in product_logs if row['batch_id'])
+print(f"Unique batch IDs: {len(unique_batches)}")
+for batch in unique_batches:
+    print(f"   - {batch[:8]}...")
 
-conn.close() 
+# Check work_tasks entries
+print("\n2. All work_tasks entries for coffee pot (5465433):")
+cur.execute("""
+    SELECT id, rack, slot, product_code, movement, status, 
+           start_time, end_time, created_at
+    FROM work_tasks 
+    WHERE product_code = '5465433' 
+    ORDER BY created_at DESC
+""")
+work_tasks = cur.fetchall()
+
+for i, row in enumerate(work_tasks):
+    print(f"   {i+1}. ID: {row['id']}, {row['rack']}{row['slot']} {row['movement']}, "
+          f"Status: {row['status']}, Created: {row['created_at']}")
+
+print(f"\nTotal work_tasks entries: {len(work_tasks)}")
+
+# The real issue: we need to filter by the LATEST batch or use DISTINCT properly
+print("\n3. SOLUTION - Get latest entry per rack/slot combination:")
+cur.execute("""
+    SELECT DISTINCT
+        pl.rack, pl.slot, pl.movement_type,
+        MAX(pl.timestamp) as latest_timestamp,
+        pl.product_code, pl.product_name
+    FROM product_logs pl
+    WHERE pl.product_code = '5465433'
+    GROUP BY pl.rack, pl.slot, pl.movement_type, pl.product_code
+    ORDER BY latest_timestamp DESC
+""")
+distinct_results = cur.fetchall()
+
+print(f"Distinct rack/slot combinations: {len(distinct_results)}")
+for i, row in enumerate(distinct_results):
+    print(f"   {i+1}. {row['rack']}{row['slot']} {row['movement_type']} - Latest: {row['latest_timestamp']}")
+
+conn.close()
+
+print("\n=== CONCLUSION ===")
+print("The issue is duplicate product_logs entries from multiple CSV uploads.")
+print("We need to either:")
+print("1. Clean up duplicate entries in the database, OR")
+print("2. Modify the activity logs API to show only the latest entry per rack/slot") 
