@@ -414,16 +414,6 @@ export const WorkStatus = () => {
   useEffect(() => {
     console.log(`[useEffect] selectedRack changed to: ${selectedRack}, fetching data...`);
     
-    // Check if user is logged in
-    const token = localStorage.getItem('inu_token');
-    if (!token) {
-      console.error('[useEffect] No token found, redirecting to login');
-      navigate('/');
-      return;
-    }
-    
-    console.log(`[useEffect] Token present: ${token.substring(0, 20)}...`);
-    
     fetchInventoryData();
     fetchPendingTasks();
     fetchInProgressTasks();
@@ -435,8 +425,7 @@ export const WorkStatus = () => {
   useEffect(() => {
     const token = localStorage.getItem('inu_token');
     if (!token) {
-      console.error('[useEffect] No token found on component mount, redirecting to login');
-      navigate('/');
+      console.log('[useEffect] No token found on component mount, will let SessionMonitor handle this');
       return;
     }
     
@@ -446,12 +435,10 @@ export const WorkStatus = () => {
       setUserDisplayName(decoded.display_name || 'Unknown User');
     } catch (error) {
       console.error('Error decoding token:', error);
-      console.error('[useEffect] Invalid token, redirecting to login');
-      localStorage.removeItem('inu_token');
-      navigate('/');
+      console.log('[useEffect] Invalid token, will let SessionMonitor handle this');
       return;
     }
-  }, [navigate]);
+  }, []);
 
   // Socket listener for optional module status updates
   useEffect(() => {
