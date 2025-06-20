@@ -310,18 +310,20 @@ export const WorkStatus = () => {
         slot: log.slot,
         movement_type: log.movement_type,
       }));
-      setCompletedJobsForSelectedRack(simplifiedJobs);
+      setDoneTasks(simplifiedJobs);
     } catch (error) {
-      setCompletedJobsForSelectedRack([]);
+      setDoneTasks([]);
     }
   };
 
   const fetchWaitingTasks = async () => {
     try {
-      const queueData = await getTaskQueues();
-      setWaitingTasks(queueData);
+      await Promise.all([
+        fetchPendingTasks(),
+        fetchInProgressTasks()
+      ]);
     } catch (error) {
-      setWaitingTasks({});
+      console.error('Error fetching waiting tasks:', error);
     }
   };
 
@@ -342,8 +344,9 @@ export const WorkStatus = () => {
   // Initial data fetch
   useEffect(() => {
     fetchInventoryData();
-    fetchCompletedJobs();
-    fetchWaitingTasks(); // This will fetch both pending and in-progress tasks
+    fetchPendingTasks();
+    fetchInProgressTasks();
+    fetchDoneTasks();
     fetchOptionalModuleStatus(); // Fetch initial optional module status
     // For now, progress starts when a new CSV is uploaded.
   }, [selectedRack]);
