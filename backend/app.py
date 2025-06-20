@@ -268,17 +268,20 @@ def get_activity_logs():
         conn.row_factory = sqlite3.Row # This allows accessing columns by name
         cur = conn.cursor()
 
-        # Simplified approach: Get unique product_logs with their corresponding work_tasks
-        # Use a more reliable JOIN that avoids duplicates
+        # Fixed approach: Direct JOIN with specific matching criteria to avoid cartesian product
+        # Each product_logs entry should match exactly one work_tasks entry
         query = f"""
-            SELECT DISTINCT
+            SELECT 
                 pl.id, pl.product_code, pl.product_name, pl.rack, pl.slot, 
                 pl.movement_type, pl.quantity, pl.cargo_owner, pl.timestamp, pl.batch_id,
                 wt.start_time, wt.end_time, wt.status as task_status
             FROM product_logs pl
             LEFT JOIN batch_task_links btl ON pl.batch_id = btl.batch_id
             LEFT JOIN work_tasks wt ON btl.task_id = wt.id 
-            WHERE pl.id IS NOT NULL
+                AND wt.rack = pl.rack 
+                AND wt.slot = pl.slot 
+                AND wt.movement = pl.movement_type
+                AND wt.product_code = pl.product_code
             ORDER BY pl.timestamp {order.upper()} 
             LIMIT ?
         """
