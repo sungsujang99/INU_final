@@ -399,16 +399,6 @@ export const DashboardOn = () => {
                   <div className="text-wrapper-19">{deviceStatus.isConnected ? 'ON' : 'OFF'}</div>
                 </div>
               </div>
-
-              <div className="frame-8">
-                <p className="div-3">
-                  <span className="text-wrapper-17">사용자 세션</span>
-                  <span className="text-wrapper-18">{sessionInfo.active ? '활성' : '비활성'}</span>
-                </p>
-                <div className="frame-9">
-                  <div className="text-wrapper-19">{sessionInfo.active ? 'ON' : 'OFF'}</div>
-                </div>
-              </div>
             </div>
           </div>
 
