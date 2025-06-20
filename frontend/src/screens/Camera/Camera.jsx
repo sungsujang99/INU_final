@@ -12,7 +12,7 @@ import "./style.css";
 import { useNavigate } from "react-router-dom";
 import { getActivityLogs, logout, handleApiError } from "../../lib/api";
 import { jwtDecode } from "jwt-decode";
-import { getBackendUrl, getApiBaseUrl } from "../../config.js";
+import { getBackendUrl, getApiBaseUrl } from "../../config";
 
 // Helper to format time, you might want to make this more robust or use a library
 const formatLogTime = (timestamp) => {

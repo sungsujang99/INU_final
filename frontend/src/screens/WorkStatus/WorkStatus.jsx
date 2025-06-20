@@ -15,7 +15,7 @@ import inboxInUrl from '../../icons/inbox-in.svg';       // Default import gives
 import { getInventory, getTaskQueues, uploadTasksBatch, getActivityLogs, getWorkTasksByStatus, logout, handleApiError } from "../../lib/api";
 import { socket } from '../../socket';
 import { jwtDecode } from "jwt-decode";
-import { getApiBaseUrl } from "../../config.js";
+import { getApiBaseUrl } from "../../config";
 
 export const WorkStatus = () => {
   const navigate = useNavigate();

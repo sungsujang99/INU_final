@@ -17,7 +17,7 @@ import { TotalRackProgress } from '../../components/TotalRackProgress/TotalRackP
 import { getInventory, pingBackend, getWorkTasksByStatus, getPendingTaskCounts, logout, handleApiError, getSessionStatus } from "../../lib/api";
 import { socket } from '../../socket';
 import { jwtDecode } from "jwt-decode";
-import { getApiBaseUrl } from "../../config.js";
+import { getApiBaseUrl } from "../../config";
 
 export const DashboardOn = () => {
   const navigate = useNavigate();
