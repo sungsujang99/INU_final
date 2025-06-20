@@ -1,15 +1,15 @@
 import axios from "axios";
 
-let token = localStorage.getItem('inu_token') || ''
-
 export function setToken(t) {
-  token = t
   localStorage.setItem('inu_token', t)
 }
 
 async function req(path, options = {}) {
   const headers = { ...(options.headers || {}) }
+  // Always get fresh token from localStorage for each request
+  const token = localStorage.getItem('inu_token');
   if (token) headers['Authorization'] = `Bearer ${token}`
+  
   const res = await fetch('/api' + path, { ...options, headers })
   if (!res.ok) throw new Error(await res.text())
   return res.json()
@@ -38,19 +38,8 @@ export const getTimeline = (from, to) =>
 // Function to ping the backend
 export const pingBackend = () => req('/ping');
 
-// Function to get task queues
-export const getTaskQueues = async () => {
-  const token = localStorage.getItem('inu_token');
-  const response = await fetch('/api/task-queues', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-  if (!response.ok) {
-    throw new Error('Failed to fetch task queues');
-  }
-  return response.json();
-};
+// Function to get task queues - use req function for consistency
+export const getTaskQueues = () => req('/task-queues');
 
 export const uploadTasksBatch = async (tasks) => {
   const token = localStorage.getItem('inu_token');
@@ -113,10 +102,12 @@ export const uploadTasksBatch = async (tasks) => {
  */
 export const saveInventoryRecordsAndQueueTasks = async (records) => {
   try {
+    const token = localStorage.getItem('inu_token');
     const response = await fetch('/api/record', { // Ensure this matches your backend route
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(records), // Send the array of records directly
     });
@@ -145,7 +136,8 @@ export const getActivityLogs = (params = {}) => {
 export const getApiBaseUrl = () => {
   // This returns the origin (protocol, hostname, port) of the current page.
   // e.g., "http://192.168.1.102" or "http://raspberrypi.local"
-  // If your frontend is served by Nginx on the default port 80, this will be clean.
+  // If your frontend is served by Vite dev server, this will include the port
+  // For production, adjust as needed
   return window.location.origin; 
 };
 
@@ -160,12 +152,9 @@ export const checkUser = (username) =>
     body: JSON.stringify({ username })
   });
 
+// Updated to use req function for consistency instead of axios
 export async function getWorkTasksByStatus(status) {
-  const token = localStorage.getItem("inu_token");
-  const res = await axios.get(`/api/work-tasks?status=${status}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
+  return req(`/work-tasks?status=${status}`);
 }
 
 export const getPendingTaskCounts = () => req('/pending-task-counts');

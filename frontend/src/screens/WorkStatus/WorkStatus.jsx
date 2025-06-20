@@ -280,6 +280,11 @@ export const WorkStatus = () => {
             status: data.status
           });
         }
+      } else if (response.status === 401) {
+        console.error('[fetchOptionalModuleStatus] Authentication error, redirecting to login');
+        localStorage.removeItem('inu_token');
+        navigate('/');
+        return;
       }
     } catch (error) {
       console.error('Error fetching optional module status:', error);
@@ -326,6 +331,15 @@ export const WorkStatus = () => {
       setDoneTasks(simplifiedJobs);
     } catch (error) {
       console.error(`[fetchCompletedJobs] Error fetching completed jobs for rack ${selectedRack}:`, error);
+      
+      // Check if it's an authentication error
+      if (error.message && error.message.includes('인증 토큰이 필요합니다')) {
+        console.error('[fetchCompletedJobs] Authentication error, redirecting to login');
+        localStorage.removeItem('inu_token');
+        navigate('/');
+        return;
+      }
+      
       setDoneTasks([]);
     }
   };
@@ -343,33 +357,73 @@ export const WorkStatus = () => {
 
   // Fetch tasks by status
   const fetchPendingTasks = async () => {
-    console.log(`[fetchPendingTasks] Fetching pending tasks for rack: ${selectedRack}`);
-    const tasks = await getWorkTasksByStatus("pending");
-    console.log(`[fetchPendingTasks] Total pending tasks:`, tasks.length);
-    console.log(`[fetchPendingTasks] Sample pending tasks:`, tasks.slice(0, 3));
-    
-    const filteredTasks = tasks.filter(t => t.rack === selectedRack);
-    console.log(`[fetchPendingTasks] Filtered pending tasks for rack ${selectedRack}:`, filteredTasks.length);
-    console.log(`[fetchPendingTasks] Pending tasks:`, filteredTasks);
-    
-    setPendingTasks(filteredTasks);
+    try {
+      console.log(`[fetchPendingTasks] Fetching pending tasks for rack: ${selectedRack}`);
+      const tasks = await getWorkTasksByStatus("pending");
+      console.log(`[fetchPendingTasks] Total pending tasks:`, tasks.length);
+      console.log(`[fetchPendingTasks] Sample pending tasks:`, tasks.slice(0, 3));
+      
+      const filteredTasks = tasks.filter(t => t.rack === selectedRack);
+      console.log(`[fetchPendingTasks] Filtered pending tasks for rack ${selectedRack}:`, filteredTasks.length);
+      console.log(`[fetchPendingTasks] Pending tasks:`, filteredTasks);
+      
+      setPendingTasks(filteredTasks);
+    } catch (error) {
+      console.error(`[fetchPendingTasks] Error fetching pending tasks for rack ${selectedRack}:`, error);
+      
+      // Check if it's an authentication error
+      if (error.message && error.message.includes('인증 토큰이 필요합니다')) {
+        console.error('[fetchPendingTasks] Authentication error, redirecting to login');
+        localStorage.removeItem('inu_token');
+        navigate('/');
+        return;
+      }
+      
+      setPendingTasks([]);
+    }
   };
+  
   const fetchInProgressTasks = async () => {
-    console.log(`[fetchInProgressTasks] Fetching in-progress tasks for rack: ${selectedRack}`);
-    const tasks = await getWorkTasksByStatus("in_progress");
-    console.log(`[fetchInProgressTasks] Total in-progress tasks:`, tasks.length);
-    console.log(`[fetchInProgressTasks] Sample in-progress tasks:`, tasks.slice(0, 3));
-    
-    const filteredTasks = tasks.filter(t => t.rack === selectedRack);
-    console.log(`[fetchInProgressTasks] Filtered in-progress tasks for rack ${selectedRack}:`, filteredTasks.length);
-    console.log(`[fetchInProgressTasks] In-progress tasks:`, filteredTasks);
-    
-    setInProgressTasks(filteredTasks);
+    try {
+      console.log(`[fetchInProgressTasks] Fetching in-progress tasks for rack: ${selectedRack}`);
+      const tasks = await getWorkTasksByStatus("in_progress");
+      console.log(`[fetchInProgressTasks] Total in-progress tasks:`, tasks.length);
+      console.log(`[fetchInProgressTasks] Sample in-progress tasks:`, tasks.slice(0, 3));
+      
+      const filteredTasks = tasks.filter(t => t.rack === selectedRack);
+      console.log(`[fetchInProgressTasks] Filtered in-progress tasks for rack ${selectedRack}:`, filteredTasks.length);
+      console.log(`[fetchInProgressTasks] In-progress tasks:`, filteredTasks);
+      
+      setInProgressTasks(filteredTasks);
+    } catch (error) {
+      console.error(`[fetchInProgressTasks] Error fetching in-progress tasks for rack ${selectedRack}:`, error);
+      
+      // Check if it's an authentication error
+      if (error.message && error.message.includes('인증 토큰이 필요합니다')) {
+        console.error('[fetchInProgressTasks] Authentication error, redirecting to login');
+        localStorage.removeItem('inu_token');
+        navigate('/');
+        return;
+      }
+      
+      setInProgressTasks([]);
+    }
   };
 
   // Initial data fetch
   useEffect(() => {
     console.log(`[useEffect] selectedRack changed to: ${selectedRack}, fetching data...`);
+    
+    // Check if user is logged in
+    const token = localStorage.getItem('inu_token');
+    if (!token) {
+      console.error('[useEffect] No token found, redirecting to login');
+      navigate('/');
+      return;
+    }
+    
+    console.log(`[useEffect] Token present: ${token.substring(0, 20)}...`);
+    
     fetchInventoryData();
     fetchPendingTasks();
     fetchInProgressTasks();
@@ -380,16 +434,24 @@ export const WorkStatus = () => {
 
   useEffect(() => {
     const token = localStorage.getItem('inu_token');
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        setUserDisplayName(decoded.display_name || 'Unknown User');
-      } catch (error) {
-        console.error('Error decoding token:', error);
-        setUserDisplayName('Unknown User');
-      }
+    if (!token) {
+      console.error('[useEffect] No token found on component mount, redirecting to login');
+      navigate('/');
+      return;
     }
-  }, []);
+    
+    try {
+      const decoded = jwtDecode(token);
+      console.log('[useEffect] Token decoded successfully:', decoded);
+      setUserDisplayName(decoded.display_name || 'Unknown User');
+    } catch (error) {
+      console.error('Error decoding token:', error);
+      console.error('[useEffect] Invalid token, redirecting to login');
+      localStorage.removeItem('inu_token');
+      navigate('/');
+      return;
+    }
+  }, [navigate]);
 
   // Socket listener for optional module status updates
   useEffect(() => {
