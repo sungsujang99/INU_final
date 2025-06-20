@@ -1,0 +1,27 @@
+[Unit]
+Description=INU Logistics Backend Server
+After=network.target
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/inu_upgrade/backend
+Environment=PATH=/home/pi/inu_upgrade/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/pi/inu_upgrade/backend/venv/bin/python app.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Give the service time to start up
+TimeoutStartSec=60
+
+# Environment variables
+Environment=PYTHONPATH=/home/pi/inu_upgrade/backend
+Environment=FLASK_ENV=production
+
+[Install]
+WantedBy=multi-user.target 

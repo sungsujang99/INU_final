@@ -9,7 +9,7 @@ ECHO_TIMEOUT = 1 # Timeout for waiting for command echo
 WHO_CMD = b"WHO\n"
 RACKS   = {"A", "B", "C", "M"}
 OPTIONAL_MODULE_ID = "X"  # Optional module responds with "X" to WHO command
-#A: 1, B: 2, C: 3, M: main rack
+# A: 1, B: 2, C: 3, M: main rack
 
 DEFAULT_MAX_ECHO_ATTEMPTS = 6    # Default number of attempts (1 initial + 5 retries) to get command echo
 RESET_COMMAND_MAX_ECHO_ATTEMPTS = 15 # More attempts for the critical reset command
@@ -392,6 +392,7 @@ class SerialManager:
     def check_optional_module_health(self):
         """Check if optional module is responding to WHO command.
         Returns True if module responds with 'X', False otherwise.
+        Sends WHO command multiple times with retries like other equipment.
         """
         if not self.enabled:
             return False
@@ -400,9 +401,40 @@ class SerialManager:
             return False
             
         try:
-            result = self.send(OPTIONAL_MODULE_ID, "WHO", wait_done=False)
-            # For WHO command, we just check if we got the echo back
-            return result.get("status") == "sent_echo_confirmed"
+            entry = self.ports[OPTIONAL_MODULE_ID]
+            ser, mutex = entry["ser"], entry["mutex"]
+            
+            with mutex:
+                # Try multiple times like in discovery
+                for attempt in range(1, 4):  # Try up to 3 times
+                    ser.reset_input_buffer()  # Clear buffer before each attempt
+                    ser.timeout = DISCOVERY_TIMEOUT  # Use short timeout for WHO
+                    
+                    print(f"INFO: Optional module health check attempt {attempt}/3. Sending WHO command.")
+                    ser.write(WHO_CMD)
+                    time.sleep(0.05)  # Small delay to ensure command is sent
+                    
+                    print(f"INFO: Optional module health check attempt {attempt}/3. Listening for WHO reply (timeout: {DISCOVERY_TIMEOUT}s).")
+                    reply_bytes = ser.readline()
+                    print(f"DEBUG: Optional module health check attempt {attempt}/3. Raw reply_bytes: {reply_bytes}")
+                    
+                    if reply_bytes:
+                        decoded_reply = reply_bytes.decode("utf-8", "ignore").strip().upper()
+                        if decoded_reply == OPTIONAL_MODULE_ID:
+                            print(f"INFO: Optional module health check attempt {attempt}/3 successful. Received '{decoded_reply}'.")
+                            return True
+                        else:
+                            print(f"⚠️ Optional module health check attempt {attempt}/3: Received unexpected reply '{decoded_reply}'.")
+                    else:
+                        print(f"⚠️ Optional module health check attempt {attempt}/3: No reply to WHO command (timeout).")
+                    
+                    if attempt < 3:
+                        print(f"INFO: Optional module health check attempt {attempt}/3 failed. Pausing before next attempt.")
+                        time.sleep(0.5)  # Pause before next attempt
+                
+                print(f"ERROR: Optional module health check failed after 3 attempts.")
+                return False
+                
         except Exception as e:
             print(f"ERROR: Optional module health check failed: {e}")
             return False
