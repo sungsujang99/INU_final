@@ -123,10 +123,9 @@ export const Camera = () => {
       );
     }
 
-    // No streaming for unselected cameras - just show placeholder
+    // No streaming for unselected cameras - just show empty placeholder
     return (
       <div className="small-camera-placeholder">
-        클릭하여 선택
       </div>
     );
   };
