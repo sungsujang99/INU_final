@@ -4,9 +4,6 @@ import { getSessionStatus } from '../lib/api';
 
 const SessionMonitor = () => {
   console.log('🚨🚨🚨 SessionMonitor component is loading! 🚨🚨🚨');
-  console.warn('🚨🚨🚨 SessionMonitor component is loading! 🚨🚨🚨');
-  console.error('🚨🚨🚨 SessionMonitor component is loading! 🚨🚨🚨');
-  alert('SessionMonitor is loading - you should see this alert!');
   
   const navigate = useNavigate();
   const consecutiveFailures = useRef(0);
@@ -15,9 +12,6 @@ const SessionMonitor = () => {
 
   useEffect(() => {
     console.log('🚨🚨🚨 SessionMonitor useEffect is running! 🚨🚨🚨');
-    console.warn('🚨🚨🚨 SessionMonitor useEffect is running! 🚨🚨🚨');
-    console.error('🚨🚨🚨 SessionMonitor useEffect is running! 🚨🚨🚨');
-    alert('SessionMonitor useEffect is running - you should see this alert!');
     
     // Check session status every 30 seconds
     const checkSession = async () => {
@@ -28,10 +22,19 @@ const SessionMonitor = () => {
       console.log(`[SessionMonitor] Starting session check (${timeSinceLastCheck}ms since last check)`);
       console.log(`[SessionMonitor] Current state: consecutiveFailures=${consecutiveFailures.current}, isAlertShown=${isAlertShown.current}`);
       
+      // Debug localStorage contents
+      console.log('[SessionMonitor] Checking localStorage contents...');
+      console.log('[SessionMonitor] All localStorage keys:', Object.keys(localStorage));
+      console.log('[SessionMonitor] localStorage contents:', localStorage);
+      
       try {
         const token = localStorage.getItem('inu_token');
+        console.log(`[SessionMonitor] Token lookup result: ${token ? 'FOUND' : 'NOT FOUND'}`);
+        console.log(`[SessionMonitor] Token value: ${token}`);
+        
         if (!token) {
           console.log('[SessionMonitor] No token found, resetting state');
+          console.log('[SessionMonitor] DEBUG: This is why no session check is happening!');
           consecutiveFailures.current = 0;
           isAlertShown.current = false; // Reset alert flag when no token
           return; // No token, no need to check
@@ -72,11 +75,11 @@ const SessionMonitor = () => {
           console.log('[SessionMonitor] Parsed error data:', errorData);
           
           if (errorData.code === 'session_invalidated') {
-            console.log('[SessionMonitor] *** WOULD TRIGGER SESSION INVALIDATED ALERT (DISABLED FOR DEBUG) ***');
-            // TEMPORARILY DISABLED: isAlertShown.current = true;
-            // TEMPORARILY DISABLED: localStorage.removeItem('inu_token');
-            // TEMPORARILY DISABLED: alert('다른 사용자가 로그인했습니다. 로그인 페이지로 이동합니다.');
-            // TEMPORARILY DISABLED: navigate('/');
+            console.log('[SessionMonitor] *** TRIGGERING SESSION INVALIDATED ALERT ***');
+            isAlertShown.current = true;
+            localStorage.removeItem('inu_token');
+            alert('다른 사용자가 로그인했습니다. 로그인 페이지로 이동합니다.');
+            navigate('/');
             return;
           }
         } catch (e) {
@@ -85,11 +88,11 @@ const SessionMonitor = () => {
           
           // Error parsing, check for 401 status
           if (error.message.includes('401')) {
-            console.log('[SessionMonitor] *** WOULD TRIGGER 401 ERROR ALERT (DISABLED FOR DEBUG) ***');
-            // TEMPORARILY DISABLED: isAlertShown.current = true;
-            // TEMPORARILY DISABLED: localStorage.removeItem('inu_token');
-            // TEMPORARILY DISABLED: alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-            // TEMPORARILY DISABLED: navigate('/');
+            console.log('[SessionMonitor] *** TRIGGERING 401 ERROR ALERT ***');
+            isAlertShown.current = true;
+            localStorage.removeItem('inu_token');
+            alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+            navigate('/');
             return;
           }
         }

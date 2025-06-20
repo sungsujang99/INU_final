@@ -281,9 +281,7 @@ export const WorkStatus = () => {
           });
         }
       } else if (response.status === 401) {
-        console.error('[fetchOptionalModuleStatus] Authentication error, redirecting to login');
-        localStorage.removeItem('inu_token');
-        navigate('/');
+        console.error('[fetchOptionalModuleStatus] Authentication error - letting SessionMonitor handle this');
         return;
       }
     } catch (error) {
@@ -332,14 +330,6 @@ export const WorkStatus = () => {
     } catch (error) {
       console.error(`[fetchCompletedJobs] Error fetching completed jobs for rack ${selectedRack}:`, error);
       
-      // Check if it's an authentication error
-      if (error.message && error.message.includes('인증 토큰이 필요합니다')) {
-        console.error('[fetchCompletedJobs] Authentication error, redirecting to login');
-        localStorage.removeItem('inu_token');
-        navigate('/');
-        return;
-      }
-      
       setDoneTasks([]);
     }
   };
@@ -371,14 +361,6 @@ export const WorkStatus = () => {
     } catch (error) {
       console.error(`[fetchPendingTasks] Error fetching pending tasks for rack ${selectedRack}:`, error);
       
-      // Check if it's an authentication error
-      if (error.message && error.message.includes('인증 토큰이 필요합니다')) {
-        console.error('[fetchPendingTasks] Authentication error, redirecting to login');
-        localStorage.removeItem('inu_token');
-        navigate('/');
-        return;
-      }
-      
       setPendingTasks([]);
     }
   };
@@ -397,14 +379,6 @@ export const WorkStatus = () => {
       setInProgressTasks(filteredTasks);
     } catch (error) {
       console.error(`[fetchInProgressTasks] Error fetching in-progress tasks for rack ${selectedRack}:`, error);
-      
-      // Check if it's an authentication error
-      if (error.message && error.message.includes('인증 토큰이 필요합니다')) {
-        console.error('[fetchInProgressTasks] Authentication error, redirecting to login');
-        localStorage.removeItem('inu_token');
-        navigate('/');
-        return;
-      }
       
       setInProgressTasks([]);
     }
