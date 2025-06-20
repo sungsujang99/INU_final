@@ -268,21 +268,33 @@ def get_activity_logs():
         conn.row_factory = sqlite3.Row # This allows accessing columns by name
         cur = conn.cursor()
 
-        # Fixed approach: Direct JOIN with specific matching criteria to avoid cartesian product
-        # Each product_logs entry should match exactly one work_tasks entry
+        # FIXED: Only return product_logs entries that have corresponding completed work_tasks
+        # This prevents pending tasks from showing up as "completed" in the UI
         query = f"""
+            WITH latest_logs AS (
+                SELECT 
+                    pl.id, pl.product_code, pl.product_name, pl.rack, pl.slot, 
+                    pl.movement_type, pl.quantity, pl.cargo_owner, pl.timestamp, pl.batch_id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY pl.rack, pl.slot, pl.movement_type, pl.product_code 
+                        ORDER BY pl.timestamp DESC
+                    ) as rn
+                FROM product_logs pl
+            )
             SELECT 
-                pl.id, pl.product_code, pl.product_name, pl.rack, pl.slot, 
-                pl.movement_type, pl.quantity, pl.cargo_owner, pl.timestamp, pl.batch_id,
+                ll.id, ll.product_code, ll.product_name, ll.rack, ll.slot, 
+                ll.movement_type, ll.quantity, ll.cargo_owner, ll.timestamp, ll.batch_id,
                 wt.start_time, wt.end_time, wt.status as task_status
-            FROM product_logs pl
-            LEFT JOIN batch_task_links btl ON pl.batch_id = btl.batch_id
-            LEFT JOIN work_tasks wt ON btl.task_id = wt.id 
-                AND wt.rack = pl.rack 
-                AND wt.slot = pl.slot 
-                AND wt.movement = pl.movement_type
-                AND wt.product_code = pl.product_code
-            ORDER BY pl.timestamp {order.upper()} 
+            FROM latest_logs ll
+            INNER JOIN batch_task_links btl ON ll.batch_id = btl.batch_id
+            INNER JOIN work_tasks wt ON btl.task_id = wt.id 
+                AND wt.rack = ll.rack 
+                AND wt.slot = ll.slot 
+                AND wt.movement = ll.movement_type
+                AND wt.product_code = ll.product_code
+                AND wt.status = 'done'
+            WHERE ll.rn = 1
+            ORDER BY ll.timestamp {order.upper()} 
             LIMIT ?
         """
         
@@ -293,11 +305,7 @@ def get_activity_logs():
         logs_list = []
         for row in log_rows:
             log_dict = dict(row)
-            # If we have precise timing from work_tasks, use that; otherwise fall back to general timestamp
-            if not log_dict['start_time'] or not log_dict['end_time']:
-                # For logs without linked work_tasks (older data), use the general timestamp
-                log_dict['start_time'] = log_dict['timestamp']
-                log_dict['end_time'] = log_dict['timestamp']
+            # Use precise timing from work_tasks since we're only showing completed tasks
             logs_list.append(log_dict)
         
         return jsonify(logs_list), 200
