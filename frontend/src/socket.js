@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
-import { SOCKET_URL } from './config.js';
+import { getSocketUrl } from './config';
 
-export const socket = io(SOCKET_URL, {
+export const socket = io(getSocketUrl(), {
   autoConnect: true,
   reconnection: true,
   reconnectionDelay: 1000,
