@@ -409,15 +409,6 @@ export const DashboardOn = () => {
                   <div className="text-wrapper-19">{sessionInfo.active ? 'ON' : 'OFF'}</div>
                 </div>
               </div>
-
-              {sessionInfo.active && (
-                <div className="frame-8">
-                  <p className="div-3">
-                    <span className="text-wrapper-17">현재 사용자</span>
-                    <span className="text-wrapper-18">{sessionInfo.username}</span>
-                  </p>
-                </div>
-              )}
             </div>
           </div>
 
@@ -479,8 +470,6 @@ export const DashboardOn = () => {
             </div>
           </div>
         </div>
-
-        <div className="text">{userDisplayName}</div>
 
         <img className="line" alt="Line" src="/img/line-1.svg" />
 
