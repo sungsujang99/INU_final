@@ -2,18 +2,54 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSessionStatus } from '../lib/api';
 
-// Override localStorage.removeItem to track token removal
+// Override localStorage methods to track all operations
 const originalRemoveItem = localStorage.removeItem;
+const originalSetItem = localStorage.setItem;
+const originalClear = localStorage.clear;
+
 localStorage.removeItem = function(key) {
   if (key === 'inu_token') {
     console.log('🔥🔥🔥 TOKEN BEING REMOVED! 🔥🔥🔥');
     console.trace('Token removal stack trace');
   }
+  console.log(`[localStorage] removeItem called for key: ${key}`);
   return originalRemoveItem.call(this, key);
 };
 
+localStorage.setItem = function(key, value) {
+  if (key === 'inu_token') {
+    console.log('🟢🟢🟢 TOKEN BEING SET! 🟢🟢🟢');
+    console.log('Token value:', value ? value.substring(0, 20) + '...' : 'null');
+  }
+  console.log(`[localStorage] setItem called for key: ${key}`);
+  return originalSetItem.call(this, key, value);
+};
+
+localStorage.clear = function() {
+  console.log('🔥🔥🔥 LOCALSTORAGE BEING CLEARED! 🔥🔥🔥');
+  console.trace('localStorage clear stack trace');
+  return originalClear.call(this);
+};
+
+// Track page visibility changes
+document.addEventListener('visibilitychange', () => {
+  console.log(`[PageVisibility] Page visibility changed to: ${document.visibilityState}`);
+  const token = localStorage.getItem('inu_token');
+  console.log(`[PageVisibility] Token status: ${token ? 'EXISTS' : 'MISSING'}`);
+});
+
+// Track page unload
+window.addEventListener('beforeunload', () => {
+  console.log('[PageUnload] Page is about to unload');
+  const token = localStorage.getItem('inu_token');
+  console.log(`[PageUnload] Token status: ${token ? 'EXISTS' : 'MISSING'}`);
+});
+
 const SessionMonitor = () => {
   console.log('🚨🚨🚨 SessionMonitor component is loading! 🚨🚨🚨');
+  console.log('[SessionMonitor] Component mount - checking initial token status');
+  const initialToken = localStorage.getItem('inu_token');
+  console.log(`[SessionMonitor] Initial token status: ${initialToken ? 'EXISTS' : 'MISSING'}`);
   
   const navigate = useNavigate();
   const consecutiveFailures = useRef(0);

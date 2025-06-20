@@ -38,6 +38,12 @@ const getCameraName = (cameraNum) => {
 };
 
 export const Camera = () => {
+  console.log('📷📷📷 Camera component is starting to load! 📷📷📷');
+  console.log('[Camera] Component mount - checking initial token status');
+  const initialToken = localStorage.getItem('inu_token');
+  console.log(`[Camera] Initial token status: ${initialToken ? 'EXISTS' : 'MISSING'}`);
+  console.log(`[Camera] Current URL: ${window.location.pathname}`);
+  
   const navigate = useNavigate();
   const [selectedCamera, setSelectedCamera] = useState(0); // Start with camera 0 selected
   const [availableCameras, setAvailableCameras] = useState([0, 1, 2, 3]); // All 4 cameras available

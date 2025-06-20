@@ -10,6 +10,12 @@ import SessionMonitor from "./components/SessionMonitor";
 
 // Layout component that includes SessionMonitor
 const Layout = () => {
+  console.log('🌟🌟🌟 Layout component is rendering! 🌟🌟🌟');
+  console.log('[Layout] Checking token status during layout render');
+  const token = localStorage.getItem('inu_token');
+  console.log(`[Layout] Token status: ${token ? 'EXISTS' : 'MISSING'}`);
+  console.log(`[Layout] Current URL: ${window.location.pathname}`);
+  
   return (
     <>
       <SessionMonitor />
@@ -60,5 +66,6 @@ const router = createBrowserRouter([
 ]);
 
 export const App = () => {
+  console.log('🌟🌟🌟 App component is rendering! 🌟🌟🌟');
   return <RouterProvider router={router} />;
 };
