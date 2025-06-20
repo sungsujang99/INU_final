@@ -101,7 +101,7 @@ export const WorkStatus = () => {
     .then(data => {
       console.log('Optional module activation result:', data);
       if (data.success) {
-        alert('선택적 모듈이 활성화되었습니다.');
+        alert('모듈이 활성화되었습니다.');
       } else {
         alert(`모듈 활성화 실패: ${data.error || data.message}`);
       }
@@ -715,19 +715,28 @@ export const WorkStatus = () => {
             <button
               onClick={handleOptionalModuleActivate}
               style={{ 
-                background: optionalModuleStatus.connected ? (optionalModuleStatus.healthy ? '#00BB80' : '#FF6B6B') : '#8C8C8C', 
+                background: 'none', 
                 border: 'none', 
-                padding: '8px 12px', 
+                padding: '0', 
                 cursor: optionalModuleStatus.connected ? 'pointer' : 'not-allowed', 
-                borderRadius: '4px',
-                color: 'white',
-                fontSize: '12px',
-                fontWeight: 'bold'
+                lineHeight: 0,
+                filter: optionalModuleStatus.connected 
+                  ? (optionalModuleStatus.healthy ? 'none' : 'hue-rotate(0deg) saturate(2) brightness(0.8)') 
+                  : 'grayscale(100%) brightness(0.6)'
               }}
               title={`Optional Module: ${optionalModuleStatus.status}`}
               disabled={!optionalModuleStatus.connected}
             >
-              모듈
+              <img 
+                src={inboxInUrl} 
+                alt="Optional Module" 
+                style={{ 
+                  width: '34px', 
+                  height: '34px', 
+                  display: 'block',
+                  opacity: optionalModuleStatus.connected ? 1 : 0.5
+                }} 
+              />
             </button>
 
             {/* Inbox In Button */}
