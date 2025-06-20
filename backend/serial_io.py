@@ -1,5 +1,5 @@
 # serial_io.py
-import serial, glob, time, threading, sys
+import serial, glob, time, threading, sys, datetime
 from flask import current_app
 
 BAUD = 19200
@@ -39,38 +39,22 @@ class SerialManager:
     def _discover_all(self):
         # This method only runs if self.enabled was True during __init__
         platform = sys.platform
-        candidates = []
-        if platform.startswith('linux') or platform.startswith('cygwin'):
-            candidates.extend(glob.glob("/dev/ttyACM*"))
-            candidates.extend(glob.glob("/dev/ttyUSB*"))
-        elif platform.startswith('darwin'):
-            candidates.extend(glob.glob("/dev/tty.usbmodem*"))
-            candidates.extend(glob.glob("/dev/tty.usbserial*"))
-            candidates.extend(glob.glob("/dev/tty.SLAB_USBtoUART*"))
-            candidates.extend(glob.glob("/dev/tty.wchusbserial*"))
-            candidates.extend(glob.glob("/dev/ttyACM*"))
-            candidates.extend(glob.glob("/dev/ttyUSB*"))
-        elif platform.startswith('win'):
-            candidates.extend(glob.glob("COM*"))
         
-        if not candidates:
-            candidates.extend(glob.glob("/dev/ttyACM*"))
-            candidates.extend(glob.glob("/dev/ttyUSB*"))
-            candidates.extend(glob.glob("/dev/tty.*"))
-
-        candidates = sorted(list(set(candidates)))
-
-        app_logger = None
-        try:
-            if current_app:
-                app_logger = current_app.logger
-        except RuntimeError:
-            pass
-
-        if app_logger:
-            app_logger.debug(f"Serial port discovery: Platform '{platform}', Candidate ports: {candidates}")
+        if platform.startswith("linux"):
+            candidates = glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*")
+        elif platform.startswith("darwin"):  # macOS
+            candidates = glob.glob("/dev/tty.usbserial*") + glob.glob("/dev/tty.usbmodem*")
+        elif platform.startswith("win"):
+            candidates = [f"COM{i}" for i in range(1, 21)]
         else:
-            print(f"Serial port discovery: Platform '{platform}', Candidate ports: {candidates}")
+            print(f"⚠️ Unknown platform: {platform}. No serial discovery.")
+            return
+
+        if not candidates:
+            print("⚠️ No serial ports found.")
+            return
+
+        print(f"INFO: Scanning ports: {candidates}")
 
         for port in candidates:
             ser = None 
@@ -166,6 +150,10 @@ class SerialManager:
         
         active_max_echo_attempts = custom_max_echo_attempts if custom_max_echo_attempts is not None else DEFAULT_MAX_ECHO_ATTEMPTS
         echo_received_correctly = False
+        
+        # Initialize timing variables
+        command_sent_time = None
+        done_received_time = None
 
         with mutex:
             for attempt in range(1, active_max_echo_attempts + 1):
@@ -183,10 +171,13 @@ class SerialManager:
                         # If conversion fails, send as is
                         ser.write(f"{code}\n".encode())
                 
+                # Record exact time when command was sent to equipment
+                command_sent_time = datetime.datetime.now().isoformat(timespec="microseconds")
+                
                 if app_logger:
-                    app_logger.debug(f"{log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent. Waiting for echo...")
+                    app_logger.debug(f"{log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent at {command_sent_time}. Waiting for echo...")
                 else:
-                    print(f"INFO: {log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent. Waiting for echo...")
+                    print(f"INFO: {log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent at {command_sent_time}. Waiting for echo...")
 
                 # 1. Wait for echo for this attempt
                 echo_start_time = time.time()
@@ -229,11 +220,19 @@ class SerialManager:
 
             if not echo_received_correctly:
                 # All attempts to get echo failed
-                return {"status": "echo_error_max_retries"} 
+                return {
+                    "status": "echo_error_max_retries",
+                    "command_sent_time": command_sent_time,
+                    "done_received_time": None
+                } 
 
             # If echo was successful, and we don't need to wait for "done", return status "sent_echo_confirmed"
             if not wait_done:
-                return {"status": "sent_echo_confirmed"}
+                return {
+                    "status": "sent_echo_confirmed",
+                    "command_sent_time": command_sent_time,
+                    "done_received_time": None
+                }
 
             # 2. Wait for "done" token (only if echo was successful)
             start_done_time = time.time()
@@ -254,18 +253,28 @@ class SerialManager:
                         print(f"DEBUG: {log_prefix}: Done read data: {read_data}, Current done_buf: {done_buf}")
                     
                     if done_token in done_buf.lower():
+                        # Record exact time when "done" signal was received
+                        done_received_time = datetime.datetime.now().isoformat(timespec="microseconds")
                         if app_logger:
-                            app_logger.debug(f"{log_prefix}: Found '{done_token}' in done_buf.")
+                            app_logger.debug(f"{log_prefix}: Found '{done_token}' in done_buf at {done_received_time}.")
                         else:
-                            print(f"DEBUG: {log_prefix}: Found '{done_token}' in done_buf.")
-                        return {"status": "done"}
+                            print(f"DEBUG: {log_prefix}: Found '{done_token}' in done_buf at {done_received_time}.")
+                        return {
+                            "status": "done",
+                            "command_sent_time": command_sent_time,
+                            "done_received_time": done_received_time
+                        }
                 time.sleep(0.05)
             
             if app_logger:
                 app_logger.warning(f"{log_prefix}: Timeout waiting for '{done_token}' after echo. Final done_buf: {done_buf}")
             else:
                 print(f"WARNING: {log_prefix}: Timeout waiting for '{done_token}' after echo. Final done_buf: {done_buf}")
-            return {"status": "timeout_after_echo"}
+            return {
+                "status": "timeout_after_echo",
+                "command_sent_time": command_sent_time,
+                "done_received_time": None
+            }
 
     def _get_rack_logical_name(self, serial_instance, port_name):
         """

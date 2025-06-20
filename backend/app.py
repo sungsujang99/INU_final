@@ -268,15 +268,37 @@ def get_activity_logs():
         conn.row_factory = sqlite3.Row # This allows accessing columns by name
         cur = conn.cursor()
 
-        # Ensure column names match your product_logs table exactly
-        # Common columns: id, product_code, product_name, rack, slot, movement_type, quantity, cargo_owner, timestamp
-        query = f"SELECT id, product_code, product_name, rack, slot, movement_type, quantity, cargo_owner, timestamp, batch_id FROM product_logs ORDER BY timestamp {order.upper()} LIMIT ?"
+        # Join product_logs with work_tasks to get precise timing information
+        # Use the work_tasks start_time and end_time for precise equipment operation timing
+        query = f"""
+            SELECT 
+                pl.id, pl.product_code, pl.product_name, pl.rack, pl.slot, 
+                pl.movement_type, pl.quantity, pl.cargo_owner, pl.timestamp, pl.batch_id,
+                wt.start_time, wt.end_time, wt.status as task_status
+            FROM product_logs pl
+            LEFT JOIN batch_task_links btl ON pl.batch_id = btl.batch_id
+            LEFT JOIN work_tasks wt ON btl.task_id = wt.id 
+                AND wt.rack = pl.rack 
+                AND wt.slot = pl.slot 
+                AND wt.movement = pl.movement_type
+                AND wt.product_code = pl.product_code
+            ORDER BY pl.timestamp {order.upper()} 
+            LIMIT ?
+        """
         
         cur.execute(query, (limit,))
         log_rows = cur.fetchall()
         conn.close()
 
-        logs_list = [dict(row) for row in log_rows]
+        logs_list = []
+        for row in log_rows:
+            log_dict = dict(row)
+            # If we have precise timing from work_tasks, use that; otherwise fall back to general timestamp
+            if not log_dict['start_time'] or not log_dict['end_time']:
+                # For logs without linked work_tasks (older data), use the general timestamp
+                log_dict['start_time'] = log_dict['timestamp']
+                log_dict['end_time'] = log_dict['timestamp']
+            logs_list.append(log_dict)
         
         return jsonify(logs_list), 200
 

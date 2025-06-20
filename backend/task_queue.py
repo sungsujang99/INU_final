@@ -200,34 +200,40 @@ class GlobalWorker(threading.Thread):
                     operation_end_time = operation_start_time
                 
                 elif movement == 'IN':
-                    # Record start time before first equipment command
-                    operation_start_time = datetime.datetime.now().isoformat(timespec="seconds")
-                    
                     # 1. Main equipment (M) delivers to rack approach area
-                    if not serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token):
+                    m_result = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
+                    if m_result["status"] != "done":
                         final_task_status = 'failed_m_echo'
-                    # 2. Rack receives from approach area
-                    elif not serial_mgr.send(target_rack_id, cmd_for_rack, wait_done=True, done_token=rack_done_token):
-                        final_task_status = 'failed_rack_echo'
                     else:
-                        physical_op_successful = True
-                        # Record end time after last equipment response
-                        operation_end_time = datetime.datetime.now().isoformat(timespec="seconds")
+                        # Record start time from when the first command was sent
+                        operation_start_time = m_result["command_sent_time"]
+                        
+                        # 2. Rack receives from approach area
+                        rack_result = serial_mgr.send(target_rack_id, cmd_for_rack, wait_done=True, done_token=rack_done_token)
+                        if rack_result["status"] != "done":
+                            final_task_status = 'failed_rack_echo'
+                        else:
+                            physical_op_successful = True
+                            # Record end time from when the last "done" signal was received
+                            operation_end_time = rack_result["done_received_time"]
                 
                 elif movement == 'OUT':
-                    # Record start time before first equipment command
-                    operation_start_time = datetime.datetime.now().isoformat(timespec="seconds")
-                    
                     # 1. Rack delivers to approach area
-                    if not serial_mgr.send(target_rack_id, cmd_for_rack, wait_done=True, done_token=rack_done_token):
+                    rack_result = serial_mgr.send(target_rack_id, cmd_for_rack, wait_done=True, done_token=rack_done_token)
+                    if rack_result["status"] != "done":
                         final_task_status = 'failed_rack_echo'
-                    # 2. Main equipment (M) receives from approach area
-                    elif not serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token):
-                        final_task_status = 'failed_m_echo'
                     else:
-                        physical_op_successful = True
-                        # Record end time after last equipment response
-                        operation_end_time = datetime.datetime.now().isoformat(timespec="seconds")
+                        # Record start time from when the first command was sent
+                        operation_start_time = rack_result["command_sent_time"]
+                        
+                        # 2. Main equipment (M) receives from approach area
+                        m_result = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
+                        if m_result["status"] != "done":
+                            final_task_status = 'failed_m_echo'
+                        else:
+                            physical_op_successful = True
+                            # Record end time from when the last "done" signal was received
+                            operation_end_time = m_result["done_received_time"]
                 
                 else:
                     final_task_status = 'failed_unknown_movement'

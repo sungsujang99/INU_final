@@ -27,6 +27,31 @@ The most likely cause was **multiple browser tabs or windows** where:
 - If they don't match, the request is rejected with a "session_invalidated" error
 - The frontend detects this and shows an alert before redirecting to login
 
+## New Feature: Precise Equipment Timing
+
+### Exact Timestamp Capture
+The system now captures **microsecond-precise timestamps** for equipment operations:
+
+- **시작시간 (Start Time)**: The exact moment when a command is sent to the equipment via serial communication
+- **종료시간 (End Time)**: The exact moment when the "done" signal is received from the equipment
+
+### How It Works
+1. **Command Sent**: When `serial_mgr.send()` transmits a command to equipment, it records `command_sent_time`
+2. **Done Signal**: When the equipment responds with "done" or "fin", it records `done_received_time`
+3. **Database Storage**: These precise timestamps are stored in the `work_tasks` table
+4. **Frontend Display**: The Camera screen shows these times with millisecond precision
+
+### Technical Implementation
+- **Backend**: `serial_io.py` captures exact timestamps using `datetime.now().isoformat(timespec="microseconds")`
+- **Database**: `work_tasks.start_time` and `work_tasks.end_time` store the precise timing
+- **API**: `/api/activity-logs` joins `product_logs` with `work_tasks` to provide precise timing
+- **Frontend**: Times are displayed with millisecond precision and helpful tooltips
+
+### Benefits
+- **Accurate Performance Monitoring**: See exactly how long equipment operations take
+- **Troubleshooting**: Identify timing issues in equipment communication
+- **Process Optimization**: Analyze equipment response times for efficiency improvements
+
 ## Prevention Measures Added
 
 ### 1. Enhanced Logging
@@ -41,11 +66,13 @@ The most likely cause was **multiple browser tabs or windows** where:
 - **Login state management**: Prevents duplicate login attempts
 - **Multi-tab warning**: Shows warning about multiple tabs during login
 - **Better error messages**: More descriptive alerts about session conflicts
+- **Precise timing display**: Shows exact equipment operation times with tooltips
 
 ### 3. Backend Improvements
 - **Multiple login detection**: Logs when a new login invalidates an existing session
 - **Clearer error messages**: Mentions "other tabs" in session invalidation messages
 - **Better session tracking**: More detailed logging of session state changes
+- **Precise timing capture**: Records exact moments of equipment communication
 
 ## Best Practices
 
@@ -54,12 +81,14 @@ The most likely cause was **multiple browser tabs or windows** where:
 2. **Don't refresh** the page unnecessarily during login
 3. **Close other tabs** before logging in
 4. **Wait for login to complete** before opening new tabs
+5. **Check timing tooltips** to understand equipment operation precision
 
 ### For Developers
 1. **Monitor session logs** for multiple login patterns
 2. **Check for component re-mounting** issues
 3. **Validate navigation logic** to prevent duplicate login attempts
 4. **Consider session persistence** strategies if needed
+5. **Use precise timing data** for performance analysis
 
 ## Troubleshooting Steps
 
@@ -75,6 +104,12 @@ The most likely cause was **multiple browser tabs or windows** where:
 3. **Check for bookmarks**: Multiple bookmarks might open multiple tabs
 4. **Check browser history**: Don't use "restore tabs" feature
 
+### If Timing Seems Incorrect
+1. **Check tooltips**: Hover over time labels to understand what they represent
+2. **Compare with logs**: Backend logs show detailed timing information
+3. **Check equipment status**: Ensure equipment is responding properly
+4. **Monitor serial communication**: Look for communication delays or errors
+
 ## Monitoring
 
 The system now logs detailed information about:
@@ -82,14 +117,21 @@ The system now logs detailed information about:
 - Which session IDs are involved
 - Whether the issue is due to server restart or actual multiple logins
 - Token replacement events in the frontend
+- **Precise equipment timing** for each operation
+- **Serial communication delays** and response times
 
 Look for these log patterns:
 - `🔄 MULTIPLE LOGIN DETECTED`
 - `⚠️⚠️⚠️ WARNING: Token is being replaced`
 - `❌ Session validation failed`
+- `⏱️ Command sent at [timestamp]`
+- `✅ Done signal received at [timestamp]`
 
 ## Summary
 
 The session ID mismatch was likely caused by multiple browser tabs or login attempts. The system is now better equipped to detect and handle these situations, with clearer error messages and prevention measures in place.
 
-**Key takeaway**: Use only one browser tab when working with the INU logistics system to avoid session conflicts. 
+**Key takeaways**: 
+1. Use only one browser tab when working with the INU logistics system to avoid session conflicts
+2. The new precise timing feature shows **exact equipment operation times** - hover over time labels for details
+3. Start time = when command is sent to equipment, End time = when "done" signal is received 

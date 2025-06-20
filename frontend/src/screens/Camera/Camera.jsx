@@ -16,14 +16,17 @@ import { getBackendUrl, getApiBaseUrl } from "../../config";
 
 // Helper to format time, you might want to make this more robust or use a library
 const formatLogTime = (timestamp) => {
-  if (!timestamp) return "00:00:00";
-  // Ensure toLocaleTimeString gets options for HH:MM:SS if that's desired
-  return new Date(timestamp).toLocaleTimeString('ko-KR', {
+  if (!timestamp) return "00:00:00.000";
+  
+  const date = new Date(timestamp);
+  
+  // Format with milliseconds for precise timing
+  return date.toLocaleTimeString('ko-KR', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hour12: false
-  });
+  }) + '.' + date.getMilliseconds().toString().padStart(3, '0');
 };
 
 // Get camera display name
