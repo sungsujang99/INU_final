@@ -268,20 +268,17 @@ def get_activity_logs():
         conn.row_factory = sqlite3.Row # This allows accessing columns by name
         cur = conn.cursor()
 
-        # Join product_logs with work_tasks to get precise timing information
-        # Use the work_tasks start_time and end_time for precise equipment operation timing
+        # Simplified approach: Get unique product_logs with their corresponding work_tasks
+        # Use a more reliable JOIN that avoids duplicates
         query = f"""
-            SELECT 
+            SELECT DISTINCT
                 pl.id, pl.product_code, pl.product_name, pl.rack, pl.slot, 
                 pl.movement_type, pl.quantity, pl.cargo_owner, pl.timestamp, pl.batch_id,
                 wt.start_time, wt.end_time, wt.status as task_status
             FROM product_logs pl
             LEFT JOIN batch_task_links btl ON pl.batch_id = btl.batch_id
             LEFT JOIN work_tasks wt ON btl.task_id = wt.id 
-                AND wt.rack = pl.rack 
-                AND wt.slot = pl.slot 
-                AND wt.movement = pl.movement_type
-                AND wt.product_code = pl.product_code
+            WHERE pl.id IS NOT NULL
             ORDER BY pl.timestamp {order.upper()} 
             LIMIT ?
         """
