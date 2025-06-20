@@ -738,15 +738,6 @@ export const WorkStatus = () => {
                 }} 
               />
             </button>
-
-            {/* Inbox In Button */}
-            <button
-              onClick={handleInboxIn}
-              style={{ background: 'none', border: 'none', padding: '0', cursor: 'pointer', lineHeight: 0 }}
-              title="Inbox In"
-            >
-              <img src={inboxInUrl} alt="Inbox In" style={{ width: '34px', height: '34px', display: 'block' }} />
-            </button>
           </div>
 
           {/* Main Content */}
