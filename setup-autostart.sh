@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Setup script to configure INU Logistics system to start automatically on boot
-# Run this script on the Raspberry Pi as the pi user
+# Run this script on the Raspberry Pi as the inu user
 
 set -e
 
@@ -10,7 +10,7 @@ echo "Setting up INU Logistics system for automatic startup..."
 # Get the current user and home directory
 CURRENT_USER=$(whoami)
 HOME_DIR=$(eval echo ~$CURRENT_USER)
-PROJECT_DIR="$HOME_DIR/inu_upgrade"
+PROJECT_DIR="/home/inu/INU_final"
 
 echo "Current user: $CURRENT_USER"
 echo "Home directory: $HOME_DIR"
@@ -19,7 +19,7 @@ echo "Project directory: $PROJECT_DIR"
 # Check if project directory exists
 if [ ! -d "$PROJECT_DIR" ]; then
     echo "ERROR: Project directory $PROJECT_DIR does not exist!"
-    echo "Please ensure the inu_upgrade project is located at $PROJECT_DIR"
+    echo "Please ensure the INU_final project is located at $PROJECT_DIR"
     exit 1
 fi
 
@@ -36,8 +36,8 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=$CURRENT_USER
-Group=$CURRENT_USER
+User=inu
+Group=inu
 WorkingDirectory=$PROJECT_DIR/backend
 Environment=PATH=$PROJECT_DIR/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=$PROJECT_DIR/backend/venv/bin/python app.py
@@ -67,8 +67,8 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=$CURRENT_USER
-Group=$CURRENT_USER
+User=inu
+Group=inu
 WorkingDirectory=$PROJECT_DIR/frontend
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=NODE_ENV=production
