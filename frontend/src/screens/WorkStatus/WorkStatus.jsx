@@ -224,7 +224,7 @@ export const WorkStatus = () => {
               fetchInventoryData(),
               fetchPendingTasks(),
               fetchInProgressTasks(),
-              fetchDoneTasks()
+              fetchCompletedJobs()
             ]);
 
           } catch (error) {
@@ -308,7 +308,7 @@ export const WorkStatus = () => {
         id: log.id,
         rack: log.rack,
         slot: log.slot,
-        movement_type: log.movement_type,
+        movement: log.movement_type, // Map movement_type to movement for consistency
       }));
       setDoneTasks(simplifiedJobs);
     } catch (error) {
@@ -336,17 +336,13 @@ export const WorkStatus = () => {
     const tasks = await getWorkTasksByStatus("in_progress");
     setInProgressTasks(tasks.filter(t => t.rack === selectedRack));
   };
-  const fetchDoneTasks = async () => {
-    const tasks = await getWorkTasksByStatus("done");
-    setDoneTasks(tasks.filter(t => t.rack === selectedRack));
-  };
 
   // Initial data fetch
   useEffect(() => {
     fetchInventoryData();
     fetchPendingTasks();
     fetchInProgressTasks();
-    fetchDoneTasks();
+    fetchCompletedJobs(); // Use fetchCompletedJobs instead of fetchDoneTasks
     fetchOptionalModuleStatus(); // Fetch initial optional module status
     // For now, progress starts when a new CSV is uploaded.
   }, [selectedRack]);
@@ -426,7 +422,7 @@ export const WorkStatus = () => {
       await Promise.all([
         fetchPendingTasks(),
         fetchInProgressTasks(),
-        fetchDoneTasks(),
+        fetchCompletedJobs(),
         fetchInventoryData()
       ]);
 
@@ -439,7 +435,7 @@ export const WorkStatus = () => {
 
     socket.on('task_status_changed', handleTaskStatusChanged);
     return () => socket.off('task_status_changed', handleTaskStatusChanged);
-  }, [activeBatch.id, activeBatch.totalTasks, fetchAndSetBatchProgress, fetchPendingTasks, fetchInProgressTasks, fetchDoneTasks, fetchInventoryData]);
+  }, [activeBatch.id, activeBatch.totalTasks, fetchAndSetBatchProgress, fetchPendingTasks, fetchInProgressTasks, fetchCompletedJobs, fetchInventoryData]);
 
   // Update renderRackGrid to show product info
   const renderRackGrid = () => {
