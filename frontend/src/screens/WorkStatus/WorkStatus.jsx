@@ -299,19 +299,30 @@ export const WorkStatus = () => {
 
   const fetchCompletedJobs = async () => {
     try {
+      console.log(`[fetchCompletedJobs] Fetching completed jobs for rack: ${selectedRack}`);
       const allLogs = await getActivityLogs({ limit: 100, order: 'desc' });
+      console.log(`[fetchCompletedJobs] Total logs received:`, allLogs.length);
+      console.log(`[fetchCompletedJobs] Sample logs:`, allLogs.slice(0, 3));
+      
       const rackLogs = allLogs
         .filter(log => log.rack === selectedRack)
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .slice(0, 5);
+      
+      console.log(`[fetchCompletedJobs] Filtered logs for rack ${selectedRack}:`, rackLogs.length);
+      console.log(`[fetchCompletedJobs] Rack logs:`, rackLogs);
+      
       const simplifiedJobs = rackLogs.map(log => ({ 
         id: log.id,
         rack: log.rack,
         slot: log.slot,
         movement: log.movement_type, // Map movement_type to movement for consistency
       }));
+      
+      console.log(`[fetchCompletedJobs] Setting doneTasks for rack ${selectedRack}:`, simplifiedJobs);
       setDoneTasks(simplifiedJobs);
     } catch (error) {
+      console.error(`[fetchCompletedJobs] Error fetching completed jobs for rack ${selectedRack}:`, error);
       setDoneTasks([]);
     }
   };
@@ -329,12 +340,28 @@ export const WorkStatus = () => {
 
   // Fetch tasks by status
   const fetchPendingTasks = async () => {
+    console.log(`[fetchPendingTasks] Fetching pending tasks for rack: ${selectedRack}`);
     const tasks = await getWorkTasksByStatus("pending");
-    setPendingTasks(tasks.filter(t => t.rack === selectedRack));
+    console.log(`[fetchPendingTasks] Total pending tasks:`, tasks.length);
+    console.log(`[fetchPendingTasks] Sample pending tasks:`, tasks.slice(0, 3));
+    
+    const filteredTasks = tasks.filter(t => t.rack === selectedRack);
+    console.log(`[fetchPendingTasks] Filtered pending tasks for rack ${selectedRack}:`, filteredTasks.length);
+    console.log(`[fetchPendingTasks] Pending tasks:`, filteredTasks);
+    
+    setPendingTasks(filteredTasks);
   };
   const fetchInProgressTasks = async () => {
+    console.log(`[fetchInProgressTasks] Fetching in-progress tasks for rack: ${selectedRack}`);
     const tasks = await getWorkTasksByStatus("in_progress");
-    setInProgressTasks(tasks.filter(t => t.rack === selectedRack));
+    console.log(`[fetchInProgressTasks] Total in-progress tasks:`, tasks.length);
+    console.log(`[fetchInProgressTasks] Sample in-progress tasks:`, tasks.slice(0, 3));
+    
+    const filteredTasks = tasks.filter(t => t.rack === selectedRack);
+    console.log(`[fetchInProgressTasks] Filtered in-progress tasks for rack ${selectedRack}:`, filteredTasks.length);
+    console.log(`[fetchInProgressTasks] In-progress tasks:`, filteredTasks);
+    
+    setInProgressTasks(filteredTasks);
   };
 
   // Initial data fetch
