@@ -54,19 +54,19 @@ export const Camera = () => {
   const [userDisplayName, setUserDisplayName] = useState('');
 
   // Navigation handlers
-  const handleDashboard = () => navigate('/dashboardu40onu41');
+  const handleDashboard = () => navigate('/dashboard');
   const handleWorkStatus = () => navigate('/work-status');
   const handleLogout = () => {
     logout()
       .then(() => {
         localStorage.removeItem('inu_token');
-        navigate('/');
+        navigate('/login');
       })
       .catch(error => {
         console.error('Logout error:', error);
         // Even if logout fails, clear local storage and redirect
         localStorage.removeItem('inu_token');
-        navigate('/');
+        navigate('/login');
       });
   };
 

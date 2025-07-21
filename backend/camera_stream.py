@@ -11,6 +11,46 @@ logging.getLogger('picamera2').setLevel(logging.WARNING)
 # Get a logger instance
 logger = logging.getLogger(__name__)
 
+def detect_cameras():
+    """Detect available USB cameras and return the first working one"""
+    logger.info("Detecting available cameras...")
+    
+    for device_id in range(10):  # Test video0 through video9
+        try:
+            logger.info(f"Testing camera at /dev/video{device_id}...")
+            cap = cv2.VideoCapture(device_id)
+            
+            if not cap.isOpened():
+                logger.info(f"Failed to open camera {device_id}")
+                continue
+            
+            # Try to read a frame
+            ret, frame = cap.read()
+            if not ret:
+                logger.info(f"Failed to read frame from camera {device_id}")
+                cap.release()
+                continue
+            
+            # Get camera properties
+            width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            
+            logger.info(f"Found working camera {device_id}:")
+            logger.info(f"Resolution: {width}x{height}")
+            logger.info(f"FPS: {fps}")
+            
+            cap.release()
+            return device_id
+            
+        except Exception as e:
+            logger.error(f"Error testing camera {device_id}: {e}")
+            if 'cap' in locals():
+                cap.release()
+    
+    logger.warning("No working USB cameras found!")
+    return None
+
 # Initialize GPIO for camera switching using lgpio (Pi 5 compatible)
 try:
     gpio_chip = lgpio.gpiochip_open(0)  # Open GPIO chip 0
@@ -26,9 +66,17 @@ except Exception as e:
     logger.error(f"GPIO initialization failed: {e}")
     gpio_chip = None
 
+# Detect USB camera and configure camera settings
+usb_camera_id = detect_cameras()
+if usb_camera_id is not None:
+    logger.info(f"Using USB camera at /dev/video{usb_camera_id}")
+else:
+    logger.warning("No USB camera detected, system may not work properly")
+    usb_camera_id = 0  # Fallback to video0
+
 # Camera switching configurations
 CAMERA_CONFIGS = {
-    0: {"type": "usb", "device": 0, "name": "USB Camera"},  # USB webcam on /dev/video0
+    0: {"type": "usb", "device": usb_camera_id, "name": "USB Camera"},  # USB webcam on detected device
     1: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x04", "gpio": (False, False, True), "name": "Camera A"},
     2: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x05", "gpio": (True, False, True), "name": "Camera B"},
     3: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x07", "gpio": (True, True, False), "name": "Camera C"}  # Using working configuration from test

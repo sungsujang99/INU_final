@@ -31,26 +31,22 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Navigate to="/login1u40u4363u4449u4363u4469u4355u4469-u4363u4469u4536u4357u4455u4520u41" replace />,
+        element: <Navigate to="/login" replace />,
       },
       {
-        path: "/login1u40u4363u4449u4363u4469u4355u4469-u4363u4469u4536u4357u4455u4520u41",
+        path: "/login",
         element: <Login />,
       },
       {
-        path: "/dashboardu40onu41",
+        path: "/dashboard",
         element: <DashboardOn />,
       },
       {
-        path: "/login2u40u4359u4469u4358u4469u4527u4359u4453u4523u4370u4457-u4363u4469u4536u4357u4455u4520u41",
+        path: "/login-password",
         element: <LoginScreen />,
       },
       {
-        path: "/login1u40u4363u4449u4363u4469u4355u4469-u4363u4469u4536u4357u4455u4520u41-u4363u4454u4357u4453",
-        element: <DivWrapper />,
-      },
-      {
-        path: "/camera-1",
+        path: "/camera",
         element: <Camera />,
       },
       {
@@ -59,7 +55,7 @@ const router = createBrowserRouter([
       },
       {
         path: "*",
-        element: <Navigate to="/login1u40u4363u4449u4363u4469u4355u4469-u4363u4469u4536u4357u4455u4520u41" replace />,
+        element: <Navigate to="/login" replace />,
       },
     ]
   },

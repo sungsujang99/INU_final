@@ -24,7 +24,7 @@ export const Login = () => {
 
       if (response.ok) {
         localStorage.setItem('temp_login_id', loginId.trim());
-        navigate('/login2u40u4359u4469u4358u4469u4527u4359u4453u4523u4370u4457-u4363u4469u4536u4357u4455u4520u41');
+        navigate('/login-password');
       } else {
         setError("존재하지 않는 사용자입니다.");
       }

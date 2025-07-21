@@ -16,14 +16,14 @@ export const LoginScreen = () => {
     // Check if we have the login ID from the previous step
     const loginId = localStorage.getItem('temp_login_id');
     if (!loginId) {
-      navigate('/'); // Go back to first login page if no ID
+      navigate('/login'); // Go back to first login page if no ID
     }
 
     // Check if user is already logged in
     const existingToken = localStorage.getItem('inu_token');
     if (existingToken) {
       console.log('[LoginScreen] User already has a token, redirecting to dashboard');
-      navigate('/dashboardu40onu41');
+      navigate('/dashboard');
     }
   }, [navigate]);
 
@@ -56,7 +56,7 @@ export const LoginScreen = () => {
       localStorage.removeItem('temp_login_id'); // Clean up
       
       console.log('[LoginScreen] Redirecting to dashboard');
-      navigate('/dashboardu40onu41');
+      navigate('/dashboard');
     } catch (err) {
       console.error('Login failed:', err);
       setError("비밀번호가 올바르지 않습니다.");

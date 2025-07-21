@@ -41,19 +41,19 @@ export const WorkStatus = () => {
   const fileInputRef = useRef(null);
 
   // Navigation handlers
-  const handleDashboard = () => navigate('/dashboardu40onu41');
-  const handleCamera = () => navigate('/camera-1');
+  const handleDashboard = () => navigate('/dashboard');
+  const handleCamera = () => navigate('/camera');
   const handleLogout = () => {
     logout()
       .then(() => {
         localStorage.removeItem('inu_token');
-        navigate('/'); // Navigate to login page
+        navigate('/login'); // Navigate to login page
       })
       .catch(error => {
         console.error('Logout error:', error);
         // Even if logout fails, clear local storage and redirect
         localStorage.removeItem('inu_token');
-        navigate('/');
+        navigate('/login');
       });
   };
   const handleRackSelection = (rack) => {

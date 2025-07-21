@@ -215,20 +215,20 @@ export const DashboardOn = () => {
   };
 
   const handleCamera = () => {
-    navigate('/camera-1');
+    navigate('/camera');
   };
 
   const handleLogout = () => {
     logout()
       .then(() => {
         localStorage.removeItem('inu_token');
-        navigate('/'); // Navigate back to login screen
+        navigate('/login'); // Navigate back to login screen
       })
       .catch(error => {
         console.error('Logout error:', error);
         // Even if logout fails, clear local storage and redirect
         localStorage.removeItem('inu_token');
-        navigate('/');
+        navigate('/login');
       });
   };
 
