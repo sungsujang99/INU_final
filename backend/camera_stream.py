@@ -28,14 +28,14 @@ except Exception as e:
 
 # Camera switching configurations
 CAMERA_CONFIGS = {
-    0: {"type": "usb", "device": 8, "name": "USB Camera"},  # Main camera is USB webcam on /dev/video8
+    0: {"type": "usb", "device": 9, "name": "USB Camera"},  # Try video9 instead of video8
     1: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x05", "gpio": (True, False, True), "name": "Camera B"},
     2: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x06", "gpio": (False, True, False), "name": "Camera C"},
     3: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x07", "gpio": (True, True, False), "name": "Camera D"}
 }
 
 class USBCamera:
-    def __init__(self, device_id=0, width=320, height=240, fps=15):
+    def __init__(self, device_id=0, width=640, height=480, fps=30):
         self.width = width
         self.height = height
         self.fps = fps
@@ -47,9 +47,57 @@ class USBCamera:
         
         try:
             logger.info(f"Initializing USB camera (device {device_id})...")
-            self.cap = cv2.VideoCapture(device_id)
             
-            # Set camera properties
+            # Try different methods to open the camera
+            methods = [
+                (lambda: cv2.VideoCapture(device_id), "index"),
+                (lambda: cv2.VideoCapture(f"/dev/video{device_id}"), "device path"),
+                (lambda: cv2.VideoCapture(f"v4l2:///dev/video{device_id}"), "v4l2 path")
+            ]
+            
+            success = False
+            error_messages = []
+            
+            for open_method, method_name in methods:
+                try:
+                    logger.info(f"Trying to open camera using {method_name}...")
+                    self.cap = open_method()
+                    
+                    if self.cap is None:
+                        error_messages.append(f"Method {method_name}: VideoCapture returned None")
+                        continue
+                        
+                    if not self.cap.isOpened():
+                        error_messages.append(f"Method {method_name}: Camera failed to open")
+                        self.cap.release()
+                        self.cap = None
+                        continue
+                    
+                    # Try to read a test frame
+                    ret, frame = self.cap.read()
+                    if not ret or frame is None:
+                        error_messages.append(f"Method {method_name}: Could not read test frame")
+                        self.cap.release()
+                        self.cap = None
+                        continue
+                    
+                    # If we got here, the camera is working
+                    logger.info(f"Successfully opened camera using {method_name}")
+                    success = True
+                    break
+                    
+                except Exception as e:
+                    error_messages.append(f"Method {method_name}: {str(e)}")
+                    if self.cap is not None:
+                        self.cap.release()
+                        self.cap = None
+            
+            if not success:
+                error_msg = "Failed to open USB camera. Tried:\n" + "\n".join(error_messages)
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+            
+            # Configure camera settings
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
             self.cap.set(cv2.CAP_PROP_FPS, fps)
@@ -61,16 +109,6 @@ class USBCamera:
             
             logger.info(f"Camera settings - Requested: {width}x{height} @ {fps}fps")
             logger.info(f"Camera settings - Actual: {actual_width}x{actual_height} @ {actual_fps}fps")
-            
-            if not self.cap.isOpened():
-                raise RuntimeError(f"Failed to open USB camera {device_id}")
-                
-            # Test capture
-            ret, test_frame = self.cap.read()
-            if not ret or test_frame is None:
-                raise RuntimeError(f"Failed to capture test frame from camera {device_id}")
-            
-            logger.info(f"USB camera initialized successfully. Test frame shape: {test_frame.shape}")
             
             # Start capture thread
             self.capture_thread = threading.Thread(target=self._update, daemon=True)
