@@ -257,7 +257,8 @@ export const Camera = () => {
 
         // Then group each date's logs by batch
         const groupedByDateAndBatch = Object.entries(logsByDate).reduce((acc, [date, logs]) => {
-          const batchesForDate = logs.reduce((batchAcc, log) => {
+          // Group logs by batch_id
+          const batchGroups = logs.reduce((batchAcc, log) => {
             const key = log.batch_id || `ungrouped-${log.id}`;
             if (!batchAcc[key]) {
               batchAcc[key] = {
@@ -276,7 +277,8 @@ export const Camera = () => {
             return batchAcc;
           }, {});
 
-          acc[date] = Object.values(batchesForDate).map(batch => {
+          // Convert batch groups object to array and process each batch
+          const batchesArray = Object.values(batchGroups).map(batch => {
             batch.timestamps.sort((a,b) => new Date(a) - new Date(b));
             batch.batchStartTime = batch.timestamps[0];
             batch.batchEndTime = batch.timestamps[batch.timestamps.length - 1];
@@ -297,6 +299,7 @@ export const Camera = () => {
             return batch;
           });
 
+          acc[date] = batchesArray;
           return acc;
         }, {});
 
@@ -378,7 +381,7 @@ export const Camera = () => {
                   <div className="date-header">{date}</div>
                   
                   {/* Batches for this date */}
-                  {batches.map((batch, batchIndex) => (
+                  {Array.isArray(batches) && batches.map((batch, batchIndex) => (
                     <div className="group-10" key={batch.batch_id || `batch-outer-${batchIndex}`}> 
                       <div className="overlap-6"> 
                         <div className="batch-internal-jobs-list"> 
