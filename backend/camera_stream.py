@@ -29,9 +29,9 @@ except Exception as e:
 # Camera switching configurations
 CAMERA_CONFIGS = {
     0: {"type": "usb", "device": 1, "name": "USB Camera"},  # USB webcam on /dev/video1
-    1: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x05", "gpio": (True, False, True), "name": "Camera B"},
-    2: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x06", "gpio": (False, True, False), "name": "Camera C"},
-    3: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x07", "gpio": (True, True, False), "name": "Camera D"}
+    1: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x04", "gpio": (False, False, True), "name": "Camera A"},
+    2: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x05", "gpio": (True, False, True), "name": "Camera B"},
+    3: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x07", "gpio": (False, True, False), "name": "Camera C"}  # Try 0x07 for Camera C
 }
 
 class USBCamera:
@@ -409,6 +409,8 @@ class MultiCamera:
         logger.info("Arducam capture thread started")
         frame_count = 0
         last_log_time = time.time()
+        error_count = 0
+        last_error_time = 0
         
         while self.running:
             try:
@@ -422,12 +424,31 @@ class MultiCamera:
                                 if ret:
                                     self.frame = jpg.tobytes()
                                     frame_count += 1
+                                    error_count = 0  # Reset error count on successful capture
                                 else:
                                     logger.warning("Failed to encode Arducam frame to JPEG")
                             else:
                                 logger.warning("Failed to capture Arducam frame")
+                                error_count += 1
                         except Exception as e:
                             logger.warning(f"Capture error on camera {self.current_camera}: {e}")
+                            error_count += 1
+                            
+                            # If we get too many errors in a short time, try to recover
+                            current_time = time.time()
+                            if error_count > 5 and (current_time - last_error_time) < 10:
+                                logger.error("Too many capture errors, attempting recovery")
+                                try:
+                                    # Stop and restart the camera
+                                    self.picam.stop()
+                                    if switch_camera(self.current_camera):
+                                        self.picam.start()
+                                        time.sleep(2)
+                                        error_count = 0
+                                        logger.info("Camera recovery successful")
+                                except Exception as recovery_error:
+                                    logger.error(f"Camera recovery failed: {recovery_error}")
+                            last_error_time = current_time
                     else:
                         # For USB camera, use its frame
                         self.frame = self.usb_camera.frame
@@ -481,7 +502,7 @@ class MultiCamera:
 class CameraManager:
     def __init__(self):
         self.multi_camera = None
-        self.available_cameras = [0, 1, 2, 3]  # All 4 cameras available with adapter
+        self.available_cameras = [0, 1, 2, 3]  # USB webcam and three Arducam cameras
         self.initialize_camera()
     
     def initialize_camera(self):
