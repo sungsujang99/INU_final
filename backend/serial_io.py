@@ -8,7 +8,7 @@ DISCOVERY_TIMEOUT = 1 # Specific timeout for WHO command during discovery
 ECHO_TIMEOUT = 1 # Timeout for waiting for command echo
 WHO_CMD = b"WHO\n"
 RACKS   = {"A", "B", "C", "M"}
-OPTIONAL_MODULE_ID = "X"  # Optional module responds with "X" to WHO command
+OPTIONAL_MODULE_ID = "I"  # Optional module responds with "X" to WHO command
 # A: 1, B: 2, C: 3, M: main rack
 
 DEFAULT_MAX_ECHO_ATTEMPTS = 6    # Default number of attempts (1 initial + 5 retries) to get command echo
