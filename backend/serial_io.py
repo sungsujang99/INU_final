@@ -361,9 +361,14 @@ class SerialManager:
         print(f"INFO: Attempting to reset all connected racks with command '{reset_cmd_code}' (echo attempts: {RESET_COMMAND_MAX_ECHO_ATTEMPTS})...")
         
         main_equipment_id = "M" # Define M equipment ID
-        main_reset_done_token = b"fin" # M uses "fin" for reset completion
+        main_reset_done_token = b"fin"
         
-        for rack_id in self.ports.keys(): 
+        for rack_id in self.ports.keys():
+            # Skip optional module
+            if rack_id == OPTIONAL_MODULE_ID:
+                print(f"INFO: Skipping reset for optional module (ID: {OPTIONAL_MODULE_ID})")
+                continue
+                
             print(f"INFO: Rack {rack_id}: Sending reset command '{reset_cmd_code}'...")
             
             current_done_token = done_token_reset # Default for A, B, C
@@ -390,12 +395,9 @@ class SerialManager:
                 else: 
                     print(f"WARNING: Rack {rack_id}: Reset command '{reset_cmd_code}' resulted in unexpected status: '{status}'.")
             except RuntimeError as re:
-                 print(f"ERROR: Rack {rack_id}: Runtime error during reset: {re} - rack might be disconnected.")
+                print(f"ERROR: Rack {rack_id}: Runtime error during reset: {re} - rack might be disconnected.")
             except Exception as e:
-                # Consider printing full traceback for unexpected errors during startup
-                import traceback
                 print(f"ERROR: Rack {rack_id}: Exception during reset command '{reset_cmd_code}': {e}")
-                # traceback.print_exc() # Uncomment if more detail is needed here
         print("INFO: Finished attempting to reset all connected racks.")
 
     def check_optional_module_health(self):
