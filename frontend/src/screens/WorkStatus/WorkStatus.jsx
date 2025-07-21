@@ -103,9 +103,7 @@ export const WorkStatus = () => {
     .then(response => response.json())
     .then(data => {
       console.log('Optional module activation result:', data);
-      if (data.success) {
-        alert('모듈이 활성화되었습니다.');
-      } else {
+      if (!data.success) {
         alert(`모듈 활성화 실패: ${data.error || data.message}`);
       }
     })

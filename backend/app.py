@@ -549,8 +549,7 @@ def activate_optional_module():
         if success:
             app.logger.info("Optional module activated successfully")
             return jsonify({
-                "success": True,
-                "message": "선택적 모듈이 성공적으로 활성화되었습니다."
+                "success": True
             }), 200
         else:
             app.logger.error("Failed to activate optional module")
