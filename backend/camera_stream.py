@@ -26,9 +26,9 @@ except Exception as e:
     logger.error(f"GPIO initialization failed: {e}")
     gpio_chip = None
 
-# Camera switching configurations (same as working demo)
+# Camera switching configurations
 CAMERA_CONFIGS = {
-    0: {"type": "usb", "device": 0, "name": "USB Camera"},  # Main camera is now USB
+    0: {"type": "usb", "device": 8, "name": "USB Camera"},  # Main camera is USB webcam on /dev/video8
     1: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x05", "gpio": (True, False, True), "name": "Camera B"},
     2: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x06", "gpio": (False, True, False), "name": "Camera C"},
     3: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x07", "gpio": (True, True, False), "name": "Camera D"}
@@ -48,38 +48,71 @@ class USBCamera:
         try:
             logger.info(f"Initializing USB camera (device {device_id})...")
             self.cap = cv2.VideoCapture(device_id)
+            
+            # Set camera properties
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
             self.cap.set(cv2.CAP_PROP_FPS, fps)
             
+            # Verify camera settings
+            actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+            
+            logger.info(f"Camera settings - Requested: {width}x{height} @ {fps}fps")
+            logger.info(f"Camera settings - Actual: {actual_width}x{actual_height} @ {actual_fps}fps")
+            
             if not self.cap.isOpened():
                 raise RuntimeError(f"Failed to open USB camera {device_id}")
                 
-            logger.info("USB camera initialized successfully")
+            # Test capture
+            ret, test_frame = self.cap.read()
+            if not ret or test_frame is None:
+                raise RuntimeError(f"Failed to capture test frame from camera {device_id}")
+            
+            logger.info(f"USB camera initialized successfully. Test frame shape: {test_frame.shape}")
             
             # Start capture thread
-            threading.Thread(target=self._update, daemon=True).start()
+            self.capture_thread = threading.Thread(target=self._update, daemon=True)
+            self.capture_thread.start()
             
         except Exception as e:
             logger.error(f"Error initializing USB camera: {e}")
+            if self.cap is not None:
+                self.cap.release()
             raise
             
     def _update(self):
         """Capture frames continuously"""
         logger.info("USB camera capture thread started")
+        frame_count = 0
+        last_log_time = time.time()
         
         while self.running:
             try:
                 with self.camera_lock:
                     ret, frame = self.cap.read()
-                    if ret:
+                    if ret and frame is not None:
                         # Convert BGR to RGB
                         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                         # Encode to JPEG
                         ret, jpg = cv2.imencode(".jpg", frame_rgb, [cv2.IMWRITE_JPEG_QUALITY, 80])
                         if ret:
                             self.frame = jpg.tobytes()
+                            frame_count += 1
                             
+                            # Log frame rate every 5 seconds
+                            current_time = time.time()
+                            if current_time - last_log_time >= 5:
+                                fps = frame_count / (current_time - last_log_time)
+                                logger.info(f"USB Camera FPS: {fps:.2f}")
+                                frame_count = 0
+                                last_log_time = current_time
+                        else:
+                            logger.warning("Failed to encode frame to JPEG")
+                    else:
+                        logger.warning("Failed to capture frame from USB camera")
+                
                 time.sleep(1.0 / self.fps)
                         
             except Exception as e:
@@ -88,9 +121,13 @@ class USBCamera:
                 
     def stop(self):
         """Stop the camera"""
+        logger.info("Stopping USB camera...")
         self.running = False
+        if hasattr(self, 'capture_thread'):
+            self.capture_thread.join(timeout=2.0)
         if self.cap:
             self.cap.release()
+        logger.info("USB camera stopped")
 
 def switch_camera(camera_num):
     """Switch to the specified camera using I2C and GPIO (from working demo)"""
@@ -133,7 +170,7 @@ def switch_camera(camera_num):
         return False
 
 class MultiCamera:
-    def __init__(self, width=320, height=240, fps=15):
+    def __init__(self, width=640, height=480, fps=30):  # Updated default resolution and fps
         self.width = width
         self.height = height
         self.fps = fps
@@ -146,6 +183,7 @@ class MultiCamera:
             logger.info("Initializing multi-camera system...")
             
             # Initialize USB camera for main camera (camera 0)
+            logger.info("Setting up USB camera...")
             self.usb_camera = USBCamera(
                 device_id=CAMERA_CONFIGS[0]["device"],
                 width=width,
@@ -154,6 +192,7 @@ class MultiCamera:
             )
             
             # Initialize Picamera2 for Arducam cameras
+            logger.info("Setting up Arducam cameras...")
             switch_camera(1)  # Start with first Arducam camera
             self.picam = Picamera2(0)
             config = self.picam.create_preview_configuration(
@@ -166,11 +205,29 @@ class MultiCamera:
             logger.info("Multi-camera system initialized successfully")
             
             # Start capture thread for Arducam cameras
-            threading.Thread(target=self._update, daemon=True).start()
+            self.arducam_thread = threading.Thread(target=self._update, daemon=True)
+            self.arducam_thread.start()
             
         except Exception as e:
             logger.error(f"Error initializing multi-camera system: {e}")
+            self.cleanup()
             raise
+
+    def cleanup(self):
+        """Clean up resources"""
+        try:
+            if hasattr(self, 'usb_camera'):
+                self.usb_camera.stop()
+            if hasattr(self, 'picam'):
+                self.picam.stop()
+                self.picam.close()
+            # Reset GPIO to default state
+            if gpio_chip is not None:
+                lgpio.gpio_write(gpio_chip, 4, 0)
+                lgpio.gpio_write(gpio_chip, 17, 0)
+                lgpio.gpio_write(gpio_chip, 18, 1)
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
 
     def set_camera(self, camera_num):
         """Switch to a specific camera"""
@@ -186,24 +243,28 @@ class MultiCamera:
                 if config["type"] == "usb":
                     # Stop Picamera if it's running
                     if hasattr(self, 'picam'):
+                        logger.info("Stopping Picamera for USB camera switch")
                         self.picam.stop()
                     self.current_camera = camera_num
-                    logger.info(f"Switched to USB camera")
+                    logger.info(f"Switched to USB camera (device {config['device']})")
                     return True
                 else:
                     # Stop current camera if it's USB
                     if self.current_camera == 0:
+                        logger.info("Starting Picamera for Arducam switch")
                         self.picam.start()
                     
                     # Switch Arducam hardware
+                    logger.info(f"Switching to Arducam camera {camera_num}")
                     if switch_camera(camera_num):
                         self.current_camera = camera_num
                         logger.info(f"Successfully switched to camera {camera_num}")
                         return True
                     else:
                         # If switch failed, try to restore previous camera
+                        logger.error(f"Failed to switch to camera {camera_num}, attempting to restore camera {self.current_camera}")
                         switch_camera(self.current_camera)
-                        logger.error(f"Failed to switch to camera {camera_num}, restored camera {self.current_camera}")
+                        logger.error(f"Restored camera {self.current_camera}")
                         return False
                     
             except Exception as e:
@@ -213,6 +274,8 @@ class MultiCamera:
     def _update(self):
         """Capture frames continuously from Arducam cameras"""
         logger.info("Arducam capture thread started")
+        frame_count = 0
+        last_log_time = time.time()
         
         while self.running:
             try:
@@ -225,11 +288,27 @@ class MultiCamera:
                                 ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
                                 if ret:
                                     self.frame = jpg.tobytes()
+                                    frame_count += 1
+                                else:
+                                    logger.warning("Failed to encode Arducam frame to JPEG")
+                            else:
+                                logger.warning("Failed to capture Arducam frame")
                         except Exception as e:
                             logger.warning(f"Capture error on camera {self.current_camera}: {e}")
                     else:
                         # For USB camera, use its frame
                         self.frame = self.usb_camera.frame
+                        if self.frame is None:
+                            logger.warning("No frame available from USB camera")
+                
+                # Log frame rate every 5 seconds for Arducam
+                if self.current_camera != 0:
+                    current_time = time.time()
+                    if current_time - last_log_time >= 5:
+                        fps = frame_count / (current_time - last_log_time)
+                        logger.info(f"Arducam Camera {self.current_camera} FPS: {fps:.2f}")
+                        frame_count = 0
+                        last_log_time = current_time
                 
                 time.sleep(1.0 / self.fps)
                         
@@ -246,9 +325,15 @@ class MultiCamera:
         
         while True:
             try:
-                if self.frame:
+                frame = None
+                with self.camera_lock:
+                    frame = self.frame
+                
+                if frame:
                     yield b'--frame\r\n'
-                    yield b'Content-Type: image/jpeg\r\n\r\n' + self.frame + b'\r\n'
+                    yield b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n'
+                else:
+                    logger.warning(f"No frame available for camera {self.current_camera}")
                 time.sleep(1.0 / self.fps)
             except Exception as e:
                 logger.error(f"Error in frame generator: {e}")
@@ -256,18 +341,9 @@ class MultiCamera:
 
     def stop(self):
         """Stop the camera system"""
+        logger.info("Stopping multi-camera system...")
         self.running = False
-        try:
-            self.usb_camera.stop()
-            if hasattr(self, 'picam'):
-                self.picam.stop()
-                self.picam.close()
-            # Reset GPIO to default state
-            lgpio.gpio_write(gpio_chip, 4, 0)
-            lgpio.gpio_write(gpio_chip, 17, 0)
-            lgpio.gpio_write(gpio_chip, 18, 1)
-        except Exception as e:
-            logger.error(f"Error stopping camera system: {e}")
+        self.cleanup()
 
 class CameraManager:
     def __init__(self):
