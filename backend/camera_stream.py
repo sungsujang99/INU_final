@@ -277,36 +277,83 @@ class MultiCamera:
                 logger.info(f"Switching from camera {self.current_camera} to camera {camera_num}")
                 
                 config = CAMERA_CONFIGS[camera_num]
+                current_config = CAMERA_CONFIGS[self.current_camera]
                 
-                if config["type"] == "usb":
-                    # Stop Picamera if it's running
+                # Handle switching from USB to Arducam
+                if current_config["type"] == "usb" and config["type"] == "arducam":
+                    logger.info("Switching from USB to Arducam camera")
+                    # Initialize Picamera if needed
+                    if not hasattr(self, 'picam'):
+                        logger.info("Initializing Picamera2")
+                        self.picam = Picamera2(0)
+                        config = self.picam.create_preview_configuration(
+                            main={"size": (self.width, self.height), "format": "RGB888"}
+                        )
+                        self.picam.configure(config)
+                    
+                    # Switch Arducam hardware first
+                    if switch_camera(camera_num):
+                        # Then start Picamera
+                        self.picam.start()
+                        time.sleep(2)  # Allow camera to settle
+                        self.current_camera = camera_num
+                        logger.info(f"Successfully switched to Arducam camera {camera_num}")
+                        return True
+                    else:
+                        logger.error(f"Failed to switch to Arducam camera {camera_num}")
+                        return False
+                
+                # Handle switching from Arducam to USB
+                elif current_config["type"] == "arducam" and config["type"] == "usb":
+                    logger.info("Switching from Arducam to USB camera")
+                    # Stop Picamera
                     if hasattr(self, 'picam'):
-                        logger.info("Stopping Picamera for USB camera switch")
                         self.picam.stop()
                     self.current_camera = camera_num
-                    logger.info(f"Switched to USB camera (device {config['device']})")
+                    logger.info("Successfully switched to USB camera")
                     return True
-                else:
-                    # Stop current camera if it's USB
-                    if self.current_camera == 0:
-                        logger.info("Starting Picamera for Arducam switch")
-                        self.picam.start()
+                
+                # Handle switching between Arducam cameras
+                elif current_config["type"] == "arducam" and config["type"] == "arducam":
+                    logger.info("Switching between Arducam cameras")
+                    # Stop current camera
+                    if hasattr(self, 'picam'):
+                        self.picam.stop()
                     
-                    # Switch Arducam hardware
-                    logger.info(f"Switching to Arducam camera {camera_num}")
+                    # Switch hardware
                     if switch_camera(camera_num):
+                        # Restart camera
+                        self.picam.start()
+                        time.sleep(2)  # Allow camera to settle
                         self.current_camera = camera_num
                         logger.info(f"Successfully switched to camera {camera_num}")
                         return True
                     else:
                         # If switch failed, try to restore previous camera
                         logger.error(f"Failed to switch to camera {camera_num}, attempting to restore camera {self.current_camera}")
-                        switch_camera(self.current_camera)
-                        logger.error(f"Restored camera {self.current_camera}")
+                        if switch_camera(self.current_camera):
+                            self.picam.start()
+                            logger.info(f"Restored camera {self.current_camera}")
+                        else:
+                            logger.error("Failed to restore previous camera")
                         return False
+                
+                # Handle switching between USB cameras (if we add more in the future)
+                else:
+                    self.current_camera = camera_num
+                    logger.info(f"Switched to USB camera {camera_num}")
+                    return True
                     
             except Exception as e:
                 logger.error(f"Error switching to camera {camera_num}: {e}")
+                # Try to restore previous state
+                try:
+                    if CAMERA_CONFIGS[self.current_camera]["type"] == "arducam":
+                        switch_camera(self.current_camera)
+                        if hasattr(self, 'picam'):
+                            self.picam.start()
+                except Exception as restore_error:
+                    logger.error(f"Error restoring previous camera state: {restore_error}")
                 return False
 
     def _update(self):
