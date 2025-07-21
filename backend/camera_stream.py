@@ -28,7 +28,7 @@ except Exception as e:
 
 # Camera switching configurations
 CAMERA_CONFIGS = {
-    0: {"type": "usb", "device": 1, "name": "USB Camera"},  # USB webcam on /dev/video1
+    0: {"type": "usb", "device": 0, "name": "USB Camera"},  # USB webcam on /dev/video0
     1: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x04", "gpio": (False, False, True), "name": "Camera A"},
     2: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x05", "gpio": (True, False, True), "name": "Camera B"},
     3: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x07", "gpio": (True, True, False), "name": "Camera C"}  # Using working configuration from test
