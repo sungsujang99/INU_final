@@ -108,12 +108,15 @@ def main():
     print("\nScanning for available cameras...")
     available_cameras = []
     
-    # Try first 5 device numbers
-    for i in range(5):
-        cap = cv2.VideoCapture(i)
-        if cap.isOpened():
-            available_cameras.append(i)
+    # Try more device numbers, including the USB webcam devices
+    for i in [0, 1, 2, 3, 4, 8, 9]:  # Added 8 and 9 for USB webcam
+        try:
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                available_cameras.append(i)
             cap.release()
+        except Exception as e:
+            print(f"Error trying device {i}: {e}")
     
     if not available_cameras:
         print("No cameras found!")
@@ -142,6 +145,13 @@ def main():
     else:
         print("\n✗ No working cameras found.")
         print("Please check your camera connections and permissions.")
+        print("\nTroubleshooting steps:")
+        print("1. Check USB camera is properly connected")
+        print("2. Try running with sudo to rule out permission issues:")
+        print("   sudo ./test_usb_cameras.py")
+        print("3. Check if the camera works with other tools:")
+        print("   sudo apt install cheese")
+        print("   cheese")
         return False
 
 if __name__ == "__main__":
