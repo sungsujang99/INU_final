@@ -197,8 +197,8 @@ def switch_camera(camera_num):
         lgpio.gpio_write(gpio_chip, 17, 1 if gpio_11 else 0)
         lgpio.gpio_write(gpio_chip, 18, 1 if gpio_12 else 0)
         
-        # Delay for camera switching (same as demo)
-        time.sleep(1)
+        # Reduced delay for camera switching from 1s to 0.5s
+        time.sleep(0.5)
         
         logger.info(f"GPIO set: Pin 7={gpio_7}, Pin 11={gpio_11}, Pin 12={gpio_12}")
         return True
@@ -238,7 +238,7 @@ class MultiCamera:
             )
             self.picam.configure(config)
             self.picam.start()
-            time.sleep(2)
+            time.sleep(1)  # Reduced from 2s to 1s
             
             logger.info("Multi-camera system initialized successfully")
             
@@ -296,7 +296,7 @@ class MultiCamera:
                         if switch_camera(camera_num):
                             # Then start Picamera
                             self.picam.start()
-                            time.sleep(2)  # Allow camera to settle
+                            time.sleep(1)  # Reduced from 2s to 1s
                             self.current_camera = camera_num
                             logger.info(f"Successfully switched to Arducam camera {camera_num}")
                             return True
@@ -314,7 +314,7 @@ class MultiCamera:
                             self.picam.configure(config)
                             if switch_camera(camera_num):
                                 self.picam.start()
-                                time.sleep(2)
+                                time.sleep(1)  # Reduced from 2s to 1s
                                 self.current_camera = camera_num
                                 logger.info("Successfully reinitialized Arducam camera")
                                 return True
@@ -349,7 +349,7 @@ class MultiCamera:
                             # Restart camera with error handling
                             try:
                                 self.picam.start()
-                                time.sleep(2)  # Allow camera to settle
+                                time.sleep(1)  # Reduced from 2s to 1s
                                 self.current_camera = camera_num
                                 logger.info(f"Successfully switched to camera {camera_num}")
                                 return True
@@ -364,7 +364,7 @@ class MultiCamera:
                                     )
                                     self.picam.configure(config)
                                     self.picam.start()
-                                    time.sleep(2)
+                                    time.sleep(1)  # Reduced from 2s to 1s
                                     self.current_camera = camera_num
                                     logger.info("Successfully reinitialized camera after error")
                                     return True
