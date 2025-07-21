@@ -16,11 +16,35 @@ def authenticate(username, password):
     
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    cur.execute("SELECT id, hashed_password, role, display_name FROM users WHERE username=?", (username,))
-    row = cur.fetchone()
-    conn.close()
     
-    if row and bcrypt.verify(password, row[1]):
+    try:
+        # Check user credentials
+        cur.execute("SELECT id, hashed_password, role, display_name FROM users WHERE username=?", (username,))
+        row = cur.fetchone()
+        
+        if not row or not bcrypt.verify(password, row[1]):
+            return None
+            
+        # Update login counter
+        cur.execute("SELECT count FROM login_counter WHERE id = 1")
+        counter_row = cur.fetchone()
+        current_count = counter_row[0] if counter_row else 0
+        new_count = (current_count + 1) % 5  # Reset to 0 after every 5 logins
+        
+        # Update counter
+        if new_count == 0:  # Every 5th login
+            # Clear rack status by deleting product_logs
+            cur.execute("DELETE FROM product_logs")
+            # Reset counter and update timestamp
+            cur.execute("""
+                UPDATE login_counter 
+                SET count = ?, last_reset = CURRENT_TIMESTAMP 
+                WHERE id = 1
+            """, (new_count,))
+        else:
+            # Just increment counter
+            cur.execute("UPDATE login_counter SET count = ? WHERE id = 1", (new_count,))
+        
         # Generate a unique session ID
         session_id = str(uuid.uuid4())
         
@@ -51,8 +75,14 @@ def authenticate(username, password):
         
         current_app.logger.info(f"✅ New session created for user '{username}' with session ID: {session_id}")
         
+        conn.commit()
         return token
-    return None
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in authenticate: {str(e)}", exc_info=True)
+        return None
+    finally:
+        conn.close()
 
 def logout_current_session():
     """Logout the current active session"""

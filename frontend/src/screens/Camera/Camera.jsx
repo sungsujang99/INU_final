@@ -238,55 +238,69 @@ export const Camera = () => {
     const fetchAndGroupLogs = async () => {
       try {
         const rawLogs = await getActivityLogs({ limit: 50, order: 'desc' });
-        // setActivityLogs(rawLogs); // Store raw logs if you still need them separately
 
-        const grouped = rawLogs.reduce((acc, log) => {
-          const key = log.batch_id || `ungrouped-${log.id}`;
-          if (!acc[key]) {
-            acc[key] = {
-              batch_id: log.batch_id,
-              timestamps: [], // Store all timestamps to find overall batch start/end
-              logs: [],
-              // For ungrouped items, or as a fallback batch title
-              representativeTitleInfo: { 
-                rack: log.rack,
-                slot: log.slot,
-                movement_type: log.movement_type
-              }
-            };
+        // First group by date
+        const logsByDate = rawLogs.reduce((acc, log) => {
+          const date = new Date(log.timestamp);
+          const dateKey = date.toLocaleDateString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          });
+          
+          if (!acc[dateKey]) {
+            acc[dateKey] = [];
           }
-          acc[key].logs.push(log); // Add full log object to the logs array for this batch
-          acc[key].timestamps.push(log.timestamp); // Collect all timestamps
+          acc[dateKey].push(log);
           return acc;
         }, {});
 
-        Object.values(grouped).forEach(batch => {
-          if (batch.timestamps.length > 0) {
-            batch.timestamps.sort((a,b) => new Date(a) - new Date(b)); // Sort timestamps chronologically
+        // Then group each date's logs by batch
+        const groupedByDateAndBatch = Object.entries(logsByDate).reduce((acc, [date, logs]) => {
+          const batchesForDate = logs.reduce((batchAcc, log) => {
+            const key = log.batch_id || `ungrouped-${log.id}`;
+            if (!batchAcc[key]) {
+              batchAcc[key] = {
+                batch_id: log.batch_id,
+                timestamps: [],
+                logs: [],
+                representativeTitleInfo: {
+                  rack: log.rack,
+                  slot: log.slot,
+                  movement_type: log.movement_type
+                }
+              };
+            }
+            batchAcc[key].logs.push(log);
+            batchAcc[key].timestamps.push(log.timestamp);
+            return batchAcc;
+          }, {});
+
+          acc[date] = Object.values(batchesForDate).map(batch => {
+            batch.timestamps.sort((a,b) => new Date(a) - new Date(b));
             batch.batchStartTime = batch.timestamps[0];
             batch.batchEndTime = batch.timestamps[batch.timestamps.length - 1];
-          } else {
-            batch.batchStartTime = null;
-            batch.batchEndTime = null;
-          }
-          
-          // Generate a title for the batch card itself (optional, could be empty)
-          if (batch.batch_id) {
-             // Example: if all logs in batch are for the same rack & movement
-            const firstLog = batch.logs[0];
-            const allSameRackAndMovement = batch.logs.every(l => l.rack === firstLog.rack && l.movement_type === firstLog.movement_type);
-            if (allSameRackAndMovement) {
-              batch.batchCardTitle = `${firstLog.rack}랙 일괄 ${firstLog.movement_type === 'IN' ? '입고' : '출고'} 작업`;
+            
+            if (batch.batch_id) {
+              const firstLog = batch.logs[0];
+              const allSameRackAndMovement = batch.logs.every(l => 
+                l.rack === firstLog.rack && l.movement_type === firstLog.movement_type
+              );
+              if (allSameRackAndMovement) {
+                batch.batchCardTitle = `${firstLog.rack}랙 일괄 ${firstLog.movement_type === 'IN' ? '입고' : '출고'} 작업`;
+              } else {
+                batch.batchCardTitle = `일괄 작업 ID: ${batch.batch_id.substring(0,8)}...`;
+              }
             } else {
-              batch.batchCardTitle = `일괄 작업 ID: ${batch.batch_id.substring(0,8)}...`;
+              batch.batchCardTitle = "개별 작업";
             }
-          } else {
-            // For ungrouped (single) items, this title might not be displayed if the item itself has a title bar
-            batch.batchCardTitle = "개별 작업"; 
-          }
-        });
+            return batch;
+          });
 
-        setGroupedActivityLogs(grouped);
+          return acc;
+        }, {});
+
+        setGroupedActivityLogs(groupedByDateAndBatch);
       } catch (error) {
         console.error("Failed to fetch or group activity logs:", error);
         setGroupedActivityLogs({});
@@ -357,84 +371,76 @@ export const Camera = () => {
             {Object.keys(groupedActivityLogs).length === 0 ? (
               <p>표시할 로그가 없습니다.</p>
             ) : (
-              Object.values(groupedActivityLogs).map((batch, index) => (
-                <div className="group-10" key={batch.batch_id || `batch-outer-${index}`}> 
-                  <div className="overlap-6"> 
-                    {/* Optional: A title for the whole batch card, if different from the items within */}
-                    {/* <h4 className="batch-main-title">{batch.batchCardTitle}</h4> */}
-
-                    <div className="batch-internal-jobs-list"> 
-                      {batch.logs.map((logEntry) => (
-                        <div className="individual-job-item" key={logEntry.id}>
-                          {/* Title bar for THIS specific job */}
-                          <div className="group-11">
-                            <div className="overlap-group-6">
-                              <div className="log-title">
-                                {logEntry.rack}랙 {logEntry.slot}칸 {logEntry.movement_type === 'IN' ? '입고' : '출고'}
+              Object.entries(groupedActivityLogs).map(([date, batches], dateIndex) => (
+                <React.Fragment key={date}>
+                  {/* Date divider */}
+                  {dateIndex > 0 && <div className="date-divider" />}
+                  <div className="date-header">{date}</div>
+                  
+                  {/* Batches for this date */}
+                  {batches.map((batch, batchIndex) => (
+                    <div className="group-10" key={batch.batch_id || `batch-outer-${batchIndex}`}> 
+                      <div className="overlap-6"> 
+                        <div className="batch-internal-jobs-list"> 
+                          {batch.logs.map((logEntry) => (
+                            <div className="individual-job-item" key={logEntry.id}>
+                              <div className="group-11">
+                                <div className="overlap-group-6">
+                                  <div className="log-title">
+                                    {logEntry.rack}랙 {logEntry.slot}칸 {logEntry.movement_type === 'IN' ? '입고' : '출고'}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="log-times-container individual-job-times">
+                                <div className="log-time-entry">
+                                  <span className="log-time-label">시작시간</span>
+                                  <span className="log-time-value">{formatLogTime(logEntry.start_time)}</span>
+                                </div>
+                                <div className="log-time-entry">
+                                  <span className="log-time-label">종료시간</span>
+                                  <span className="log-time-value">{formatLogTime(logEntry.end_time)}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          {/* Times for THIS specific job */} 
-                          <div className="log-times-container individual-job-times">
-                            <div className="log-time-entry">
-                              <span className="log-time-label">시작시간</span>
-                              <span className="log-time-value">{formatLogTime(logEntry.start_time)}</span>
-                            </div>
-                            <div className="log-time-entry">
-                              <span className="log-time-label">종료시간</span>
-                              <span className="log-time-value">{formatLogTime(logEntry.end_time)}</span>
-                            </div>
-                          </div>
+                          ))}
                         </div>
-                      ))}
+                        
+                        <div className="log-download-button-container">
+                          <button 
+                            className="log-download-button" 
+                            onClick={() => handleDownloadBatch(batch.batch_id)} 
+                            disabled={!batch.batch_id}
+                          >
+                            <img src="/img/download_icon.svg" alt="" className="download-icon" />
+                            다운로드
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    
-                    {/* Download button for the ENTIRE batch */} 
-                    <div className="log-download-button-container">
-                      <button 
-                        className="log-download-button" 
-                        onClick={() => handleDownloadBatch(batch.batch_id)} 
-                        disabled={!batch.batch_id} // Disable if no batch_id (for ungrouped items)
-                      >
-                        <img src="/img/download_icon.svg" alt="" className="download-icon" />
-                        다운로드
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  ))}
+                </React.Fragment>
               ))
             )}
           </div>
         </div>
 
         <div className="text-6">{userDisplayName}</div>
-
-        <img className="devider" alt="Devider" src="/img/line-1.svg" />
-
+        <img className="line-3" alt="Line" src="/img/line-1.svg" />
         <div className="logo-5">
           <img
             className="INU-logistics-5"
             alt="Inu logistics"
             src="/img/inu-logistics-4.png"
           />
-
           <div className="group-19">
             <div className="ellipse-19" />
-
             <div className="ellipse-20" />
-
             <div className="ellipse-21" />
           </div>
         </div>
 
         <div className="devider-2" />
-
-        <img
-          className="user-profile-2"
-          alt="User profile"
-          src="/img/user-profile.png"
-        />
-
+        <img className="user-profile-2" alt="User profile" src="/img/user-profile.png" />
         <div className="left-menu-2">
           <Menu
             className="menu-2"

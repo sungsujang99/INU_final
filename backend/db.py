@@ -53,6 +53,23 @@ def init_db():
         );
     """)
 
+    # ④ 로그인 카운터 (Login counter for rack status reset)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS login_counter (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            count INTEGER NOT NULL DEFAULT 0,
+            last_reset TEXT NOT NULL
+        );
+    """)
+
+    # Initialize login counter if not exists
+    cur.execute("SELECT count FROM login_counter LIMIT 1")
+    if not cur.fetchone():
+        cur.execute("""
+            INSERT INTO login_counter (count, last_reset)
+            VALUES (0, CURRENT_TIMESTAMP)
+        """)
+    
     # ④ 작업 작업 (User actions are tracked here)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS work_tasks (
