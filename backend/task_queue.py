@@ -277,13 +277,30 @@ class GlobalWorker(threading.Thread):
             if io:
                 task_details = get_task_by_id(task_id)
                 if task_details:
-                    io.emit("task_status_changed", {
-                        "id": task_id,
-                        "status": final_task_status,
-                        "start_time": operation_start_time,
-                        "end_time": operation_end_time,
-                        **task_details
-                    })
+                    # Store in permanent camera history
+                    history_data = {
+                        'batch_id': task_details[0],
+                        'rack': target_rack_id,
+                        'slot': current_slot,
+                        'movement': movement,
+                        'start_time': operation_start_time,
+                        'end_time': operation_end_time,
+                        'product_code': task['product_code'],
+                        'product_name': task['product_name'],
+                        'quantity': task['quantity'],
+                        'cargo_owner': task.get('cargo_owner', ''),
+                        'created_by': task['created_by'],
+                        'created_by_username': task_details[1],
+                        'status': 'done',
+                        'created_at': task['created_at'],
+                        'updated_at': operation_end_time
+                    }
+                    try:
+                        store_camera_batch(history_data)
+                        logger.info(f"[Worker] Task {task_id}: Stored in permanent camera history")
+                    except Exception as e:
+                        logger.error(f"[Worker] Task {task_id}: Failed to store camera history: {e}")
+                        # Don't fail the task just because camera history failed
 
             time.sleep(0.1)
 
