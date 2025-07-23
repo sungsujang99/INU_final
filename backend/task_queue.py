@@ -274,12 +274,36 @@ class GlobalWorker(threading.Thread):
                 conn.close()
 
             # Emit status update
+            # This needs to be done BEFORE storing history
             if io:
                 task_details = get_task_by_id(task_id)
                 if task_details:
-                    # Store in permanent camera history
+                    io.emit("task_status_changed", {
+                        "id": task_id,
+                        "status": final_task_status,
+                        "start_time": operation_start_time,
+                        "end_time": operation_end_time,
+                        **task_details
+                    })
+
+            # Store in permanent camera history only on success
+            if physical_op_successful and final_task_status == 'done':
+                # Re-fetch details to get batch_id and username
+                conn_hist = sqlite3.connect(DB_NAME)
+                cur_hist = conn_hist.cursor()
+                cur_hist.execute("""
+                    SELECT btl.batch_id, u.username as created_by_username
+                    FROM work_tasks wt
+                    LEFT JOIN batch_task_links btl ON wt.id = btl.task_id
+                    LEFT JOIN users u ON wt.created_by = u.id
+                    WHERE wt.id = ?
+                """, (task_id,))
+                hist_details = cur_hist.fetchone()
+                conn_hist.close()
+                
+                if hist_details:
                     history_data = {
-                        'batch_id': task_details[0],
+                        'batch_id': hist_details[0], # Safely access batch_id
                         'rack': target_rack_id,
                         'slot': current_slot,
                         'movement': movement,
@@ -290,19 +314,23 @@ class GlobalWorker(threading.Thread):
                         'quantity': task['quantity'],
                         'cargo_owner': task.get('cargo_owner', ''),
                         'created_by': task['created_by'],
-                        'created_by_username': task_details[1],
+                        'created_by_username': hist_details[1], # Safely access username
                         'status': 'done',
                         'created_at': task['created_at'],
                         'updated_at': operation_end_time
                     }
                     try:
-                        store_camera_batch(history_data)
-                        logger.info(f"[Worker] Task {task_id}: Stored in permanent camera history")
+                        # We need to run camera history storage in the app context
+                        from backend.app import app as flask_app
+                        with flask_app.app_context():
+                            from .camera_history import store_camera_batch
+                            store_camera_batch(history_data)
+                            logger.info(f"[Worker] Task {task_id}: Stored in permanent camera history")
                     except Exception as e:
-                        logger.error(f"[Worker] Task {task_id}: Failed to store camera history: {e}")
+                        logger.error(f"[Worker] Task {task_id}: Failed to store camera history: {e}", exc_info=True)
                         # Don't fail the task just because camera history failed
 
-            time.sleep(0.1)
+            time.sleep(1) # Increased sleep time
 
 def start_global_worker():
     worker = GlobalWorker()
