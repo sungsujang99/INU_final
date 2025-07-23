@@ -24,6 +24,29 @@ const Layout = () => {
   );
 };
 
+// Protected Route component
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('inu_token');
+  console.log('[ProtectedRoute] Checking authentication...');
+  
+  if (!token) {
+    console.log('[ProtectedRoute] No token found, redirecting to login');
+    return <Navigate to="/login" replace />;
+  }
+
+  console.log('[ProtectedRoute] Token found, rendering protected content');
+  return children;
+};
+
+// Protected Layout that includes SessionMonitor
+const ProtectedLayout = () => {
+  return (
+    <ProtectedRoute>
+      <Layout />
+    </ProtectedRoute>
+  );
+};
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -38,27 +61,33 @@ const router = createBrowserRouter([
         element: <Login />,
       },
       {
-        path: "/dashboard",
+        path: "/login-password",
+        element: <LoginScreen />,
+      }
+    ]
+  },
+  {
+    path: "/",
+    element: <ProtectedLayout />,
+    children: [
+      {
+        path: "dashboard",
         element: <DashboardOn />,
       },
       {
-        path: "/login-password",
-        element: <LoginScreen />,
-      },
-      {
-        path: "/camera",
+        path: "camera",
         element: <Camera />,
       },
       {
-        path: "/work-status",
+        path: "work-status",
         element: <WorkStatus />,
-      },
-      {
-        path: "*",
-        element: <Navigate to="/login" replace />,
-      },
+      }
     ]
   },
+  {
+    path: "*",
+    element: <Navigate to="/login" replace />,
+  }
 ]);
 
 export const App = () => {
