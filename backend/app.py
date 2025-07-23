@@ -40,10 +40,11 @@ allowed_origins_list = ["http://localhost:5173", "http://192.168.0.37:5173", "ht
 socketio = SocketIO(app, async_mode='threading', cors_allowed_origins=allowed_origins_list, logger=True, engineio_logger=True)
 
 # Configure basic logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
-# ---- Pass the socketio instance to the task_queue module ----
+# ---- Pass the socketio instance and app instance to the task_queue module ----
 task_queue.set_socketio(socketio)
+task_queue.set_app(app)
 
 # ---- Optional Module Health Check Service ----
 def optional_module_health_check_service():

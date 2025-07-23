@@ -7,10 +7,16 @@ from flask import current_app
 from .inventory_updater import update_inventory_on_done
 from .db import DB_NAME
 from .error_messages import get_error_message
+from .camera_history import store_camera_batch
 
 io = None                           # SocketIO 인스턴스 홀더
+app_instance = None                 # Flask app instance holder
+
 def set_socketio(sock):             # app.py 가 주입
     global io; io = sock
+
+def set_app(app):                   # Store Flask app instance
+    global app_instance; app_instance = app
 
 # --- DB Task Management ---
 def enqueue_work_task(task, user_info, conn=None, cur=None):
@@ -149,7 +155,15 @@ class GlobalWorker(threading.Thread):
         self.daemon = True
 
     def run(self):
-        logger = current_app.logger if current_app else logging.getLogger(__name__)
+        if not app_instance:
+            logging.getLogger(__name__).critical("Flask app instance not set in task_queue. Worker cannot start.")
+            return
+
+        with app_instance.app_context():
+            self.worker_logic()
+
+    def worker_logic(self):
+        logger = current_app.logger
         main_equipment_id = "M"
         main_done_token = b"fin"
         rack_done_token = b"done"
@@ -256,6 +270,43 @@ class GlobalWorker(threading.Thread):
                         WHERE id=?
                     """, (operation_end_time, operation_start_time, operation_end_time, task_id))
                     final_task_status = 'done'
+
+                    # Get batch_id and created_by_username for the task
+                    cur.execute("""
+                        SELECT btl.batch_id, u.username as created_by_username
+                        FROM work_tasks wt
+                        LEFT JOIN batch_task_links btl ON wt.id = btl.task_id
+                        LEFT JOIN users u ON wt.created_by = u.id
+                        WHERE wt.id = ?
+                    """, (task_id,))
+                    task_extra_details = cur.fetchone()
+
+                    if task_extra_details:
+                        batch_id, username = task_extra_details
+                        # Store in permanent camera history
+                        history_data = {
+                            'batch_id': batch_id,
+                            'rack': target_rack_id,
+                            'slot': current_slot,
+                            'movement': movement,
+                            'start_time': operation_start_time,
+                            'end_time': operation_end_time,
+                            'product_code': task['product_code'],
+                            'product_name': task['product_name'],
+                            'quantity': task['quantity'],
+                            'cargo_owner': task.get('cargo_owner', ''),
+                            'created_by': task['created_by'],
+                            'created_by_username': username,
+                            'status': 'done',
+                            'created_at': task['created_at'],
+                            'updated_at': operation_end_time
+                        }
+                        try:
+                            # camera_history uses its own logger, no app context needed inside it
+                            store_camera_batch(history_data)
+                            logger.info(f"[Worker] Task {task_id}: Stored in permanent camera history")
+                        except Exception as e:
+                            logger.error(f"[Worker] Task {task_id}: Failed to store camera history: {e}", exc_info=True)
                 else:
                     # Update task status with operation times even for failed tasks
                     cur.execute("""
@@ -286,51 +337,8 @@ class GlobalWorker(threading.Thread):
                         **task_details
                     })
 
-            # Store in permanent camera history only on success
-            if physical_op_successful and final_task_status == 'done':
-                # Re-fetch details to get batch_id and username
-                conn_hist = sqlite3.connect(DB_NAME)
-                cur_hist = conn_hist.cursor()
-                cur_hist.execute("""
-                    SELECT btl.batch_id, u.username as created_by_username
-                    FROM work_tasks wt
-                    LEFT JOIN batch_task_links btl ON wt.id = btl.task_id
-                    LEFT JOIN users u ON wt.created_by = u.id
-                    WHERE wt.id = ?
-                """, (task_id,))
-                hist_details = cur_hist.fetchone()
-                conn_hist.close()
-                
-                if hist_details:
-                    history_data = {
-                        'batch_id': hist_details[0], # Safely access batch_id
-                        'rack': target_rack_id,
-                        'slot': current_slot,
-                        'movement': movement,
-                        'start_time': operation_start_time,
-                        'end_time': operation_end_time,
-                        'product_code': task['product_code'],
-                        'product_name': task['product_name'],
-                        'quantity': task['quantity'],
-                        'cargo_owner': task.get('cargo_owner', ''),
-                        'created_by': task['created_by'],
-                        'created_by_username': hist_details[1], # Safely access username
-                        'status': 'done',
-                        'created_at': task['created_at'],
-                        'updated_at': operation_end_time
-                    }
-                    try:
-                        # We need to run camera history storage in the app context
-                        from backend.app import app as flask_app
-                        with flask_app.app_context():
-                            from .camera_history import store_camera_batch
-                            store_camera_batch(history_data)
-                            logger.info(f"[Worker] Task {task_id}: Stored in permanent camera history")
-                    except Exception as e:
-                        logger.error(f"[Worker] Task {task_id}: Failed to store camera history: {e}", exc_info=True)
-                        # Don't fail the task just because camera history failed
-
-            time.sleep(1) # Increased sleep time
+            # Wait a bit before processing next task
+            time.sleep(1)
 
 def start_global_worker():
     worker = GlobalWorker()
