@@ -17,6 +17,9 @@ StandardError=journal
 # Give the service time to start up
 TimeoutStartSec=60
 
+# Add video group access
+SupplementaryGroups=video
+
 # Environment variables
 Environment=PYTHONPATH=/home/inu/INU_final
 Environment=FLASK_ENV=production
