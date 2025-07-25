@@ -16,19 +16,21 @@ def detect_cameras():
     """Detect available USB cameras and return the first working one"""
     logger.info("Detecting available cameras...")
     
-    for device_id in range(10):  # Test video0 through video9
+    # First try known video device paths
+    known_paths = ['/dev/video0', '/dev/video2', '/dev/video4', '/dev/video6']
+    for path in known_paths:
         try:
-            logger.info(f"Testing camera at /dev/video{device_id}...")
-            cap = cv2.VideoCapture(device_id)
+            logger.info(f"Testing camera at {path}...")
+            cap = cv2.VideoCapture(path)
             
             if not cap.isOpened():
-                logger.info(f"Failed to open camera {device_id}")
+                logger.info(f"Failed to open camera {path}")
                 continue
             
             # Try to read a frame
             ret, frame = cap.read()
             if not ret:
-                logger.info(f"Failed to read frame from camera {device_id}")
+                logger.info(f"Failed to read frame from camera {path}")
                 cap.release()
                 continue
             
@@ -37,20 +39,35 @@ def detect_cameras():
             height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
             fps = cap.get(cv2.CAP_PROP_FPS)
             
-            logger.info(f"Found working camera {device_id}:")
+            logger.info(f"Found working camera {path}:")
             logger.info(f"Resolution: {width}x{height}")
             logger.info(f"FPS: {fps}")
             
             cap.release()
-            return device_id
+            # Extract device number from path
+            return int(path.replace('/dev/video', ''))
             
         except Exception as e:
-            logger.error(f"Error testing camera {device_id}: {e}")
+            logger.error(f"Error testing camera {path}: {e}")
+            if 'cap' in locals():
+                cap.release()
+    
+    # If no known paths work, try first few indices as fallback
+    for device_id in range(2):  # Only try 0 and 1 to avoid excessive scanning
+        try:
+            cap = cv2.VideoCapture(device_id)
+            if cap.isOpened():
+                ret, frame = cap.read()
+                if ret:
+                    cap.release()
+                    return device_id
+            cap.release()
+        except:
             if 'cap' in locals():
                 cap.release()
     
     logger.warning("No working USB cameras found!")
-    return None
+    return 0  # Default to video0 as last resort
 
 # Initialize GPIO for camera switching using lgpio (Pi 5 compatible)
 try:
