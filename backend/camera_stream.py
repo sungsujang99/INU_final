@@ -125,7 +125,6 @@ class USBCamera:
 class ArducamMultiCamera:
     picam2 = None  # Shared Picamera2 instance
     gpio_pins = None  # Shared GPIO pins
-    i2c_initialized = False
     
     @classmethod
     def init_gpio(cls):
@@ -138,24 +137,15 @@ class ArducamMultiCamera:
                     'gpio11': DigitalOutputDevice(17),
                     'gpio12': DigitalOutputDevice(18)
                 }
+                # Set initial state
+                cls.gpio_pins['gpio7'].off()
+                cls.gpio_pins['gpio11'].off()
+                cls.gpio_pins['gpio12'].on()
+                time.sleep(0.1)
                 logger.info("GPIO pins initialized successfully")
             except Exception as e:
                 logger.error(f"GPIO initialization failed: {e}")
                 cls.gpio_pins = None
-
-    @classmethod
-    def init_i2c(cls):
-        """Initialize I2C for Arducam adapter"""
-        if not cls.i2c_initialized:
-            try:
-                # Enable I2C multiplexer
-                os.system('i2cset -y 10 0x70 0x00 0x01')
-                time.sleep(0.1)  # Wait for I2C to stabilize
-                cls.i2c_initialized = True
-                logger.info("I2C initialized successfully")
-            except Exception as e:
-                logger.error(f"I2C initialization failed: {e}")
-                cls.i2c_initialized = False
     
     def __init__(self, name: str, i2c_cmd: str, gpio_states: list):
         self.name = name
@@ -166,9 +156,14 @@ class ArducamMultiCamera:
         self.lock = threading.Lock()
         self.running = True
         
-        # Initialize shared resources
+        # Initialize GPIO first
         self.__class__.init_gpio()
-        self.__class__.init_i2c()
+        
+    def start(self):
+        """Start the camera"""
+        logger.info(f"Starting {self.name}")
+        self.running = True
+        self._init_camera()
         
     def _switch_camera(self) -> bool:
         """Switch to this camera using I2C and GPIO"""
@@ -177,51 +172,41 @@ class ArducamMultiCamera:
                 logger.error(f"{self.name}: GPIO not initialized")
                 return False
                 
-            if not self.__class__.i2c_initialized:
-                logger.error(f"{self.name}: I2C not initialized")
-                return False
-                
-            # Execute I2C command
-            logger.info(f"Switching to {self.name} using I2C command: {self.i2c_cmd}")
-            os.system(self.i2c_cmd)
-            
-            # Set GPIO pins
+            # Set GPIO pins first
             self.__class__.gpio_pins['gpio7'].value = self.gpio_states[0]
             self.__class__.gpio_pins['gpio11'].value = self.gpio_states[1]
             self.__class__.gpio_pins['gpio12'].value = self.gpio_states[2]
+            time.sleep(0.1)  # Wait for GPIO to stabilize
             
-            # Wait for camera to stabilize
-            time.sleep(0.02)  # 20ms delay from demo code
+            # Then execute I2C command
+            logger.info(f"Switching to {self.name} using I2C command: {self.i2c_cmd}")
+            os.system(self.i2c_cmd)
+            time.sleep(0.5)  # Wait for I2C and camera to stabilize
+            
             return True
             
         except Exception as e:
             logger.error(f"Error switching to {self.name}: {e}")
             return False
             
-    def start(self):
-        """Start the camera"""
-        logger.info(f"Starting {self.name}")
-        self.running = True
-        self._init_camera()
-        
     def _init_camera(self) -> bool:
         """Initialize the camera"""
         try:
+            # Switch to this camera first
+            if not self._switch_camera():
+                return False
+                
             # Initialize shared Picamera2 instance if needed
             if not self.__class__.picam2:
                 self.__class__.picam2 = Picamera2()
                 self.__class__.picam2.configure(
                     self.__class__.picam2.create_still_configuration(
-                        main={"size": (320, 240), "format": "BGR888"},  # Use demo resolution
+                        main={"size": (320, 240), "format": "BGR888"},
                         buffer_count=2
                     )
                 )
                 self.__class__.picam2.start()
                 time.sleep(2)  # Wait for camera to initialize
-                
-            # Switch to this camera
-            if not self._switch_camera():
-                return False
                 
             # Test capture
             test_frame = self.__class__.picam2.capture_array()
@@ -243,7 +228,7 @@ class ArducamMultiCamera:
     def get_frame(self) -> Optional[np.ndarray]:
         """Get the latest frame"""
         try:
-            # Switch to this camera
+            # Switch to this camera first
             if not self._switch_camera():
                 return None
                 
