@@ -616,14 +616,10 @@ def get_optional_module_status():
             "message": str(e)
         }), 500
 
-@app.route("/api/camera/live_feed")
-def camera_live_feed():
-    return mjpeg_feed()
-
-@app.route("/api/camera/<int:camera_num>/live_feed")
-def camera_live_feed_specific(camera_num):
-    """Get live feed for a specific camera"""
-    return mjpeg_feed(camera_num)
+@app.route("/api/camera/<rack_id>/mjpeg_feed")
+def camera_mjpeg_feed(rack_id):
+    """Get MJPEG feed for a specific camera by rack ID (M, A, B, C)"""
+    return mjpeg_feed(rack_id)
 
 @app.route("/api/cameras/available")
 def get_available_cameras_endpoint():

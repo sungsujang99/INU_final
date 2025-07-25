@@ -204,7 +204,7 @@ class ArducamMultiCamera:
             time.sleep(2)
             
             # Try to capture with Picamera2
-            picam = Picamera2()
+            picam = Picamera2(0)  # Specify device index 0
             config = picam.create_preview_configuration(
                 main={"size": (640, 480), "format": "RGB888"}
             )
@@ -253,7 +253,7 @@ class ArducamMultiCamera:
             time.sleep(2)
             
             # Try to capture with Picamera2
-            picam = Picamera2()
+            picam = Picamera2(0)  # Specify device index 0
             config = picam.create_preview_configuration(
                 main={"size": (640, 480), "format": "RGB888"}
             )
