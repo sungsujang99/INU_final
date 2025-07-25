@@ -155,28 +155,59 @@ class ArducamMultiCamera:
     def _reinit_camera(cls):
         """Reinitialize the camera with fresh state"""
         try:
+            # Cleanup existing camera
             if cls.picam2:
                 try:
+                    cls.picam2.stop_preview()  # Stop preview first
                     cls.picam2.stop()
                     cls.picam2.close()
                 except:
                     pass
                 cls.picam2 = None
-                time.sleep(0.5)  # Wait for camera to fully close
+                time.sleep(1.0)  # Wait longer for camera to fully close
             
             # Initialize new camera instance
             cls.picam2 = Picamera2(0)
+            
+            # Create and apply configuration before starting
             config = cls.picam2.create_preview_configuration(
-                main={"size": (640, 480), "format": "RGB888"}
+                main={"size": (640, 480), "format": "RGB888"},
+                buffer_count=4  # Use more buffers for stability
             )
             cls.picam2.configure(config)
-            cls.picam2.start()
-            time.sleep(0.5)  # Wait for camera to initialize
-            logger.info("Camera system reinitialized")
-            return True
+            
+            # Wait for configuration to settle
+            time.sleep(0.5)
+            
+            try:
+                cls.picam2.start()
+                # Wait for camera to fully start
+                time.sleep(1.0)
+                
+                # Test capture to verify camera is working
+                test_frame = cls.picam2.capture_array()
+                if test_frame is None:
+                    raise RuntimeError("Test capture failed")
+                    
+                logger.info("Camera system reinitialized successfully")
+                return True
+            except Exception as e:
+                logger.error(f"Camera start failed: {e}")
+                try:
+                    cls.picam2.close()
+                except:
+                    pass
+                cls.picam2 = None
+                return False
+                
         except Exception as e:
             logger.error(f"Camera reinitialization failed: {e}")
-            cls.picam2 = None
+            if cls.picam2:
+                try:
+                    cls.picam2.close()
+                except:
+                    pass
+                cls.picam2 = None
             return False
 
     def select_channel(self):
@@ -190,21 +221,29 @@ class ArducamMultiCamera:
                 lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
                 lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
                 lgpio.gpio_write(self.__class__.gpio_chip, 18, 0)  # Pin 12
-                time.sleep(0.1)  # Brief wait for pins to settle
+                time.sleep(0.5)  # Longer wait for pins to settle
                 
                 # Set new pin states
                 lgpio.gpio_write(self.__class__.gpio_chip, 4, 1 if self.gpio_sta[0] else 0)    # Pin 7
                 lgpio.gpio_write(self.__class__.gpio_chip, 17, 1 if self.gpio_sta[1] else 0)  # Pin 11
                 lgpio.gpio_write(self.__class__.gpio_chip, 18, 1 if self.gpio_sta[2] else 0)  # Pin 12
-                time.sleep(0.1)  # Brief wait for pins to settle
+                time.sleep(0.5)  # Longer wait for pins to settle
                 logger.info(f"GPIO set: Pin 7={self.gpio_sta[0]}, Pin 11={self.gpio_sta[1]}, Pin 12={self.gpio_sta[2]}")
                 
                 # Execute I2C command after GPIO change
                 self.init_i2c()
+                time.sleep(0.5)  # Wait for I2C to settle
                 
                 # Reinitialize camera when switching
-                if not self._reinit_camera():
-                    raise RuntimeError("Failed to reinitialize camera")
+                retry_count = 3
+                while retry_count > 0:
+                    if self._reinit_camera():
+                        break
+                    retry_count -= 1
+                    time.sleep(1.0)  # Wait between retries
+                    
+                if retry_count == 0:
+                    raise RuntimeError("Failed to reinitialize camera after retries")
                 
                 # Update current camera
                 self.__class__.current_camera = self
