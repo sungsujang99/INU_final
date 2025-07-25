@@ -131,6 +131,7 @@ class ArducamMultiCamera:
         self.last_frame_time = 0
         self.lock = threading.Lock()
         self.running = True
+        self.current_picam = None
         
         # Initialize GPIO exactly like test code
         if not self.__class__.gpio_chip:
@@ -149,11 +150,17 @@ class ArducamMultiCamera:
     def _cleanup_camera(self):
         """Cleanup any existing camera instance"""
         try:
-            if self.__class__.picam2:
-                self.__class__.picam2.stop()
-                self.__class__.picam2.close()
-                self.__class__.picam2 = None
-                time.sleep(2)  # Wait for camera to fully close
+            if self.current_picam:
+                try:
+                    self.current_picam.stop()
+                except:
+                    pass
+                try:
+                    self.current_picam.close()
+                except:
+                    pass
+                self.current_picam = None
+                time.sleep(1)  # Wait for camera to fully close
         except Exception as e:
             logger.error(f"Error cleaning up camera: {e}")
         
@@ -209,6 +216,10 @@ class ArducamMultiCamera:
                 main={"size": (640, 480), "format": "RGB888"}
             )
             picam.configure(config)
+            
+            # Store the camera instance before starting
+            self.current_picam = picam
+            
             picam.start()
             time.sleep(2)
             
@@ -219,30 +230,20 @@ class ArducamMultiCamera:
                 with self.lock:
                     self.frame = array
                     self.last_frame_time = time.time()
-                    self.__class__.picam2 = picam
                 logger.info(f"Successfully initialized {self.name}")
                 return True
             else:
                 logger.error("Failed to capture frame")
-                picam.stop()
-                picam.close()
+                self._cleanup_camera()
                 return False
                 
         except Exception as e:
             logger.error(f"Error initializing {self.name}: {e}")
-            try:
-                if 'picam' in locals():
-                    picam.stop()
-                    picam.close()
-            except:
-                pass
+            self._cleanup_camera()
             return False
             
     def get_frame(self):
         try:
-            # Cleanup any existing camera
-            self._cleanup_camera()
-            
             # Set GPIO pins
             self.select_channel()
             
@@ -250,7 +251,7 @@ class ArducamMultiCamera:
             self.init_i2c()
             
             # Wait for camera to settle
-            time.sleep(2)
+            time.sleep(1)
             
             # Try to capture with Picamera2
             picam = Picamera2(0)  # Specify device index 0
@@ -258,8 +259,12 @@ class ArducamMultiCamera:
                 main={"size": (640, 480), "format": "RGB888"}
             )
             picam.configure(config)
+            
+            # Store the camera instance before starting
+            self.current_picam = picam
+            
             picam.start()
-            time.sleep(2)
+            time.sleep(1)
             
             # Try to capture a frame
             array = picam.capture_array()
@@ -270,8 +275,7 @@ class ArducamMultiCamera:
                     self.last_frame_time = time.time()
             
             # Cleanup
-            picam.stop()
-            picam.close()
+            self._cleanup_camera()
             
             # Reset GPIO to default state
             lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
@@ -282,12 +286,7 @@ class ArducamMultiCamera:
             
         except Exception as e:
             logger.error(f"Error capturing frame from {self.name}: {e}")
-            if 'picam' in locals():
-                try:
-                    picam.stop()
-                    picam.close()
-                except:
-                    pass
+            self._cleanup_camera()
             return None
             
     def stop(self):
