@@ -25,20 +25,20 @@ CAMERA_CONFIG = {
     'A': {
         'type': 'arducam',
         'name': 'Rack A Camera',
-        'i2c_cmd': 'i2cset -y 10 0x70 0x00 0x04',
-        'gpio_sta': [0, 0, 1]
+        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x04',
+        'gpio_sta': [False, False, True]
     },
     'B': {
         'type': 'arducam',
         'name': 'Rack B Camera',
-        'i2c_cmd': 'i2cset -y 10 0x70 0x00 0x05',
-        'gpio_sta': [1, 0, 1]
+        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x05',
+        'gpio_sta': [True, False, True]
     },
     'C': {
         'type': 'arducam',
         'name': 'Rack C Camera',
-        'i2c_cmd': 'i2cset -y 10 0x70 0x00 0x06',
-        'gpio_sta': [0, 1, 0]
+        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x06',
+        'gpio_sta': [False, True, False]
     }
 }
 
@@ -161,7 +161,7 @@ class ArducamMultiCamera:
                 self.__class__.picam2 = Picamera2()
                 self.__class__.picam2.configure(
                     self.__class__.picam2.create_still_configuration(
-                        main={"size": (320, 240), "format": "BGR888"},
+                        main={"size": (640, 480), "format": "RGB888"},
                         buffer_count=2
                     )
                 )
@@ -237,7 +237,7 @@ class CameraManager:
         
     def _generate_blank_frame(self, message: str) -> np.ndarray:
         """Generate a blank frame with error message"""
-        frame = np.zeros((240, 320, 3), dtype=np.uint8)  # Use demo resolution
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)  # Match test resolution
         frame.fill(32)
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.7
