@@ -157,65 +157,40 @@ class SerialManager:
 
         with mutex:
             for attempt in range(1, active_max_echo_attempts + 1):
-                ser.reset_input_buffer() # Reset buffer at the start of each command send attempt
+                ser.reset_input_buffer()
                 
-                # Handle WHO command differently from numeric commands
-                if code.upper() == "WHO":
-                    ser.write(f"{code}\n".encode())
-                else:
-                    # Convert to integer and send as bytes
-                    try:
-                        cmd_int = int(code)
-                        ser.write(f"{cmd_int}\n".encode())
-                    except ValueError:
-                        # If conversion fails, send as is
-                        ser.write(f"{code}\n".encode())
-                
-                # Record exact time when command was sent to equipment
+                command_to_send = f"{code}\n".encode()
+                ser.write(command_to_send)
                 command_sent_time = datetime.datetime.now().isoformat(timespec="microseconds")
-                
-                if app_logger:
-                    app_logger.debug(f"{log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent at {command_sent_time}. Waiting for echo...")
-                else:
-                    print(f"INFO: {log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent at {command_sent_time}. Waiting for echo...")
 
-                # 1. Wait for echo for this attempt
+                log_func = app_logger.debug if app_logger and hasattr(app_logger, 'debug') else print
+                log_func(f"{log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Command sent. Waiting for echo...")
+
+                # 1. Wait for echo
                 echo_start_time = time.time()
                 echo_buf = bytearray()
-                # expected_echo = (code + "\r\n").encode() # Not used directly in this revised logic
-
+                
                 while time.time() - echo_start_time < ECHO_TIMEOUT:
                     if ser.in_waiting:
-                        read_data = ser.read(ser.in_waiting)
-                        echo_buf.extend(read_data)
-                        if app_logger:
-                            app_logger.debug(f"{log_prefix} (Echo Attempt {attempt}): Echo read data: {read_data}, Current echo_buf: {echo_buf}")
-                        else:
-                            print(f"DEBUG: {log_prefix} (Echo Attempt {attempt}): Echo read data: {read_data}, Current echo_buf: {echo_buf}")
-                        
-                        processed_echo_buf = echo_buf.decode(errors='ignore').strip()
-                        if processed_echo_buf == code: # Exact match of the command string
+                        echo_buf.extend(ser.read(ser.in_waiting))
+                        # Check if the exact code string is in the buffer
+                        if code.encode() in echo_buf:
                             echo_received_correctly = True
-                            if app_logger:
-                                app_logger.debug(f"{log_prefix} (Echo Attempt {attempt}): Correct echo '{code}' received.")
-                            else:
-                                print(f"INFO: {log_prefix} (Echo Attempt {attempt}): Correct echo '{code}' received.")
-                            break # Break from inner echo-reading loop
+                            break # Exit echo-reading loop
                     time.sleep(0.05)
                 
                 if echo_received_correctly:
-                    break # Break from outer command-sending attempt loop
+                    log_func(f"{log_prefix} (Echo Attempt {attempt}): Correct echo '{code}' received.")
+                    break  # Exit the main retry loop on success
                 else:
-                    if app_logger:
-                        app_logger.warning(f"{log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
-                    else:
-                        print(f"WARNING: {log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Failed to receive correct echo. Expected '{code}', Got buffer: {echo_buf}. Timeout: {ECHO_TIMEOUT}s")
+                    warn_func = app_logger.warning if app_logger and hasattr(app_logger, 'warning') else print
+                    warn_func(f"{log_prefix} (Echo Attempt {attempt}/{active_max_echo_attempts}): Failed to receive correct echo.")
                     if attempt < active_max_echo_attempts:
-                        time.sleep(0.5) # Pause before retrying command send
-                        if app_logger:
-                            app_logger.info(f"{log_prefix}: Retrying command send and echo wait (next attempt: {attempt+1})...")
-                        else:
-                            print(f"INFO: {log_prefix}: Retrying command send and echo wait (next attempt: {attempt+1})...")
+                        time.sleep(0.5) # Pause before retrying
+                        info_func = app_logger.info if app_logger and hasattr(app_logger, 'info') else print
+                        info_func(f"{log_prefix}: Retrying command send (next attempt: {attempt + 1})...")
+                    # Continue to next attempt in the for loop...
+
             # End of echo attempt loop
 
             if not echo_received_correctly:
