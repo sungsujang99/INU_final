@@ -145,13 +145,32 @@ class ArducamMultiCamera:
                 logger.error(f"GPIO initialization failed: {e}")
                 self.__class__.gpio_chip = None
                 raise
+
+    def _cleanup_camera(self):
+        """Cleanup any existing camera instance"""
+        try:
+            if self.__class__.picam2:
+                self.__class__.picam2.stop()
+                self.__class__.picam2.close()
+                self.__class__.picam2 = None
+                time.sleep(2)  # Wait for camera to fully close
+        except Exception as e:
+            logger.error(f"Error cleaning up camera: {e}")
         
     def select_channel(self):
         """Set GPIO pins exactly like test code"""
         try:
+            # Reset all pins first
+            lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
+            lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
+            lgpio.gpio_write(self.__class__.gpio_chip, 18, 0)  # Pin 12
+            time.sleep(0.5)  # Wait for pins to settle
+            
+            # Set new pin states
             lgpio.gpio_write(self.__class__.gpio_chip, 4, 1 if self.gpio_sta[0] else 0)    # Pin 7
             lgpio.gpio_write(self.__class__.gpio_chip, 17, 1 if self.gpio_sta[1] else 0)  # Pin 11
             lgpio.gpio_write(self.__class__.gpio_chip, 18, 1 if self.gpio_sta[2] else 0)  # Pin 12
+            time.sleep(0.5)  # Wait for pins to settle
             logger.info(f"GPIO set: Pin 7={self.gpio_sta[0]}, Pin 11={self.gpio_sta[1]}, Pin 12={self.gpio_sta[2]}")
         except Exception as e:
             logger.error(f"Error setting GPIO: {e}")
@@ -163,6 +182,7 @@ class ArducamMultiCamera:
         if result != 0:
             logger.error(f"I2C command failed with code {result}")
             raise RuntimeError(f"I2C command failed: {self.i2c_cmd}")
+        time.sleep(0.5)  # Wait for I2C to settle
         
     def start(self):
         logger.info(f"Starting {self.name}")
@@ -171,6 +191,9 @@ class ArducamMultiCamera:
         
     def _init_camera(self):
         try:
+            # Cleanup any existing camera
+            self._cleanup_camera()
+            
             # Set GPIO pins
             self.select_channel()
             
@@ -180,7 +203,7 @@ class ArducamMultiCamera:
             # Wait for camera to settle
             time.sleep(2)
             
-            # Try to capture with Picamera2 exactly like test
+            # Try to capture with Picamera2
             picam = Picamera2()
             config = picam.create_preview_configuration(
                 main={"size": (640, 480), "format": "RGB888"}
@@ -217,7 +240,10 @@ class ArducamMultiCamera:
             
     def get_frame(self):
         try:
-            # Set GPIO pins exactly like test
+            # Cleanup any existing camera
+            self._cleanup_camera()
+            
+            # Set GPIO pins
             self.select_channel()
             
             # Execute I2C command
@@ -226,7 +252,7 @@ class ArducamMultiCamera:
             # Wait for camera to settle
             time.sleep(2)
             
-            # Try to capture with Picamera2 exactly like test
+            # Try to capture with Picamera2
             picam = Picamera2()
             config = picam.create_preview_configuration(
                 main={"size": (640, 480), "format": "RGB888"}
@@ -266,13 +292,15 @@ class ArducamMultiCamera:
             
     def stop(self):
         self.running = False
-        if self.__class__.picam2:
+        self._cleanup_camera()
+        # Reset GPIO pins to default state
+        if self.__class__.gpio_chip:
             try:
-                self.__class__.picam2.stop()
-                self.__class__.picam2.close()
+                lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
+                lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
+                lgpio.gpio_write(self.__class__.gpio_chip, 18, 1)  # Pin 12
             except:
                 pass
-            self.__class__.picam2 = None
 
 class CameraManager:
     def __init__(self):
