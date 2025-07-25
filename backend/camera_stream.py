@@ -37,8 +37,8 @@ CAMERA_CONFIG = {
     'C': {
         'type': 'arducam',
         'name': 'Rack C Camera',
-        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x06',
-        'gpio_sta': [False, True, False]
+        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x07',  # Updated from 0x06 to 0x07
+        'gpio_sta': [True, True, False]  # Updated to match working configuration
     }
 }
 
