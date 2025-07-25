@@ -74,6 +74,37 @@ def enqueue_work_task(task, user_info, conn=None, cur=None):
             conn.close()
     return new_task_id
 
+def set_task_status(task_id: int, status: str, conn=None):
+    """Sets the status of a specific task and emits a socket event."""
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    
+    own_connection = False
+    if conn is None:
+        conn = sqlite3.connect(DB_NAME)
+        own_connection = True
+    
+    cur = conn.cursor()
+
+    try:
+        if status == 'in_progress':
+            cur.execute("UPDATE work_tasks SET status=?, updated_at=?, start_time=? WHERE id=?", (status, now, now, task_id))
+        else:
+            cur.execute("UPDATE work_tasks SET status=?, updated_at=?, end_time=? WHERE id=?", (status, now, now, task_id))
+        
+        if own_connection:
+            conn.commit()
+
+        # Fetch details for the event
+        task_details = get_task_by_id(task_id)
+        if io and task_details:
+            io.emit("task_status_changed", task_details)
+            logger = current_app.logger if current_app else logging.getLogger(__name__)
+            logger.info(f"Emitted task_status_changed for task {task_id} with status {status}")
+
+    finally:
+        if own_connection:
+            conn.close()
+
 def claim_next_task():
     """
     Atomically fetches the next pending task and sets its status to 'in_progress'.
@@ -133,160 +164,99 @@ class WorkerThread(threading.Thread):
         self.app_context = app_context
 
     def run(self):
-        logger = current_app.logger if current_app else logging.getLogger(__name__)
-        main_equipment_id = "M"
-        main_done_token = b"fin"
-        rack_done_token = b"done"
+        with self.app_context:
+            logger = current_app.logger
+            main_equipment_id = "M"
+            main_done_token = b"fin"
+            rack_done_token = b"done"
 
-        while True:
-            # Use the new atomic function to get and claim a task
-            task = claim_next_task()
-            
-            if not task:
-                time.sleep(1) # Wait before checking for new tasks again
-                continue
+            while True:
+                task = claim_next_task()
+                if not task:
+                    time.sleep(1)
+                    continue
 
-            # The task is now guaranteed to be unique and is already marked as 'in_progress'
-            task_id = task['id']
-            target_rack_id = task['rack'].upper()
-            current_slot = int(task['slot'])
-            movement = task['movement'].upper()
-            
-            logger.info(f"[Worker] Claimed task {task_id}: {movement} for {target_rack_id}-{current_slot}.")
+                task_id = task['id']
+                try:
+                    logger.info(f"[Worker] Picked up task {task_id}. Already marked as 'in_progress'.")
+                    
+                    target_rack_id = task['rack'].upper()
+                    current_slot = int(task['slot'])
+                    movement = task['movement'].upper()
 
-            final_task_status = None
-            physical_op_successful = False
-            operation_start_time = None
-            operation_end_time = None
-
-            try:
-                # --- M Command Generation ---
-                cmd_for_m = "0"
-                rack_to_num_map = {'A': 1, 'B': 2, 'C': 3}
-                rack_numeric_id = rack_to_num_map.get(target_rack_id)
-
-                if rack_numeric_id is None:
-                    logger.error(f"[Worker] Task {task_id}: Unknown target_rack_id '{target_rack_id}' for M cmd gen.")
-                    final_task_status = 'failed_invalid_rack_for_m'
-                else:
-                    m_base_val = rack_numeric_id * 100 + current_slot
-                    cmd_for_m = str(m_base_val) if movement == 'IN' else str(-m_base_val)
-                
-                # Rack commands
-                cmd_for_rack = str(current_slot) if movement == 'IN' else str(-current_slot)
-
-                logger.info(f"[Worker] Task {task_id}: M Cmd: '{cmd_for_m}', Rack Cmd: '{cmd_for_rack}'")
-
-                if final_task_status: # Error from M command generation
-                    pass # Skip to end
-                elif not serial_mgr.enabled:
-                    logger.warning(f"[Worker] Task {task_id}: {get_error_message('serial_disabled')}")
-                    physical_op_successful = True
-                    operation_start_time = datetime.datetime.now().isoformat(timespec="seconds")
-                    operation_end_time = operation_start_time
-                
-                elif movement == 'IN':
-                    # 1. Main equipment (M) delivers to rack approach area
-                    m_result = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
-                    if m_result["status"] != "done":
-                        final_task_status = 'failed_m_echo' if m_result["status"] == "echo_timeout" else 'failed_m_response'
+                    final_task_status = None
+                    physical_op_successful = False
+                    operation_start_time = datetime.datetime.now(datetime.timezone.utc)
+                    
+                    # --- M Command Generation ---
+                    cmd_for_m = "0"
+                    rack_to_num_map = {'A': 1, 'B': 2, 'C': 3}
+                    rack_numeric_id = rack_to_num_map.get(target_rack_id)
+                    if rack_numeric_id is not None:
+                        m_base_val = rack_numeric_id * 100 + current_slot
+                        cmd_for_m = str(m_base_val) if movement == 'IN' else str(-m_base_val)
                     else:
-                        # Record start time from when the first command was sent
-                        operation_start_time = m_result["command_sent_time"]
-                        
-                        # 2. Rack receives from approach area
+                        final_task_status = 'failed_invalid_rack'
+                    
+                    # Rack commands
+                    cmd_for_rack = str(current_slot) if movement == 'IN' else str(-current_slot)
+                    
+                    logger.info(f"[Worker] Task {task_id}: M Cmd: '{cmd_for_m}', Rack Cmd: '{cmd_for_rack}'")
+
+                    if final_task_status: # Error from M command generation
+                        pass # Skip to end
+                    elif not serial_mgr.enabled:
+                        logger.warning(f"[Worker] Task {task_id}: {get_error_message('serial_disabled')}")
+                        physical_op_successful = True
+                        operation_start_time = datetime.datetime.now().isoformat(timespec="seconds")
+                        operation_end_time = operation_start_time
+                    
+                    elif movement == 'IN':
+                        # 1. Main equipment (M) delivers to rack approach area
+                        m_result = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
+                        if m_result["status"] != "done":
+                            final_task_status = 'failed_m_comm'
+                        else:
+                            # Record start time from when the first command was sent
+                            operation_start_time = m_result["command_sent_time"]
+                            
+                            # 2. Rack receives from approach area
+                            rack_result = serial_mgr.send(target_rack_id, cmd_for_rack, wait_done=True, done_token=rack_done_token)
+                            if rack_result["status"] != "done":
+                                final_task_status = 'failed_rack_comm'
+                            else:
+                                physical_op_successful = True
+                                # Record end time from when the last "done" signal was received
+                                operation_end_time = rack_result["done_received_time"]
+                    
+                    elif movement == 'OUT':
+                        # 1. Rack delivers to approach area
                         rack_result = serial_mgr.send(target_rack_id, cmd_for_rack, wait_done=True, done_token=rack_done_token)
                         if rack_result["status"] != "done":
                             final_task_status = 'failed_rack_echo'
                         else:
-                            physical_op_successful = True
-                            # Record end time from when the last "done" signal was received
-                            operation_end_time = rack_result["done_received_time"]
-                
-                elif movement == 'OUT':
-                    # 1. Rack delivers to approach area
-                    rack_result = serial_mgr.send(target_rack_id, cmd_for_rack, wait_done=True, done_token=rack_done_token)
-                    if rack_result["status"] != "done":
-                        final_task_status = 'failed_rack_echo'
+                            # Record start time from when the first command was sent
+                            operation_start_time = rack_result["command_sent_time"]
+                            
+                            # 2. Main equipment (M) receives from approach area
+                            m_result = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
+                            if m_result["status"] != "done":
+                                final_task_status = 'failed_m_echo'
+                            else:
+                                physical_op_successful = True
+                                # Record end time from when the last "done" signal was received
+                                operation_end_time = m_result["done_received_time"]
+                    
                     else:
-                        # Record start time from when the first command was sent
-                        operation_start_time = rack_result["command_sent_time"]
-                        
-                        # 2. Main equipment (M) receives from approach area
-                        m_result = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
-                        if m_result["status"] != "done":
-                            final_task_status = 'failed_m_echo'
-                        else:
-                            physical_op_successful = True
-                            # Record end time from when the last "done" signal was received
-                            operation_end_time = m_result["done_received_time"]
+                        final_task_status = 'failed_unknown_movement'
+                            
+                except Exception as e:
+                    logger.error(f"[Worker] UNHANDLED EXCEPTION processing task {task_id}: {e}", exc_info=True)
+                    set_task_status(task_id, 'failed_exception')
                 
-                else:
-                    final_task_status = 'failed_unknown_movement'
-                        
-            except Exception as e:
-                logger.error(f"[Worker] Task {task_id}: Exception during execution: {e}", exc_info=True)
-                final_task_status = 'failed_exception'
-
-            # --------------------------------------------------------------------------------
-            # 4. Finalize task: update status, inventory, and notify clients via SocketIO
-            # --------------------------------------------------------------------------------
-            operation_end_time = datetime.datetime.now(datetime.timezone.utc)
-            conn = sqlite3.connect(DB_NAME)
-            cur = conn.cursor()
-            try:
-                if physical_op_successful:
-                    # Update inventory first
-                    update_inventory_on_done(task, cur)
-                    # Then update task status with operation times
-                    cur.execute("""
-                        UPDATE work_tasks 
-                        SET status='done', updated_at=?, start_time=?, end_time=?
-                        WHERE id=?
-                    """, (operation_end_time, operation_start_time, operation_end_time, task_id))
-                    final_task_status = 'done'
-                    logger.info(f"[Worker] Task {task_id} completed successfully.")
-                else:
-                    # Update task status with operation times even for failed tasks
-                    cur.execute("""
-                        UPDATE work_tasks 
-                        SET status=?, updated_at=?, start_time=?, end_time=?
-                        WHERE id=?
-                    """, (final_task_status, operation_end_time, operation_start_time, operation_end_time, task_id))
-                    logger.error(f"[Worker] Task {task_id} failed with status: {final_task_status}")
-                conn.commit()
-            except Exception as e:
-                logger.error(f"[Worker] DB update failed for task {task_id}: {e}")
-                conn.rollback()
-            finally:
-                conn.close()
-
-            # Emit socket event to notify frontend of the change
-            if io:
-                task_details = get_task_by_id(task_id) # Fetch final task details
-                if task_details:
-                    io.emit("task_status_changed", {
-                        "id": task_id,
-                        "status": final_task_status,
-                        "task": task_details
-                    })
-                    logger.info(f"[Worker] Emitted 'task_status_changed' for task {task_id} with status {final_task_status}")
-
-                    # If the entire batch is complete, store it in history
-                    if task_details.get('batch_id') and task_details.get('is_batch_complete'):
-                        try:
-                            store_camera_batch(
-                                batch_id=task_details['batch_id'],
-                                total_tasks=task_details['total_tasks'],
-                                completed_at=datetime.datetime.now(datetime.timezone.utc).isoformat()
-                            )
-                            logger.info(f"Stored completed batch {task_details['batch_id']} in history.")
-                        except Exception as e:
-                            logger.error(f"Failed to store batch {task_details['batch_id']} in history: {e}")
-                else:
-                    # Fallback emit if task details couldn't be fetched
-                    io.emit("task_status_changed", {"id": task_id, "status": final_task_status})
-
+                finally:
+                    # Brief pause before next task
+                    time.sleep(1)
 
 def start_worker(app):
     with app.app_context():
