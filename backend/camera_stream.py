@@ -131,7 +131,6 @@ class ArducamMultiCamera:
         self.last_frame_time = 0
         self.lock = threading.Lock()
         self.running = True
-        self.current_picam = None
         
         # Initialize GPIO exactly like test code
         if not self.__class__.gpio_chip:
@@ -146,24 +145,23 @@ class ArducamMultiCamera:
                 logger.error(f"GPIO initialization failed: {e}")
                 self.__class__.gpio_chip = None
                 raise
+                
+        # Initialize camera if not already initialized
+        if not self.__class__.picam2:
+            try:
+                self.__class__.picam2 = Picamera2(0)
+                config = self.__class__.picam2.create_preview_configuration(
+                    main={"size": (640, 480), "format": "RGB888"}
+                )
+                self.__class__.picam2.configure(config)
+                self.__class__.picam2.start()
+                time.sleep(2)  # Wait for camera to initialize
+                logger.info("Camera system initialized")
+            except Exception as e:
+                logger.error(f"Camera initialization failed: {e}")
+                self.__class__.picam2 = None
+                raise
 
-    def _cleanup_camera(self):
-        """Cleanup any existing camera instance"""
-        try:
-            if self.current_picam:
-                try:
-                    self.current_picam.stop()
-                except:
-                    pass
-                try:
-                    self.current_picam.close()
-                except:
-                    pass
-                self.current_picam = None
-                time.sleep(1)  # Wait for camera to fully close
-        except Exception as e:
-            logger.error(f"Error cleaning up camera: {e}")
-        
     def select_channel(self):
         """Set GPIO pins exactly like test code"""
         try:
@@ -171,13 +169,13 @@ class ArducamMultiCamera:
             lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
             lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
             lgpio.gpio_write(self.__class__.gpio_chip, 18, 0)  # Pin 12
-            time.sleep(0.5)  # Wait for pins to settle
+            time.sleep(0.1)  # Brief wait for pins to settle
             
             # Set new pin states
             lgpio.gpio_write(self.__class__.gpio_chip, 4, 1 if self.gpio_sta[0] else 0)    # Pin 7
             lgpio.gpio_write(self.__class__.gpio_chip, 17, 1 if self.gpio_sta[1] else 0)  # Pin 11
             lgpio.gpio_write(self.__class__.gpio_chip, 18, 1 if self.gpio_sta[2] else 0)  # Pin 12
-            time.sleep(0.5)  # Wait for pins to settle
+            time.sleep(0.1)  # Brief wait for pins to settle
             logger.info(f"GPIO set: Pin 7={self.gpio_sta[0]}, Pin 11={self.gpio_sta[1]}, Pin 12={self.gpio_sta[2]}")
         except Exception as e:
             logger.error(f"Error setting GPIO: {e}")
@@ -189,110 +187,55 @@ class ArducamMultiCamera:
         if result != 0:
             logger.error(f"I2C command failed with code {result}")
             raise RuntimeError(f"I2C command failed: {self.i2c_cmd}")
-        time.sleep(0.5)  # Wait for I2C to settle
+        time.sleep(0.1)  # Brief wait for I2C to settle
         
     def start(self):
         logger.info(f"Starting {self.name}")
         self.running = True
-        self._init_camera()
         
-    def _init_camera(self):
-        try:
-            # Cleanup any existing camera
-            self._cleanup_camera()
-            
-            # Set GPIO pins
-            self.select_channel()
-            
-            # Execute I2C command
-            self.init_i2c()
-            
-            # Wait for camera to settle
-            time.sleep(2)
-            
-            # Try to capture with Picamera2
-            picam = Picamera2(0)  # Specify device index 0
-            config = picam.create_preview_configuration(
-                main={"size": (640, 480), "format": "RGB888"}
-            )
-            picam.configure(config)
-            
-            # Store the camera instance before starting
-            self.current_picam = picam
-            
-            picam.start()
-            time.sleep(2)
-            
-            # Try to capture a frame
-            array = picam.capture_array()
-            if array is not None:
-                logger.info(f"✓ Successfully captured frame: {array.shape}")
-                with self.lock:
-                    self.frame = array
-                    self.last_frame_time = time.time()
-                logger.info(f"Successfully initialized {self.name}")
-                return True
-            else:
-                logger.error("Failed to capture frame")
-                self._cleanup_camera()
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error initializing {self.name}: {e}")
-            self._cleanup_camera()
-            return False
-            
     def get_frame(self):
         try:
-            # Set GPIO pins
-            self.select_channel()
-            
-            # Execute I2C command
-            self.init_i2c()
-            
-            # Wait for camera to settle
-            time.sleep(1)
-            
-            # Try to capture with Picamera2
-            picam = Picamera2(0)  # Specify device index 0
-            config = picam.create_preview_configuration(
-                main={"size": (640, 480), "format": "RGB888"}
-            )
-            picam.configure(config)
-            
-            # Store the camera instance before starting
-            self.current_picam = picam
-            
-            picam.start()
-            time.sleep(1)
-            
-            # Try to capture a frame
-            array = picam.capture_array()
-            if array is not None:
-                logger.info(f"✓ Successfully captured frame: {array.shape}")
-                with self.lock:
-                    self.frame = array
-                    self.last_frame_time = time.time()
-            
-            # Cleanup
-            self._cleanup_camera()
-            
-            # Reset GPIO to default state
-            lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
-            lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
-            lgpio.gpio_write(self.__class__.gpio_chip, 18, 1)  # Pin 12
-            
-            return array
-            
+            with self.lock:  # Use lock to prevent concurrent camera access
+                # Set GPIO pins for this camera
+                self.select_channel()
+                
+                # Execute I2C command
+                self.init_i2c()
+                
+                # Brief wait for camera to settle
+                time.sleep(0.1)
+                
+                # Try to capture a frame
+                if self.__class__.picam2:
+                    array = self.__class__.picam2.capture_array()
+                    if array is not None:
+                        self.frame = array
+                        self.last_frame_time = time.time()
+                        return array
+                    
+                return self._generate_blank_frame(f"No frame from {self.name}")
+                
         except Exception as e:
             logger.error(f"Error capturing frame from {self.name}: {e}")
-            self._cleanup_camera()
-            return None
+            return self._generate_blank_frame(f"Error: {str(e)}")
+            
+    def _generate_blank_frame(self, message: str) -> np.ndarray:
+        """Generate a blank frame with error message"""
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        frame.fill(32)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.7
+        thickness = 2
+        text_size = cv2.getTextSize(message, font, font_scale, thickness)[0]
+        text_x = (frame.shape[1] - text_size[0]) // 2
+        text_y = (frame.shape[0] + text_size[1]) // 2
+        cv2.putText(frame, message, (text_x, text_y), font, font_scale, (255, 255, 255), thickness)
+        return frame
             
     def stop(self):
         self.running = False
-        self._cleanup_camera()
-        # Reset GPIO pins to default state
+        # Don't stop the camera here, as it's shared
+        # Just reset GPIO pins to default state
         if self.__class__.gpio_chip:
             try:
                 lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
@@ -324,24 +267,8 @@ class CameraManager:
         """Get frame from specific camera"""
         camera = self.cameras.get(rack_id)
         if camera:
-            frame = camera.get_frame()
-            if frame is None:
-                return self._generate_blank_frame(f"Reconnecting to {camera.name}...")
-            return frame
-        return self._generate_blank_frame("Camera not found")
-        
-    def _generate_blank_frame(self, message: str) -> np.ndarray:
-        """Generate a blank frame with error message"""
-        frame = np.zeros((480, 640, 3), dtype=np.uint8)  # Match test resolution
-        frame.fill(32)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.7
-        thickness = 2
-        text_size = cv2.getTextSize(message, font, font_scale, thickness)[0]
-        text_x = (frame.shape[1] - text_size[0]) // 2
-        text_y = (frame.shape[0] + text_size[1]) // 2
-        cv2.putText(frame, message, (text_x, text_y), font, font_scale, (255, 255, 255), thickness)
-        return frame
+            return camera.get_frame()
+        return None
         
     def get_generator(self, rack_id: str):
         """Generate MJPEG stream for a specific camera"""
@@ -356,11 +283,6 @@ class CameraManager:
                 time.sleep(0.033)  # ~30fps
             except Exception as e:
                 logger.error(f"Error in frame generator for {rack_id}: {e}")
-                blank = self._generate_blank_frame(f"Error: {str(e)}")
-                ret, jpeg = cv2.imencode('.jpg', blank, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                if ret:
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
                 time.sleep(0.5)
         
     def get_available_cameras(self) -> list:
@@ -371,8 +293,13 @@ class CameraManager:
         """Stop all cameras"""
         for camera in self.cameras.values():
             camera.stop()
+        # Stop the shared camera instance
         if ArducamMultiCamera.picam2:
-            ArducamMultiCamera.picam2.close()
+            try:
+                ArducamMultiCamera.picam2.stop()
+                ArducamMultiCamera.picam2.close()
+            except:
+                pass
             ArducamMultiCamera.picam2 = None
         if ArducamMultiCamera.gpio_chip:
             lgpio.gpio_close(ArducamMultiCamera.gpio_chip)
