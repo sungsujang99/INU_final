@@ -164,6 +164,18 @@ class ArducamMultiCamera:
         self.last_recovery_attempt = 0
         self.RECOVERY_COOLDOWN = 2.0
         
+        # Initialize GPIO
+        try:
+            self.gpio_chip = lgpio.gpiochip_open(0)  # Open GPIO chip 0
+            # Setup GPIO pins as outputs (using BCM pin numbers)
+            lgpio.gpio_claim_output(self.gpio_chip, 4)   # GPIO 7 = BCM 4
+            lgpio.gpio_claim_output(self.gpio_chip, 17)  # GPIO 11 = BCM 17
+            lgpio.gpio_claim_output(self.gpio_chip, 18)  # GPIO 12 = BCM 18
+            logger.info(f"{self.name}: GPIO pins initialized successfully")
+        except Exception as e:
+            logger.error(f"{self.name}: GPIO initialization failed: {e}")
+            self.gpio_chip = None
+        
     def start(self):
         """Start the camera"""
         logger.info(f"Starting {self.name}")
@@ -173,15 +185,19 @@ class ArducamMultiCamera:
     def _switch_camera(self) -> bool:
         """Switch to this camera using I2C and GPIO"""
         try:
+            if not self.gpio_chip:
+                logger.error(f"{self.name}: GPIO not initialized")
+                return False
+                
             # Execute I2C command to switch camera
             logger.info(f"Switching to {self.name} using I2C command: {self.i2c_cmd}")
             os.system(self.i2c_cmd)
             
             # Set GPIO pins
             gpio_7, gpio_11, gpio_12 = self.gpio_states
-            lgpio.gpio_write(gpio_chip, 4, 1 if gpio_7 else 0)   # GPIO 7 = BCM 4
-            lgpio.gpio_write(gpio_chip, 17, 1 if gpio_11 else 0) # GPIO 11 = BCM 17
-            lgpio.gpio_write(gpio_chip, 18, 1 if gpio_12 else 0) # GPIO 12 = BCM 18
+            lgpio.gpio_write(self.gpio_chip, 4, 1 if gpio_7 else 0)   # GPIO 7 = BCM 4
+            lgpio.gpio_write(self.gpio_chip, 17, 1 if gpio_11 else 0) # GPIO 11 = BCM 17
+            lgpio.gpio_write(self.gpio_chip, 18, 1 if gpio_12 else 0) # GPIO 12 = BCM 18
             
             # Wait for camera to stabilize
             time.sleep(0.5)
