@@ -20,82 +20,87 @@ logging.getLogger('picamera2').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 def detect_cameras():
-    """Detect available USB cameras and return the first working one"""
+    """Detect available USB cameras and keep retrying until one is found"""
     logger.info("Detecting available cameras...")
     
-    try:
-        # Run v4l2-ctl to list devices
-        import subprocess
-        result = subprocess.run(['v4l2-ctl', '--list-devices'], capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to list video devices: {result.stderr}")
-            
-        # Parse the output to find USB webcam devices
-        lines = result.stdout.split('\n')
-        usb_devices = []
-        is_usb_section = False
-        
-        for line in lines:
-            if 'Web Camera' in line or 'USB Camera' in line or 'Webcam' in line:
-                is_usb_section = True
+    while True:  # Keep trying until we find a camera
+        try:
+            # Run v4l2-ctl to list devices
+            result = subprocess.run(['v4l2-ctl', '--list-devices'], capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"Failed to list video devices: {result.stderr}")
+                time.sleep(1)
                 continue
-            elif line.strip() and not line.startswith('\t'):
-                is_usb_section = False
-            elif is_usb_section and line.startswith('\t'):
-                # Extract device number from path
-                device = line.strip()
-                if device.startswith('/dev/video'):
-                    try:
-                        device_num = int(device.replace('/dev/video', ''))
-                        usb_devices.append(device_num)
-                    except ValueError:
+                
+            # Parse the output to find USB webcam devices
+            lines = result.stdout.split('\n')
+            usb_devices = []
+            is_usb_section = False
+            
+            for line in lines:
+                if 'Web Camera' in line or 'USB Camera' in line or 'Webcam' in line:
+                    is_usb_section = True
+                    continue
+                elif line.strip() and not line.startswith('\t'):
+                    is_usb_section = False
+                elif is_usb_section and line.startswith('\t'):
+                    # Extract device number from path
+                    device = line.strip()
+                    if device.startswith('/dev/video'):
+                        try:
+                            device_num = int(device.replace('/dev/video', ''))
+                            usb_devices.append(device_num)
+                        except ValueError:
+                            continue
+            
+            if not usb_devices:
+                logger.warning("No USB cameras found in v4l2-ctl output, retrying...")
+                time.sleep(1)
+                continue
+            
+            logger.info(f"Found USB video devices: {usb_devices}")
+            
+            # Try each detected USB device
+            for device_id in usb_devices:
+                device_path = f"/dev/video{device_id}"
+                try:
+                    logger.info(f"Testing camera at {device_path}...")
+                    cap = cv2.VideoCapture(device_path)
+                    
+                    if not cap.isOpened():
+                        logger.warning(f"Failed to open camera {device_path}, trying next...")
                         continue
-        
-        logger.info(f"Found USB video devices: {usb_devices}")
-        
-        # Try each detected USB device
-        for device_id in usb_devices:
-            device_path = f"/dev/video{device_id}"
-            try:
-                logger.info(f"Testing camera at {device_path}...")
-                cap = cv2.VideoCapture(device_path)
-                
-                if not cap.isOpened():
-                    logger.info(f"Failed to open camera {device_path}")
-                    continue
-                
-                # Try to read a frame
-                ret, frame = cap.read()
-                if not ret:
-                    logger.info(f"Failed to read frame from camera {device_path}")
+                    
+                    # Try to read a frame
+                    ret, frame = cap.read()
+                    if not ret or frame is None:
+                        logger.warning(f"Failed to read frame from camera {device_path}, trying next...")
+                        cap.release()
+                        continue
+                    
+                    # Get camera properties
+                    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+                    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+                    fps = cap.get(cv2.CAP_PROP_FPS)
+                    
+                    logger.info(f"Found working camera {device_path}:")
+                    logger.info(f"Resolution: {width}x{height}")
+                    logger.info(f"FPS: {fps}")
+                    
                     cap.release()
-                    continue
-                
-                # Get camera properties
-                width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-                height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-                fps = cap.get(cv2.CAP_PROP_FPS)
-                
-                logger.info(f"Found working camera {device_path}:")
-                logger.info(f"Resolution: {width}x{height}")
-                logger.info(f"FPS: {fps}")
-                
-                cap.release()
-                return device_id
-                
-            except Exception as e:
-                logger.error(f"Error testing camera {device_path}: {e}")
-                if 'cap' in locals():
-                    cap.release()
-        
-        # If no camera found, raise error - we must have a working USB camera
-        error_msg = "No working USB cameras found! Check if camera is connected and has correct permissions."
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
-        
-    except Exception as e:
-        logger.error(f"Error during camera detection: {e}")
-        raise
+                    return device_id
+                    
+                except Exception as e:
+                    logger.error(f"Error testing camera {device_path}: {e}")
+                    if 'cap' in locals():
+                        cap.release()
+            
+            logger.warning("No working USB cameras found, retrying...")
+            time.sleep(1)
+            
+        except Exception as e:
+            logger.error(f"Error during camera detection: {e}")
+            time.sleep(1)
 
 # Initialize GPIO for camera switching using lgpio (Pi 5 compatible)
 try:
@@ -129,54 +134,61 @@ CAMERA_CONFIGS = {
 }
 
 def init_picamera(camera_id: int = 0) -> Optional[Picamera2]:
-    """Initialize a Picamera2 instance with robust error handling"""
-    try:
-        # Check if camera exists using libcamera
-        result = subprocess.run(['libcamera-hello', '--list-cameras'], capture_output=True, text=True)
-        cameras = result.stdout.strip().split('\n')
-        
-        if not any(f'Camera {camera_id}' in cam for cam in cameras):
-            logger.error(f"CSI Camera {camera_id} not found in libcamera list")
-            return None
+    """Initialize a Picamera2 instance with retries"""
+    while True:  # Keep trying until we succeed
+        try:
+            # Check if camera exists using libcamera
+            result = subprocess.run(['libcamera-hello', '--list-cameras'], capture_output=True, text=True)
+            cameras = result.stdout.strip().split('\n')
             
-        picam = Picamera2(camera_id)
-        
-        # Get sensor information
-        sensor_modes = picam.sensor_modes
-        if not sensor_modes:
-            logger.error(f"No sensor modes available for camera {camera_id}")
-            return None
+            if not any(f'Camera {camera_id}' in cam for cam in cameras):
+                logger.warning(f"CSI Camera {camera_id} not found in libcamera list, retrying...")
+                time.sleep(1)
+                continue
+                
+            picam = Picamera2(camera_id)
             
-        logger.info(f"Available sensor modes for camera {camera_id}: {sensor_modes}")
-        
-        # Configure for optimal streaming
-        config = picam.create_video_configuration(
-            main={"size": (1920, 1080), "format": "RGB888"},
-            controls={
-                "ExposureTime": 20000,
-                "AnalogueGain": 1.0,
-                "AeEnable": True,
-                "AwbEnable": True
-            },
-            buffer_count=4
-        )
-        
-        picam.configure(config)
-        
-        # Try to start the camera
-        picam.start()
-        
-        # Verify camera is working with a test capture
-        test_frame = picam.capture_array()
-        if test_frame is None or test_frame.size == 0:
-            raise RuntimeError("Test capture failed")
+            # Get sensor information
+            sensor_modes = picam.sensor_modes
+            if not sensor_modes:
+                logger.warning(f"No sensor modes available for camera {camera_id}, retrying...")
+                time.sleep(1)
+                continue
+                
+            logger.info(f"Available sensor modes for camera {camera_id}: {sensor_modes}")
             
-        logger.info(f"Successfully initialized CSI camera {camera_id}")
-        return picam
-        
-    except Exception as e:
-        logger.error(f"Failed to initialize CSI camera {camera_id}: {e}")
-        return None
+            # Configure for optimal streaming
+            config = picam.create_video_configuration(
+                main={"size": (1920, 1080), "format": "RGB888"},
+                controls={
+                    "ExposureTime": 20000,
+                    "AnalogueGain": 1.0,
+                    "AeEnable": True,
+                    "AwbEnable": True
+                },
+                buffer_count=4
+            )
+            
+            picam.configure(config)
+            
+            # Try to start the camera
+            picam.start()
+            
+            # Verify camera is working with a test capture
+            test_frame = picam.capture_array()
+            if test_frame is None or test_frame.size == 0:
+                logger.warning("Test capture failed, retrying...")
+                picam.stop()
+                picam.close()
+                time.sleep(1)
+                continue
+                
+            logger.info(f"Successfully initialized CSI camera {camera_id}")
+            return picam
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize CSI camera {camera_id}: {e}")
+            time.sleep(1)
 
 class MultiCamera:
     def __init__(self):
@@ -203,18 +215,23 @@ class MultiCamera:
             self.current_camera = 'csi'
             logger.info("Successfully initialized CSI camera")
         
-        # Then initialize USB camera as fallback
-        try:
-            self.usb_device_id = detect_cameras()  # This uses our robust USB detection
-            if self.usb_device_id is not None:
-                self.usb_camera = cv2.VideoCapture(f"/dev/video{self.usb_device_id}")
-                if not self.usb_camera.isOpened():
-                    raise RuntimeError("Failed to open USB camera")
-                if not self.current_camera:
-                    self.current_camera = 'usb'
-                logger.info("Successfully initialized USB camera")
-        except Exception as e:
-            logger.error(f"Failed to initialize USB camera: {e}")
+        # Then initialize USB camera
+        while True:  # Keep trying until we get a camera
+            try:
+                self.usb_device_id = detect_cameras()  # This uses our robust USB detection
+                if self.usb_device_id is not None:
+                    self.usb_camera = cv2.VideoCapture(f"/dev/video{self.usb_device_id}")
+                    if not self.usb_camera.isOpened():
+                        logger.warning("Failed to open USB camera, retrying...")
+                        time.sleep(1)
+                        continue
+                    if not self.current_camera:
+                        self.current_camera = 'usb'
+                    logger.info("Successfully initialized USB camera")
+                    break
+            except Exception as e:
+                logger.error(f"Failed to initialize USB camera: {e}")
+                time.sleep(1)
             
         if not self.current_camera:
             raise RuntimeError("No cameras available!")
@@ -375,10 +392,20 @@ class CameraManager:
             self.multi_camera.get_generator(),
             mimetype='multipart/x-mixed-replace; boundary=frame'
         )
-    
+
     def get_available_cameras(self):
-        """Get list of available camera numbers"""
-        return self.available_cameras if self.multi_camera else []
+        """Get list of available camera indices"""
+        cameras = []
+        
+        # USB camera is always index 0
+        if self.multi_camera.usb_camera and self.multi_camera.usb_camera.isOpened():
+            cameras.append(0)
+            
+        # CSI camera is index 1
+        if self.multi_camera.picam:
+            cameras.append(1)
+            
+        return cameras
     
     def get_camera_feed(self, camera_num):
         """Get MJPEG feed for a specific camera"""
@@ -409,14 +436,18 @@ class CameraManager:
 # Initialize camera manager
 camera_manager = CameraManager()
 
-def mjpeg_feed(camera_num=0):
+def mjpeg_feed(camera_num=None):
     """Get MJPEG feed for specified camera"""
     logger.info(f"MJPEG feed requested for camera {camera_num}")
     return camera_manager.mjpeg_feed(camera_num)
 
 def get_available_cameras():
     """Get list of available cameras"""
-    return camera_manager.get_available_cameras()
+    try:
+        return camera_manager.get_available_cameras()
+    except Exception as e:
+        logger.error(f"Error getting available cameras: {e}")
+        return []
 
 # Cleanup function for graceful shutdown
 def cleanup_gpio():
