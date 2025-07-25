@@ -19,11 +19,31 @@ logging.getLogger('picamera2').setLevel(logging.WARNING)
 # Get a logger instance
 logger = logging.getLogger(__name__)
 
-# Camera mapping for racks
-RACK_CAMERAS = {
-    'A': {'device': '/dev/video8', 'name': 'Rack A Camera'},
-    'B': {'device': '/dev/video9', 'name': 'Rack B Camera'},
-    'C': {'device': '/dev/video10', 'name': 'Rack C Camera'}
+# Camera configurations
+CAMERA_CONFIG = {
+    'M': {
+        'type': 'usb',
+        'device': '/dev/video8',  # USB webcam
+        'name': 'Main Camera'
+    },
+    'A': {
+        'type': 'arducam',
+        'name': 'Rack A Camera',
+        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x04',  # Switch to camera A
+        'gpio': (False, False, True)  # GPIO 7, 11, 12 states
+    },
+    'B': {
+        'type': 'arducam',
+        'name': 'Rack B Camera',
+        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x05',  # Switch to camera B
+        'gpio': (True, False, True)  # GPIO 7, 11, 12 states
+    },
+    'C': {
+        'type': 'arducam',
+        'name': 'Rack C Camera',
+        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x06',  # Switch to camera C
+        'gpio': (True, True, False)  # GPIO 7, 11, 12 states
+    }
 }
 
 class RackCamera:
@@ -130,6 +150,96 @@ class RackCamera:
             self.cap.release()
             self.cap = None
 
+class ArducamMultiCamera:
+    def __init__(self, name: str, i2c_cmd: str, gpio_states: tuple):
+        self.name = name
+        self.i2c_cmd = i2c_cmd
+        self.gpio_states = gpio_states
+        self.picam = None
+        self.frame = None
+        self.last_frame_time = 0
+        self.lock = threading.Lock()
+        self.running = True
+        self.recovery_in_progress = False
+        self.last_recovery_attempt = 0
+        self.RECOVERY_COOLDOWN = 2.0
+        
+    def start(self):
+        """Start the camera"""
+        logger.info(f"Starting {self.name}")
+        self.running = True
+        self._init_camera()
+        
+    def _switch_camera(self) -> bool:
+        """Switch to this camera using I2C and GPIO"""
+        try:
+            # Execute I2C command to switch camera
+            logger.info(f"Switching to {self.name} using I2C command: {self.i2c_cmd}")
+            os.system(self.i2c_cmd)
+            
+            # Set GPIO pins
+            gpio_7, gpio_11, gpio_12 = self.gpio_states
+            lgpio.gpio_write(gpio_chip, 4, 1 if gpio_7 else 0)   # GPIO 7 = BCM 4
+            lgpio.gpio_write(gpio_chip, 17, 1 if gpio_11 else 0) # GPIO 11 = BCM 17
+            lgpio.gpio_write(gpio_chip, 18, 1 if gpio_12 else 0) # GPIO 12 = BCM 18
+            
+            # Wait for camera to stabilize
+            time.sleep(0.5)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error switching to {self.name}: {e}")
+            return False
+            
+    def _init_camera(self) -> bool:
+        """Initialize the camera"""
+        try:
+            if self.picam:
+                try:
+                    self.picam.stop()
+                    self.picam.close()
+                except:
+                    pass
+                    
+            # Switch to this camera
+            if not self._switch_camera():
+                return False
+                
+            # Initialize with video0 (CSI port)
+            self.picam = Picamera2(0)  # Always use camera 0 for the adapter
+            
+            # Configure for optimal streaming
+            config = self.picam.create_video_configuration(
+                main={"size": (1920, 1080), "format": "RGB888"},
+                controls={
+                    "ExposureTime": 20000,
+                    "AnalogueGain": 1.0,
+                    "AeEnable": 1,
+                    "AwbEnable": 1
+                },
+                buffer_count=4
+            )
+            
+            self.picam.configure(config)
+            self.picam.start()
+            
+            # Test capture
+            test_frame = self.picam.capture_array()
+            if test_frame is None or test_frame.size == 0:
+                logger.error(f"Failed to capture test frame from {self.name}")
+                return False
+                
+            with self.lock:
+                self.frame = test_frame
+                self.last_frame_time = time.time()
+                
+            logger.info(f"Successfully initialized {self.name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error initializing {self.name}: {e}")
+            return False
+
 class CameraManager:
     def __init__(self):
         self.cameras: Dict[str, RackCamera] = {}
@@ -137,10 +247,15 @@ class CameraManager:
         
     def _init_cameras(self):
         """Initialize all rack cameras"""
-        for rack_id, config in RACK_CAMERAS.items():
-            camera = RackCamera(config['device'], config['name'])
-            camera.start()
-            self.cameras[rack_id] = camera
+        for rack_id, config in CAMERA_CONFIG.items():
+            if config['type'] == 'usb':
+                camera = RackCamera(config['device'], config['name'])
+                camera.start()
+                self.cameras[rack_id] = camera
+            elif config['type'] == 'arducam':
+                camera = ArducamMultiCamera(config['name'], config['i2c_cmd'], config['gpio'])
+                camera.start()
+                self.cameras[rack_id] = camera
             
     def get_frame(self, rack_id: str) -> Optional[np.ndarray]:
         """Get frame from specific rack camera"""
