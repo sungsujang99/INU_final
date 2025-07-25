@@ -115,8 +115,10 @@ if app.config.get('SERIAL_COMMUNICATION_ENABLED', True): # Check the same config
 else:
     app.logger.info("SERIAL_COMMUNICATION_DISABLED. Skipping reset of racks.")
 
-# Start rack workers (ensure this uses the task_queue module's function)
-task_queue.start_global_worker()
+# Start the background worker for task processing
+from . import task_queue
+task_queue.set_socketio(socketio)
+task_queue.start_worker(app)
 
 # ───── routes ─────
 @app.route("/api/ping")
