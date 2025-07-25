@@ -134,8 +134,8 @@ class ArducamMultiCamera:
         self.running = True
         self.frame_cache = None
         self.last_capture_time = 0
-        self.CACHE_DURATION = 2.0  # Cache frames for 2 seconds
-        self.MIN_FRAME_INTERVAL = 1.0  # Minimum time between frame captures
+        self.CACHE_DURATION = 0.2  # Cache frames for 200ms
+        self.MIN_FRAME_INTERVAL = 0.2  # Minimum time between frame captures (5 FPS)
         
         # Initialize GPIO exactly like test code
         if not self.__class__.gpio_chip:
@@ -298,7 +298,7 @@ class CameraManager:
         
     def get_generator(self, rack_id: str):
         """Generate MJPEG stream for a specific camera"""
-        frame_interval = 1.0  # 1 second between frames
+        frame_interval = 0.2  # 200ms between frames (5 FPS)
         last_frame_time = 0
         
         while True:
@@ -312,7 +312,7 @@ class CameraManager:
                             yield (b'--frame\r\n'
                                    b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
                             last_frame_time = current_time
-                time.sleep(0.1)  # Sleep to prevent busy waiting
+                time.sleep(0.05)  # Sleep to prevent busy waiting
             except Exception as e:
                 logger.error(f"Error in frame generator for {rack_id}: {e}")
                 time.sleep(0.5)
