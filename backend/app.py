@@ -97,8 +97,9 @@ CORS(app, resources={r"/api/*": {"origins": "*"}}) # Allow all origins for /api 
 init_db()
 
 # Reset any tasks that were stuck in 'in_progress' from a previous run
-from . import task_queue
-task_queue.reset_stale_tasks()
+# This logic was causing a crash and was requested to be removed.
+# from . import task_queue
+# task_queue.reset_stale_tasks()
 
 # Configure serial manager based on app config BEFORE starting workers
 serial_mgr.configure_and_discover(app.config)
