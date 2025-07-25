@@ -122,7 +122,7 @@ class USBCamera:
 class ArducamMultiCamera:
     picam2 = None
     gpio_chip = None
-    current_camera = None  # Track which camera is currently selected
+    current_camera = None
     
     def __init__(self, name: str, i2c_cmd: str, gpio_sta: list):
         self.name = name
@@ -150,28 +150,42 @@ class ArducamMultiCamera:
                 logger.error(f"GPIO initialization failed: {e}")
                 self.__class__.gpio_chip = None
                 raise
-                
-        # Initialize camera if not already initialized
-        if not self.__class__.picam2:
-            try:
-                self.__class__.picam2 = Picamera2(0)
-                config = self.__class__.picam2.create_preview_configuration(
-                    main={"size": (640, 480), "format": "RGB888"}
-                )
-                self.__class__.picam2.configure(config)
-                self.__class__.picam2.start()
-                time.sleep(2)  # Wait for camera to initialize
-                logger.info("Camera system initialized")
-            except Exception as e:
-                logger.error(f"Camera initialization failed: {e}")
-                self.__class__.picam2 = None
-                raise
+
+    @classmethod
+    def _reinit_camera(cls):
+        """Reinitialize the camera with fresh state"""
+        try:
+            if cls.picam2:
+                try:
+                    cls.picam2.stop()
+                    cls.picam2.close()
+                except:
+                    pass
+                cls.picam2 = None
+                time.sleep(0.5)  # Wait for camera to fully close
+            
+            # Initialize new camera instance
+            cls.picam2 = Picamera2(0)
+            config = cls.picam2.create_preview_configuration(
+                main={"size": (640, 480), "format": "RGB888"}
+            )
+            cls.picam2.configure(config)
+            cls.picam2.start()
+            time.sleep(0.5)  # Wait for camera to initialize
+            logger.info("Camera system reinitialized")
+            return True
+        except Exception as e:
+            logger.error(f"Camera reinitialization failed: {e}")
+            cls.picam2 = None
+            return False
 
     def select_channel(self):
         """Set GPIO pins exactly like test code"""
         try:
             # Only change GPIO if we're switching to a different camera
             if self.__class__.current_camera != self:
+                logger.info(f"Switching to camera: {self.name}")
+                
                 # Reset all pins first
                 lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
                 lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
@@ -185,14 +199,20 @@ class ArducamMultiCamera:
                 time.sleep(0.1)  # Brief wait for pins to settle
                 logger.info(f"GPIO set: Pin 7={self.gpio_sta[0]}, Pin 11={self.gpio_sta[1]}, Pin 12={self.gpio_sta[2]}")
                 
-                # Update current camera
-                self.__class__.current_camera = self
-                
                 # Execute I2C command after GPIO change
                 self.init_i2c()
                 
-                # Wait for camera to settle after switching
-                time.sleep(0.2)
+                # Reinitialize camera when switching
+                if not self._reinit_camera():
+                    raise RuntimeError("Failed to reinitialize camera")
+                
+                # Update current camera
+                self.__class__.current_camera = self
+                
+                # Clear frame cache after switch
+                self.frame_cache = None
+                self.last_capture_time = 0
+                
         except Exception as e:
             logger.error(f"Error setting GPIO: {e}")
             raise
