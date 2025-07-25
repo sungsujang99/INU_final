@@ -256,6 +256,18 @@ class WorkerThread(threading.Thread):
                     
                     else:
                         final_task_status = 'failed_unknown_movement'
+
+                    # Complete the task after physical operation
+                    if physical_op_successful:
+                        # Update inventory first
+                        update_inventory_on_done(task)
+                        # Then mark task as done
+                        set_task_status(task_id, 'done')
+                        logger.info(f"[Worker] Task {task_id} completed successfully.")
+                    else:
+                        # Mark task as failed with specific error
+                        set_task_status(task_id, final_task_status if final_task_status else 'failed_unknown')
+                        logger.error(f"[Worker] Task {task_id} failed with status: {final_task_status}")
                             
                 except Exception as e:
                     logger.error(f"[Worker] UNHANDLED EXCEPTION processing task {task_id}: {e}", exc_info=True)
