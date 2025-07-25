@@ -16,44 +16,79 @@ def detect_cameras():
     """Detect available USB cameras and return the first working one"""
     logger.info("Detecting available cameras...")
     
-    # Try video0 first, then video2 as fallback
-    for device_id in [0, 2]:
-        device_path = f"/dev/video{device_id}"
-        try:
-            logger.info(f"Testing camera at {device_path}...")
-            cap = cv2.VideoCapture(device_path)
+    try:
+        # Run v4l2-ctl to list devices
+        import subprocess
+        result = subprocess.run(['v4l2-ctl', '--list-devices'], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to list video devices: {result.stderr}")
             
-            if not cap.isOpened():
-                logger.info(f"Failed to open camera {device_path}")
+        # Parse the output to find USB webcam devices
+        lines = result.stdout.split('\n')
+        usb_devices = []
+        is_usb_section = False
+        
+        for line in lines:
+            if 'Web Camera' in line or 'USB Camera' in line or 'Webcam' in line:
+                is_usb_section = True
                 continue
-            
-            # Try to read a frame
-            ret, frame = cap.read()
-            if not ret:
-                logger.info(f"Failed to read frame from camera {device_path}")
+            elif line.strip() and not line.startswith('\t'):
+                is_usb_section = False
+            elif is_usb_section and line.startswith('\t'):
+                # Extract device number from path
+                device = line.strip()
+                if device.startswith('/dev/video'):
+                    try:
+                        device_num = int(device.replace('/dev/video', ''))
+                        usb_devices.append(device_num)
+                    except ValueError:
+                        continue
+        
+        logger.info(f"Found USB video devices: {usb_devices}")
+        
+        # Try each detected USB device
+        for device_id in usb_devices:
+            device_path = f"/dev/video{device_id}"
+            try:
+                logger.info(f"Testing camera at {device_path}...")
+                cap = cv2.VideoCapture(device_path)
+                
+                if not cap.isOpened():
+                    logger.info(f"Failed to open camera {device_path}")
+                    continue
+                
+                # Try to read a frame
+                ret, frame = cap.read()
+                if not ret:
+                    logger.info(f"Failed to read frame from camera {device_path}")
+                    cap.release()
+                    continue
+                
+                # Get camera properties
+                width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+                height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                
+                logger.info(f"Found working camera {device_path}:")
+                logger.info(f"Resolution: {width}x{height}")
+                logger.info(f"FPS: {fps}")
+                
                 cap.release()
-                continue
-            
-            # Get camera properties
-            width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-            height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            
-            logger.info(f"Found working camera {device_path}:")
-            logger.info(f"Resolution: {width}x{height}")
-            logger.info(f"FPS: {fps}")
-            
-            cap.release()
-            return device_id
-            
-        except Exception as e:
-            logger.error(f"Error testing camera {device_path}: {e}")
-            if 'cap' in locals():
-                cap.release()
-    
-    # If no camera found, default to video0
-    logger.warning("No working USB cameras found, defaulting to video0")
-    return 0
+                return device_id
+                
+            except Exception as e:
+                logger.error(f"Error testing camera {device_path}: {e}")
+                if 'cap' in locals():
+                    cap.release()
+        
+        # If no camera found, raise error - we must have a working USB camera
+        error_msg = "No working USB cameras found! Check if camera is connected and has correct permissions."
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+        
+    except Exception as e:
+        logger.error(f"Error during camera detection: {e}")
+        raise
 
 # Initialize GPIO for camera switching using lgpio (Pi 5 compatible)
 try:
