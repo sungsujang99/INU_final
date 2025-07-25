@@ -430,7 +430,7 @@ export const Camera = () => {
                   ))}
                 </div>
               ) : (
-                <div className="no-history-message">카메라 작업 기록이 없습니다.</div>
+                <div className="batch-history-container"></div>
               )}
             </div>
 
