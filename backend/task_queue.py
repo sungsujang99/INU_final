@@ -12,6 +12,9 @@ from .camera_history import store_camera_batch
 io = None                           # SocketIO 인스턴스 홀더
 app_instance = None                 # Flask app instance holder
 
+# Global lock to ensure only one task is claimed at a time
+task_lock = threading.Lock()
+
 def set_socketio(sock):             # app.py 가 주입
     global io; io = sock
 
@@ -71,73 +74,47 @@ def enqueue_work_task(task, user_info, conn=None, cur=None):
             conn.close()
     return new_task_id
 
-def set_task_status(task_id, status):
-    now = datetime.datetime.now().isoformat(timespec="seconds")
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    
-    # Update timestamps based on status
-    if status == 'in_progress':
-        # When task starts, set start_time
-        cur.execute("""
-            UPDATE work_tasks 
-            SET status=?, updated_at=?, start_time=? 
-            WHERE id=?
-        """, (status, now, now, task_id))
-    elif status == 'done' or status.startswith('failed_'):
-        # When task ends (success or failure), set end_time
-        cur.execute("""
-            UPDATE work_tasks 
-            SET status=?, updated_at=?, end_time=? 
-            WHERE id=?
-        """, (status, now, now, task_id))
-    else:
-        # For other status changes, just update status and updated_at
-        cur.execute("""
-            UPDATE work_tasks 
-            SET status=?, updated_at=? 
-            WHERE id=?
-        """, (status, now, task_id))
-    
-    conn.commit()
-    
-    task_details_for_event = {"id": task_id, "status": status}
-    
-    if status != 'pending': 
-        cur.execute("""
-            SELECT wt.id, wt.rack, wt.slot, wt.movement, wt.product_name, wt.product_code, 
-                   wt.start_time, wt.end_time, btl.batch_id 
-            FROM work_tasks wt
-            LEFT JOIN batch_task_links btl ON wt.id = btl.task_id
-            WHERE wt.id=?
-        """, (task_id,))
-        row = cur.fetchone()
-        if row:
-            columns = [desc[0] for desc in cur.description]
-            fetched_details = dict(zip(columns, row))
-            task_details_for_event.update(fetched_details) 
-            
-    conn.close()
+def claim_next_task():
+    """
+    Atomically fetches the next pending task and sets its status to 'in_progress'.
+    This prevents multiple workers from picking up tasks simultaneously.
+    """
+    with task_lock:
+        conn = sqlite3.connect(DB_NAME, timeout=10)
+        cur = conn.cursor()
+        try:
+            # First, check if any task is already in progress
+            cur.execute("SELECT COUNT(*) FROM work_tasks WHERE status = 'in_progress'")
+            in_progress_count = cur.fetchone()[0]
+            if in_progress_count > 0:
+                return None  # A task is already running
 
-    if io:
-        io.emit("task_status_changed", task_details_for_event)
-        logger = current_app.logger if current_app else logging.getLogger(__name__)
-        logger.info(f"[set_task_status] Emitted task_status_changed: {task_details_for_event}")
+            # If no tasks are in progress, get the next pending one
+            cur.execute("""
+                SELECT id, rack, slot, movement, product_code
+                FROM work_tasks
+                WHERE status = 'pending'
+                ORDER BY created_at ASC
+                LIMIT 1
+            """)
+            task_data = cur.fetchone()
 
-def get_next_pending_task(): # Fetches only 'pending' tasks
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM work_tasks WHERE status='pending' ORDER BY created_at ASC LIMIT 1")
-    row = cur.fetchone()
-    
-    if row:
-        columns = [desc[0] for desc in cur.description]
-        conn.close()
-        return dict(zip(columns, row))
-    conn.close()
-    return None
+            if task_data:
+                task_id = task_data[0]
+                # Immediately claim it by setting status to in_progress
+                cur.execute("UPDATE work_tasks SET status=?, updated_at=? WHERE id=?",
+                            ('in_progress', datetime.datetime.now(datetime.timezone.utc), task_id))
+                conn.commit()
+                
+                task = {'id': task_data[0], 'rack': task_data[1], 'slot': task_data[2], 'movement': task_data[3], 'product_code': task_data[4]}
+                return task
+            else:
+                return None # No pending tasks
+        finally:
+            conn.close()
 
-def get_task_by_id(task_id):
+def get_task_by_id(task_id: int) -> Optional[dict]:
+    """Fetches a single task by its ID."""
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute("SELECT * FROM work_tasks WHERE id=?", (task_id,))
@@ -149,38 +126,33 @@ def get_task_by_id(task_id):
     return None
 
 # --- Worker Thread ---
-class GlobalWorker(threading.Thread):
-    def __init__(self):
+class WorkerThread(threading.Thread):
+    def __init__(self, app_context):
         super().__init__()
         self.daemon = True
+        self.app_context = app_context
 
     def run(self):
-        if not app_instance:
-            logging.getLogger(__name__).critical("Flask app instance not set in task_queue. Worker cannot start.")
-            return
-
-        with app_instance.app_context():
-            self.worker_logic()
-
-    def worker_logic(self):
-        logger = current_app.logger
+        logger = current_app.logger if current_app else logging.getLogger(__name__)
         main_equipment_id = "M"
         main_done_token = b"fin"
         rack_done_token = b"done"
 
         while True:
-            task = get_next_pending_task()
+            # Use the new atomic function to get and claim a task
+            task = claim_next_task()
+            
             if not task:
-                time.sleep(1)
+                time.sleep(1) # Wait before checking for new tasks again
                 continue
 
+            # The task is now guaranteed to be unique and is already marked as 'in_progress'
             task_id = task['id']
             target_rack_id = task['rack'].upper()
             current_slot = int(task['slot'])
             movement = task['movement'].upper()
             
-            logger.info(f"[Worker] Picked task {task_id}: {movement} for {target_rack_id}-{current_slot}. Setting to in_progress.")
-            set_task_status(task_id, 'in_progress')
+            logger.info(f"[Worker] Claimed task {task_id}: {movement} for {target_rack_id}-{current_slot}.")
 
             final_task_status = None
             physical_op_successful = False
@@ -217,7 +189,7 @@ class GlobalWorker(threading.Thread):
                     # 1. Main equipment (M) delivers to rack approach area
                     m_result = serial_mgr.send(main_equipment_id, cmd_for_m, wait_done=True, done_token=main_done_token)
                     if m_result["status"] != "done":
-                        final_task_status = 'failed_m_echo'
+                        final_task_status = 'failed_m_echo' if m_result["status"] == "echo_timeout" else 'failed_m_response'
                     else:
                         # Record start time from when the first command was sent
                         operation_start_time = m_result["command_sent_time"]
@@ -256,7 +228,10 @@ class GlobalWorker(threading.Thread):
                 logger.error(f"[Worker] Task {task_id}: Exception during execution: {e}", exc_info=True)
                 final_task_status = 'failed_exception'
 
-            # Update task status and times in database
+            # --------------------------------------------------------------------------------
+            # 4. Finalize task: update status, inventory, and notify clients via SocketIO
+            # --------------------------------------------------------------------------------
+            operation_end_time = datetime.datetime.now(datetime.timezone.utc)
             conn = sqlite3.connect(DB_NAME)
             cur = conn.cursor()
             try:
@@ -270,79 +245,54 @@ class GlobalWorker(threading.Thread):
                         WHERE id=?
                     """, (operation_end_time, operation_start_time, operation_end_time, task_id))
                     final_task_status = 'done'
-
-                    # Get batch_id and created_by_username for the task
-                    cur.execute("""
-                        SELECT btl.batch_id, u.username as created_by_username
-                        FROM work_tasks wt
-                        LEFT JOIN batch_task_links btl ON wt.id = btl.task_id
-                        LEFT JOIN users u ON wt.created_by = u.id
-                        WHERE wt.id = ?
-                    """, (task_id,))
-                    task_extra_details = cur.fetchone()
-
-                    if task_extra_details:
-                        batch_id, username = task_extra_details
-                        # Store in permanent camera history
-                        history_data = {
-                            'batch_id': batch_id,
-                            'rack': target_rack_id,
-                            'slot': current_slot,
-                            'movement': movement,
-                            'start_time': operation_start_time,
-                            'end_time': operation_end_time,
-                            'product_code': task['product_code'],
-                            'product_name': task['product_name'],
-                            'quantity': task['quantity'],
-                            'cargo_owner': task.get('cargo_owner', ''),
-                            'created_by': task['created_by'],
-                            'created_by_username': username,
-                            'status': 'done',
-                            'created_at': task['created_at'],
-                            'updated_at': operation_end_time
-                        }
-                        try:
-                            # camera_history uses its own logger, no app context needed inside it
-                            store_camera_batch(history_data)
-                            logger.info(f"[Worker] Task {task_id}: Stored in permanent camera history")
-                        except Exception as e:
-                            logger.error(f"[Worker] Task {task_id}: Failed to store camera history: {e}", exc_info=True)
+                    logger.info(f"[Worker] Task {task_id} completed successfully.")
                 else:
                     # Update task status with operation times even for failed tasks
                     cur.execute("""
                         UPDATE work_tasks 
                         SET status=?, updated_at=?, start_time=?, end_time=?
                         WHERE id=?
-                    """, (final_task_status, operation_end_time or datetime.datetime.now().isoformat(timespec="seconds"),
-                         operation_start_time, operation_end_time, task_id))
+                    """, (final_task_status, operation_end_time, operation_start_time, operation_end_time, task_id))
+                    logger.error(f"[Worker] Task {task_id} failed with status: {final_task_status}")
                 conn.commit()
             except Exception as e:
-                logger.error(f"[Worker] Task {task_id}: Database update failed: {e}", exc_info=True)
+                logger.error(f"[Worker] DB update failed for task {task_id}: {e}")
                 conn.rollback()
-                if final_task_status == 'done':
-                    final_task_status = 'failed_inventory_update'
             finally:
                 conn.close()
 
-            # Emit status update
-            # This needs to be done BEFORE storing history
+            # Emit socket event to notify frontend of the change
             if io:
-                task_details = get_task_by_id(task_id)
+                task_details = get_task_by_id(task_id) # Fetch final task details
                 if task_details:
                     io.emit("task_status_changed", {
                         "id": task_id,
                         "status": final_task_status,
-                        "start_time": operation_start_time,
-                        "end_time": operation_end_time,
-                        **task_details
+                        "task": task_details
                     })
+                    logger.info(f"[Worker] Emitted 'task_status_changed' for task {task_id} with status {final_task_status}")
 
-            # Wait a bit before processing next task
-            time.sleep(1)
+                    # If the entire batch is complete, store it in history
+                    if task_details.get('batch_id') and task_details.get('is_batch_complete'):
+                        try:
+                            store_camera_batch(
+                                batch_id=task_details['batch_id'],
+                                total_tasks=task_details['total_tasks'],
+                                completed_at=datetime.datetime.now(datetime.timezone.utc).isoformat()
+                            )
+                            logger.info(f"Stored completed batch {task_details['batch_id']} in history.")
+                        except Exception as e:
+                            logger.error(f"Failed to store batch {task_details['batch_id']} in history: {e}")
+                else:
+                    # Fallback emit if task details couldn't be fetched
+                    io.emit("task_status_changed", {"id": task_id, "status": final_task_status})
 
-def start_global_worker():
-    worker = GlobalWorker()
-    worker.start()
+
+def start_worker(app):
+    with app.app_context():
+        worker = WorkerThread(app.app_context())
+        worker.start()
+        current_app.logger.info("Task processing worker started.")
 
 # --- API Helper ---
 def get_work_tasks_by_status(status=None, user_info=None):

@@ -105,5 +105,31 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_batch_task_links_batch_id ON batch_task_links (batch_id);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_batch_task_links_task_id ON batch_task_links (task_id);")
 
+    # ⑥ 카메라 작업 이력 (Permanent camera batch job history - never reset)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS camera_batch_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id TEXT NOT NULL,
+            rack TEXT NOT NULL,
+            slot INTEGER NOT NULL,
+            movement_type TEXT NOT NULL,  -- 'IN' / 'OUT'
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            product_code TEXT NOT NULL,
+            product_name TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            cargo_owner TEXT,
+            created_by INTEGER,
+            created_by_username TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (created_by) REFERENCES users (id)
+        );
+    """)
+    # Add indices for faster querying
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_camera_history_batch_id ON camera_batch_history (batch_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_camera_history_created_at ON camera_batch_history (created_at);")
+
     conn.commit()
     conn.close()

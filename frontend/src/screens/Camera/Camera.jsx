@@ -10,7 +10,7 @@ import { Property1LogOut } from "../../icons/Property1LogOut";
 import { Property1Variant5 } from "../../icons/Property1Variant5";
 import "./style.css";
 import { useNavigate } from "react-router-dom";
-import { getActivityLogs, logout, handleApiError } from "../../lib/api";
+import { getActivityLogs, getCameraHistory, logout, handleApiError } from "../../lib/api";
 import { jwtDecode } from "jwt-decode";
 import { getBackendUrl, getApiBaseUrl } from "../../config";
 
@@ -51,6 +51,7 @@ export const Camera = () => {
   const [selectedCamera, setSelectedCamera] = useState(0); // Start with camera 0 selected
   const [availableCameras, setAvailableCameras] = useState([0, 1, 2, 3]); // All 4 cameras available
   const [groupedActivityLogs, setGroupedActivityLogs] = useState({}); // State for grouped logs
+  const [cameraHistory, setCameraHistory] = useState([]); // State for camera batch history
   const [userDisplayName, setUserDisplayName] = useState('');
 
   // Navigation handlers
@@ -310,6 +311,16 @@ export const Camera = () => {
       }
     };
     fetchAndGroupLogs();
+
+    const fetchHistory = async () => {
+      try {
+        const historyData = await getCameraHistory({ limit: 50 });
+        setCameraHistory(historyData);
+      } catch (error) {
+        console.error("Failed to fetch camera history:", error);
+      }
+    };
+    fetchHistory();
   }, []);
 
   useEffect(() => {
@@ -371,6 +382,24 @@ export const Camera = () => {
           </div>
 
           <div className="frame-17">
+            {/* Display Camera Batch History */}
+            <div className="camera-history-list">
+              <h4>최근 작업 배치 (카메라)</h4>
+              {cameraHistory.length > 0 ? (
+                <ul>
+                  {cameraHistory.map(item => (
+                    <li key={item.id}>
+                      Batch: {item.batch_id ? item.batch_id.substring(0, 8) : 'N/A'}... | 
+                      Status: {item.status} | 
+                      Time: {formatLogTime(item.start_time)} - {formatLogTime(item.end_time)}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>카메라 작업 기록이 없습니다.</p>
+              )}
+            </div>
+
             {Object.keys(groupedActivityLogs).length === 0 ? (
               <p>표시할 로그가 없습니다.</p>
             ) : (

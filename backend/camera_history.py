@@ -2,17 +2,15 @@ import sqlite3
 import logging
 from .db import DB_NAME
 
-# Set up basic logging
-logging.basicConfig(level=logging.INFO)
+# Set up basic logging for this module
 logger = logging.getLogger(__name__)
 
 def store_camera_batch(history_data):
-    """Store camera batch job history in the database"""
+    """Store a completed task's details in the permanent camera_batch_history table."""
     conn = None
     try:
         conn = sqlite3.connect(DB_NAME)
         cur = conn.cursor()
-
         cur.execute("""
             INSERT INTO camera_batch_history (
                 batch_id, rack, slot, movement_type, start_time, end_time,
@@ -37,42 +35,27 @@ def store_camera_batch(history_data):
             history_data.get('updated_at')
         ))
         conn.commit()
-        logger.info(f"Stored camera batch history for rack {history_data.get('rack')} slot {history_data.get('slot')}")
-
-    except Exception as e:
-        logger.error(f"Error storing camera batch history: {str(e)}")
+    except sqlite3.Error as e:
+        logger.error(f"DATABASE ERROR in store_camera_batch: {e}")
         if conn:
             conn.rollback()
-        # We don't re-raise here to avoid crashing the worker thread
     finally:
         if conn:
             conn.close()
 
-def get_camera_history(batch_id=None, limit=100):
-    """Get camera batch job history from the database"""
+def get_camera_history(limit=50):
+    """Retrieve camera batch history logs from the database."""
     conn = None
     try:
         conn = sqlite3.connect(DB_NAME)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-
-        query = "SELECT * FROM camera_batch_history"
-        params = []
-
-        if batch_id:
-            query += " WHERE batch_id = ?"
-            params.append(batch_id)
-
-        query += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
-
-        cur.execute(query, tuple(params))
+        cur.execute("SELECT * FROM camera_batch_history ORDER BY end_time DESC LIMIT ?", (limit,))
         rows = cur.fetchall()
         return [dict(row) for row in rows]
-
-    except Exception as e:
-        logger.error(f"Error getting camera history: {str(e)}")
-        return []
+    except sqlite3.Error as e:
+        logger.error(f"DATABASE ERROR in get_camera_history: {e}")
+        return [] # Return empty list on error
     finally:
         if conn:
             conn.close() 

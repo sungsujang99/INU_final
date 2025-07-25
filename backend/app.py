@@ -18,6 +18,7 @@ from .serial_io import serial_mgr
 from . import task_queue
 from .error_messages import get_error_message
 from .camera_stream import mjpeg_feed, get_available_cameras  # Import the mjpeg_feed function and camera list
+from .camera_history import get_camera_history
 
 # Define SECRET_KEY for the application
 # This should be a long, random, and secret string in production
@@ -94,6 +95,10 @@ def log_request_info():
 
 CORS(app, resources={r"/api/*": {"origins": "*"}}) # Allow all origins for /api routes
 init_db()
+
+# Reset any tasks that were stuck in 'in_progress' from a previous run
+from . import task_queue
+task_queue.reset_stale_tasks()
 
 # Configure serial manager based on app config BEFORE starting workers
 serial_mgr.configure_and_discover(app.config)
@@ -317,6 +322,20 @@ def get_activity_logs():
     except Exception as e:
         current_app.logger.error(f"Unexpected error in get_activity_logs: {str(e)}", exc_info=True)
         return jsonify({"error": "An unexpected error occurred", "message": str(e)}), 500
+
+@app.route("/api/camera-history")
+@token_required
+def camera_history():
+    try:
+        limit = request.args.get('limit', default=50, type=int)
+        history = get_camera_history(limit)
+        return jsonify(history), 200
+    except Exception as e:
+        current_app.logger.error(f"Error fetching camera history: {e}", exc_info=True)
+        return jsonify({
+            "error": get_error_message("fetch_history_error"),
+            "message": str(e)
+        }), 500
 
 # ---- record JSON ----
 @app.route("/api/record", methods=["POST"])

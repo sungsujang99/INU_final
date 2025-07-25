@@ -189,3 +189,31 @@ export const handleApiError = (error, navigate) => {
   }
   return false; // Normal error, not session invalidation
 };
+
+export const getCameraHistory = async ({ limit = 50 } = {}) => {
+  const token = localStorage.getItem('inu_token');
+  if (!token) throw new Error("Authentication token not found.");
+  
+  const queryParams = new URLSearchParams({ limit });
+  const url = `${getApiBaseUrl()}/api/camera-history?${queryParams}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to fetch camera history' }));
+      throw new Error(errorData.message);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("API Error in getCameraHistory:", error);
+    throw error;
+  }
+};
