@@ -123,22 +123,6 @@ class ArducamMultiCamera:
     picam2 = None
     gpio_chip = None
     
-    @classmethod
-    def init_gpio(cls):
-        """Initialize GPIO exactly like test code"""
-        if cls.gpio_chip is None:
-            try:
-                cls.gpio_chip = lgpio.gpiochip_open(0)
-                # Setup GPIO pins as outputs (using BCM pin numbers)
-                lgpio.gpio_claim_output(cls.gpio_chip, 4)   # Pin 7 (BOARD) = Pin 4 (BCM)
-                lgpio.gpio_claim_output(cls.gpio_chip, 17)  # Pin 11 (BOARD) = Pin 17 (BCM)
-                lgpio.gpio_claim_output(cls.gpio_chip, 18)  # Pin 12 (BOARD) = Pin 18 (BCM)
-                logger.info("GPIO initialized successfully")
-            except Exception as e:
-                logger.error(f"GPIO initialization failed: {e}")
-                cls.gpio_chip = None
-                raise
-    
     def __init__(self, name: str, i2c_cmd: str, gpio_sta: list):
         self.name = name
         self.i2c_cmd = i2c_cmd
@@ -148,8 +132,19 @@ class ArducamMultiCamera:
         self.lock = threading.Lock()
         self.running = True
         
-        # Initialize GPIO
-        self.__class__.init_gpio()
+        # Initialize GPIO exactly like test code
+        if not self.__class__.gpio_chip:
+            try:
+                self.__class__.gpio_chip = lgpio.gpiochip_open(0)
+                # Setup GPIO pins as outputs (using BCM pin numbers)
+                lgpio.gpio_claim_output(self.__class__.gpio_chip, 4)   # Pin 7 (BOARD) = Pin 4 (BCM)
+                lgpio.gpio_claim_output(self.__class__.gpio_chip, 17)  # Pin 11 (BOARD) = Pin 17 (BCM)
+                lgpio.gpio_claim_output(self.__class__.gpio_chip, 18)  # Pin 12 (BOARD) = Pin 18 (BCM)
+                logger.info("GPIO initialized successfully")
+            except Exception as e:
+                logger.error(f"GPIO initialization failed: {e}")
+                self.__class__.gpio_chip = None
+                raise
         
     def select_channel(self):
         """Set GPIO pins exactly like test code"""
@@ -158,7 +153,6 @@ class ArducamMultiCamera:
             lgpio.gpio_write(self.__class__.gpio_chip, 17, 1 if self.gpio_sta[1] else 0)  # Pin 11
             lgpio.gpio_write(self.__class__.gpio_chip, 18, 1 if self.gpio_sta[2] else 0)  # Pin 12
             logger.info(f"GPIO set: Pin 7={self.gpio_sta[0]}, Pin 11={self.gpio_sta[1]}, Pin 12={self.gpio_sta[2]}")
-            time.sleep(0.1)  # Wait for GPIO to stabilize
         except Exception as e:
             logger.error(f"Error setting GPIO: {e}")
             raise
@@ -169,7 +163,6 @@ class ArducamMultiCamera:
         if result != 0:
             logger.error(f"I2C command failed with code {result}")
             raise RuntimeError(f"I2C command failed: {self.i2c_cmd}")
-        time.sleep(0.5)  # Wait for I2C to settle
         
     def start(self):
         logger.info(f"Starting {self.name}")
@@ -178,10 +171,17 @@ class ArducamMultiCamera:
         
     def _init_camera(self):
         try:
+            # Set GPIO pins
             self.select_channel()
+            
+            # Execute I2C command
             self.init_i2c()
             
+            # Wait for camera to settle
+            time.sleep(2)
+            
             if not self.__class__.picam2:
+                # Try to capture with Picamera2 exactly like test
                 self.__class__.picam2 = Picamera2()
                 config = self.__class__.picam2.create_preview_configuration(
                     main={"size": (640, 480), "format": "RGB888"}
@@ -189,7 +189,8 @@ class ArducamMultiCamera:
                 self.__class__.picam2.configure(config)
                 self.__class__.picam2.start()
                 time.sleep(2)
-                
+            
+            # Try to capture a frame
             test_frame = self.__class__.picam2.capture_array()
             if test_frame is None:
                 logger.error(f"Failed to capture test frame from {self.name}")
@@ -208,17 +209,19 @@ class ArducamMultiCamera:
             
     def get_frame(self):
         try:
+            # Set GPIO pins
             self.select_channel()
             
-            # Capture twice as in test code
-            self.__class__.picam2.capture_array()
-            frame = self.__class__.picam2.capture_array()
+            # Wait for camera to settle
+            time.sleep(2)
             
-            if frame is not None:
+            # Try to capture a frame
+            array = self.__class__.picam2.capture_array()
+            if array is not None:
                 with self.lock:
-                    self.frame = frame
+                    self.frame = array
                     self.last_frame_time = time.time()
-                return frame
+                return array
             return None
         except Exception as e:
             logger.error(f"Error capturing frame from {self.name}: {e}")
