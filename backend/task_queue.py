@@ -89,6 +89,8 @@ def set_task_status(task_id: int, status: str, conn=None):
         if status == 'in_progress':
             cur.execute("UPDATE work_tasks SET status=?, updated_at=?, start_time=? WHERE id=?", (status, now, now, task_id))
         else:
+            # For non-in_progress statuses, only update status, updated_at, and end_time
+            # Do NOT modify start_time
             cur.execute("UPDATE work_tasks SET status=?, updated_at=?, end_time=? WHERE id=?", (status, now, now, task_id))
         
         if own_connection:
@@ -138,9 +140,15 @@ def claim_next_task():
                 columns = [desc[0] for desc in cur.description]
                 task_id = task_row[0]
                 
-                # Immediately claim it by setting status to in_progress
-                cur.execute("UPDATE work_tasks SET status=?, updated_at=? WHERE id=?",
-                            ('in_progress', datetime.datetime.now(datetime.timezone.utc), task_id))
+                # Get current time for both updated_at and start_time
+                now = datetime.datetime.now().isoformat(timespec="seconds")
+                
+                # Immediately claim it by setting status to in_progress AND setting start_time
+                cur.execute("""
+                    UPDATE work_tasks 
+                    SET status = ?, updated_at = ?, start_time = ? 
+                    WHERE id = ?
+                """, ('in_progress', now, now, task_id))
                 conn.commit()
                 
                 # Create a full task dictionary from the row
