@@ -4,7 +4,7 @@ import logging
 import time
 import threading
 from picamera2 import Picamera2
-import RPi.GPIO as gp
+import lgpio
 import os
 from typing import Optional, Dict, Union
 from flask import Response
@@ -121,6 +121,23 @@ class USBCamera:
 
 class ArducamMultiCamera:
     picam2 = None
+    gpio_chip = None
+    
+    @classmethod
+    def init_gpio(cls):
+        """Initialize GPIO exactly like test code"""
+        if cls.gpio_chip is None:
+            try:
+                cls.gpio_chip = lgpio.gpiochip_open(0)
+                # Setup GPIO pins as outputs (using BCM pin numbers)
+                lgpio.gpio_claim_output(cls.gpio_chip, 4)   # Pin 7 (BOARD) = Pin 4 (BCM)
+                lgpio.gpio_claim_output(cls.gpio_chip, 17)  # Pin 11 (BOARD) = Pin 17 (BCM)
+                lgpio.gpio_claim_output(cls.gpio_chip, 18)  # Pin 12 (BOARD) = Pin 18 (BCM)
+                logger.info("GPIO initialized successfully")
+            except Exception as e:
+                logger.error(f"GPIO initialization failed: {e}")
+                cls.gpio_chip = None
+                raise
     
     def __init__(self, name: str, i2c_cmd: str, gpio_sta: list):
         self.name = name
@@ -131,20 +148,28 @@ class ArducamMultiCamera:
         self.lock = threading.Lock()
         self.running = True
         
-        # Initialize GPIO exactly as in demo
-        gp.setwarnings(False)
-        gp.setmode(gp.BOARD)
-        gp.setup(7, gp.OUT)
-        gp.setup(11, gp.OUT)
-        gp.setup(12, gp.OUT)
+        # Initialize GPIO
+        self.__class__.init_gpio()
         
     def select_channel(self):
-        gp.output(7, self.gpio_sta[0])
-        gp.output(11, self.gpio_sta[1])
-        gp.output(12, self.gpio_sta[2])
+        """Set GPIO pins exactly like test code"""
+        try:
+            lgpio.gpio_write(self.__class__.gpio_chip, 4, 1 if self.gpio_sta[0] else 0)    # Pin 7
+            lgpio.gpio_write(self.__class__.gpio_chip, 17, 1 if self.gpio_sta[1] else 0)  # Pin 11
+            lgpio.gpio_write(self.__class__.gpio_chip, 18, 1 if self.gpio_sta[2] else 0)  # Pin 12
+            logger.info(f"GPIO set: Pin 7={self.gpio_sta[0]}, Pin 11={self.gpio_sta[1]}, Pin 12={self.gpio_sta[2]}")
+            time.sleep(0.1)  # Wait for GPIO to stabilize
+        except Exception as e:
+            logger.error(f"Error setting GPIO: {e}")
+            raise
         
     def init_i2c(self):
-        os.system(self.i2c_cmd)
+        """Execute I2C command"""
+        result = os.system(self.i2c_cmd)
+        if result != 0:
+            logger.error(f"I2C command failed with code {result}")
+            raise RuntimeError(f"I2C command failed: {self.i2c_cmd}")
+        time.sleep(0.5)  # Wait for I2C to settle
         
     def start(self):
         logger.info(f"Starting {self.name}")
@@ -155,16 +180,13 @@ class ArducamMultiCamera:
         try:
             self.select_channel()
             self.init_i2c()
-            time.sleep(0.5)
             
             if not self.__class__.picam2:
                 self.__class__.picam2 = Picamera2()
-                self.__class__.picam2.configure(
-                    self.__class__.picam2.create_still_configuration(
-                        main={"size": (640, 480), "format": "RGB888"},
-                        buffer_count=2
-                    )
+                config = self.__class__.picam2.create_preview_configuration(
+                    main={"size": (640, 480), "format": "RGB888"}
                 )
+                self.__class__.picam2.configure(config)
                 self.__class__.picam2.start()
                 time.sleep(2)
                 
@@ -187,9 +209,8 @@ class ArducamMultiCamera:
     def get_frame(self):
         try:
             self.select_channel()
-            time.sleep(0.02)
             
-            # Capture twice as in demo code
+            # Capture twice as in test code
             self.__class__.picam2.capture_array()
             frame = self.__class__.picam2.capture_array()
             
@@ -279,6 +300,8 @@ class CameraManager:
         if ArducamMultiCamera.picam2:
             ArducamMultiCamera.picam2.close()
             ArducamMultiCamera.picam2 = None
+        if ArducamMultiCamera.gpio_chip:
+            lgpio.gpio_close(ArducamMultiCamera.gpio_chip)
 
 # Global camera manager instance
 camera_manager = CameraManager()
