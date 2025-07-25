@@ -4,6 +4,7 @@ from picamera2 import Picamera2
 import libcamera
 from flask import Response, current_app
 import cv2
+import numpy as np
 
 # Set Picamera2 logging to WARNING to suppress DEBUG output
 logging.getLogger('picamera2').setLevel(logging.WARNING)
@@ -81,6 +82,57 @@ CAMERA_CONFIGS = {
     2: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x05", "gpio": (True, False, True), "name": "Camera B"},
     3: {"type": "arducam", "i2c_cmd": "i2cset -y 1 0x70 0x00 0x07", "gpio": (True, True, False), "name": "Camera C"}  # Using working configuration from test
 }
+
+def init_picamera():
+    """Initialize Picamera2 with proper error handling"""
+    try:
+        # First, try to get camera info
+        camera_list = Picamera2.global_camera_info()
+        if not camera_list:
+            logger.error("No cameras found by Picamera2")
+            return None
+
+        # Find the CSI camera (usually has 'imx219' in the name)
+        csi_index = None
+        for idx, cam in enumerate(camera_list):
+            if 'imx219' in cam['Model'].lower():
+                csi_index = idx
+                break
+
+        if csi_index is None:
+            logger.error("No IMX219 camera found")
+            return None
+
+        # Initialize the camera
+        picam = Picamera2(csi_index)
+        
+        # Get the default configuration first
+        preview_config = picam.create_preview_configuration(
+            main={
+                "size": (1920, 1080),
+                "format": "RGB888"
+            },
+            buffer_count=4,
+            queue=True
+        )
+        
+        # Configure the camera
+        picam.configure(preview_config)
+        
+        # Set camera controls
+        picam.set_controls({
+            "FrameDurationLimits": (1000, 100000),  # Set frame rate limits (in μs)
+            "AnalogueGain": 1.0,                    # Initial gain
+            "ExposureTime": 20000,                  # Initial exposure (in μs)
+            "AwbEnable": True,                      # Enable auto white balance
+            "AeEnable": True                        # Enable auto exposure
+        })
+        
+        return picam
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize Picamera2: {e}")
+        return None
 
 class USBCamera:
     def __init__(self, device_id=0, width=640, height=480, fps=30):
@@ -216,7 +268,7 @@ class USBCamera:
         logger.info("USB camera stopped")
 
 def switch_camera(camera_num):
-    """Switch to the specified camera using I2C and GPIO (from working demo)"""
+    """Switch to the specified camera using I2C and GPIO"""
     if camera_num not in CAMERA_CONFIGS:
         logger.error(f"Invalid camera number: {camera_num}")
         return False
@@ -245,8 +297,8 @@ def switch_camera(camera_num):
         lgpio.gpio_write(gpio_chip, 17, 1 if gpio_11 else 0)
         lgpio.gpio_write(gpio_chip, 18, 1 if gpio_12 else 0)
         
-        # Reduced delay for camera switching from 1s to 0.5s
-        time.sleep(0.5)
+        # Wait for camera to stabilize
+        time.sleep(1.0)
         
         logger.info(f"GPIO set: Pin 7={gpio_7}, Pin 11={gpio_11}, Pin 12={gpio_12}")
         return True
@@ -256,7 +308,7 @@ def switch_camera(camera_num):
         return False
 
 class MultiCamera:
-    def __init__(self, width=640, height=480, fps=30):  # Updated default resolution and fps
+    def __init__(self, width=640, height=480, fps=30):
         self.width = width
         self.height = height
         self.fps = fps
@@ -264,63 +316,15 @@ class MultiCamera:
         self.frame = None
         self.running = True
         self.camera_lock = threading.Lock()
+        self.last_frame_time = time.time()
+        self.error_count = 0
+        self.last_recovery_attempt = 0
+        self.RECOVERY_COOLDOWN = 10  # Wait 10 seconds between recovery attempts
+        self.MAX_ERRORS = 3  # Number of errors before attempting recovery
         
         try:
             logger.info("Initializing multi-camera system...")
-            
-            # Initialize USB camera for main camera (camera 0)
-            logger.info("Setting up USB camera...")
-            self.usb_camera = USBCamera(
-                device_id=CAMERA_CONFIGS[0]["device"],
-                width=width,
-                height=height,
-                fps=fps
-            )
-            
-            # Initialize Picamera2 for Arducam cameras
-            logger.info("Setting up Arducam cameras...")
-            switch_camera(1)  # Start with first Arducam camera
-            try:
-                self.picam = Picamera2(0)
-                # Configure for 1920x1080 at ~47fps which is a good balance of resolution and speed
-                preview_config = self.picam.create_preview_configuration(
-                    main={
-                        "size": (1920, 1080),
-                        "format": "RGB888"
-                    },
-                    buffer_count=4,  # Use more buffers for smoother streaming
-                    queue=True       # Enable frame queueing
-                )
-                preview_config["transform"] = libcamera.Transform(hflip=0, vflip=0)  # Adjust flip if needed
-                self.picam.configure(preview_config)
-                
-                # Set controls for better image quality
-                self.picam.set_controls({
-                    "FrameDurationLimits": (1000, 100000),  # Set frame rate limits (in μs)
-                    "AnalogueGain": 1.0,                    # Initial gain
-                    "ExposureTime": 20000                   # Initial exposure (in μs)
-                })
-                
-                self.picam.start()
-                time.sleep(1)  # Wait for camera to stabilize
-                
-                # Test capture to verify camera is working
-                test_frame = self.picam.capture_array()
-                if test_frame is None or test_frame.size == 0:
-                    raise RuntimeError("Test capture returned empty frame")
-                    
-                logger.info("Picamera2 initialized successfully")
-                
-            except Exception as e:
-                logger.error(f"Error initializing Picamera2: {e}")
-                if hasattr(self, 'picam'):
-                    try:
-                        self.picam.close()
-                    except:
-                        pass
-                raise
-            
-            logger.info("Multi-camera system initialized successfully")
+            self._init_cameras()
             
             # Start capture thread for Arducam cameras
             self.arducam_thread = threading.Thread(target=self._update, daemon=True)
@@ -331,14 +335,89 @@ class MultiCamera:
             self.cleanup()
             raise
 
+    def _init_cameras(self):
+        """Initialize cameras with error handling"""
+        # Initialize USB camera for main camera (camera 0)
+        logger.info("Setting up USB camera...")
+        self.usb_camera = USBCamera(
+            device_id=CAMERA_CONFIGS[0]["device"],
+            width=self.width,
+            height=self.height,
+            fps=self.fps
+        )
+        
+        # Initialize Picamera2 for Arducam cameras
+        logger.info("Setting up Arducam cameras...")
+        switch_camera(1)  # Start with first Arducam camera
+        self.picam = init_picamera()
+        if self.picam:
+            logger.info("Picamera2 initialized successfully")
+            self.picam.start()
+            time.sleep(1)  # Wait for camera to stabilize
+        else:
+            logger.error("Failed to initialize Picamera2")
+
+    def _attempt_camera_recovery(self):
+        """Attempt to recover failed camera"""
+        current_time = time.time()
+        if current_time - self.last_recovery_attempt < self.RECOVERY_COOLDOWN:
+            return False
+
+        logger.info("Attempting camera recovery...")
+        self.last_recovery_attempt = current_time
+        
+        try:
+            # Stop and cleanup existing camera
+            if hasattr(self, 'picam'):
+                try:
+                    self.picam.stop()
+                    self.picam.close()
+                except:
+                    pass
+                delattr(self, 'picam')
+
+            # Reset GPIO pins
+            if gpio_chip is not None:
+                try:
+                    lgpio.gpio_write(gpio_chip, 4, 0)
+                    lgpio.gpio_write(gpio_chip, 17, 0)
+                    lgpio.gpio_write(gpio_chip, 18, 1)
+                    time.sleep(0.5)
+                except Exception as e:
+                    logger.error(f"Error resetting GPIO: {e}")
+
+            # Reinitialize camera
+            if self.current_camera != 0:  # Only if not USB camera
+                switch_camera(self.current_camera)
+                self.picam = init_picamera()
+                if self.picam:
+                    self.picam.start()
+                    time.sleep(1)
+                    # Test capture
+                    test_frame = self.picam.capture_array()
+                    if test_frame is not None and test_frame.size > 0:
+                        logger.info("Camera recovery successful")
+                        self.error_count = 0
+                        return True
+
+            logger.error("Camera recovery failed")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error during camera recovery: {e}")
+            return False
+
     def cleanup(self):
         """Clean up resources"""
         try:
             if hasattr(self, 'usb_camera'):
                 self.usb_camera.stop()
             if hasattr(self, 'picam'):
-                self.picam.stop()
-                self.picam.close()
+                try:
+                    self.picam.stop()
+                    self.picam.close()
+                except:
+                    pass
             # Reset GPIO to default state
             if gpio_chip is not None:
                 lgpio.gpio_write(gpio_chip, 4, 0)
@@ -366,7 +445,7 @@ class MultiCamera:
                         # Initialize Picamera if needed
                         if not hasattr(self, 'picam'):
                             logger.info("Initializing Picamera2")
-                            self.picam = Picamera2(0)
+                            self.picam = init_picamera()
                             config = self.picam.create_preview_configuration(
                                 main={"size": (self.width, self.height), "format": "RGB888"}
                             )
@@ -508,56 +587,56 @@ class MultiCamera:
                 return True
 
     def _update(self):
-        """Capture frames continuously from Arducam cameras"""
-        logger.info("Arducam capture thread started")
+        """Capture frames continuously with error recovery"""
+        logger.info("Camera capture thread started")
         frame_count = 0
         last_log_time = time.time()
-        error_count = 0
-        last_error_time = 0
         
         while self.running:
             try:
                 with self.camera_lock:
-                    # Only capture from Picamera2 if current camera is not USB
-                    if self.current_camera != 0:
-                        try:
-                            arr = self.picam.capture_array()
-                            if arr is not None:
-                                ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                                if ret:
-                                    self.frame = jpg.tobytes()
-                                    frame_count += 1
-                                    error_count = 0  # Reset error count on successful capture
-                                else:
-                                    logger.warning("Failed to encode Arducam frame to JPEG")
-                            else:
-                                logger.warning("Failed to capture Arducam frame")
-                                error_count += 1
-                        except Exception as e:
-                            logger.warning(f"Capture error on camera {self.current_camera}: {e}")
-                            error_count += 1
-                            
-                            # If we get too many errors in a short time, try to recover
-                            current_time = time.time()
-                            if error_count > 5 and (current_time - last_error_time) < 10:
-                                logger.error("Too many capture errors, attempting recovery")
-                                try:
-                                    # Stop and restart the camera
-                                    self.picam.stop()
-                                    if switch_camera(self.current_camera):
-                                        self.picam.start()
-                                        time.sleep(2)
-                                        error_count = 0
-                                        logger.info("Camera recovery successful")
-                                except Exception as recovery_error:
-                                    logger.error(f"Camera recovery failed: {recovery_error}")
-                            last_error_time = current_time
-                    else:
-                        # For USB camera, use its frame
+                    if self.current_camera == 0:
+                        # USB camera
                         self.frame = self.usb_camera.frame
                         if self.frame is None:
-                            logger.warning("No frame available from USB camera")
-                
+                            self.error_count += 1
+                            logger.warning(f"No frame from USB camera (error count: {self.error_count})")
+                    else:
+                        # Arducam camera
+                        if not hasattr(self, 'picam'):
+                            self.error_count += 1
+                            logger.error(f"Picamera2 not initialized (error count: {self.error_count})")
+                        else:
+                            try:
+                                arr = self.picam.capture_array()
+                                if arr is not None:
+                                    ret, jpg = cv2.imencode(".jpg", arr, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                                    if ret:
+                                        self.frame = jpg.tobytes()
+                                        frame_count += 1
+                                        self.error_count = 0  # Reset error count on successful capture
+                                        self.last_frame_time = time.time()
+                                    else:
+                                        self.error_count += 1
+                                        logger.warning(f"Failed to encode Arducam frame (error count: {self.error_count})")
+                                else:
+                                    self.error_count += 1
+                                    logger.warning(f"No frame from Arducam (error count: {self.error_count})")
+                            except Exception as e:
+                                self.error_count += 1
+                                logger.error(f"Error capturing from Arducam: {e} (error count: {self.error_count})")
+
+                    # Check if we need to attempt recovery
+                    if self.error_count >= self.MAX_ERRORS:
+                        if self._attempt_camera_recovery():
+                            self.error_count = 0
+                        else:
+                            # If recovery failed and not USB camera, fall back to USB
+                            if self.current_camera != 0:
+                                logger.warning("Falling back to USB camera after failed recovery")
+                                self.current_camera = 0
+                                self.error_count = 0
+
                 # Log frame rate every 5 seconds for Arducam
                 if self.current_camera != 0:
                     current_time = time.time()
@@ -566,11 +645,12 @@ class MultiCamera:
                         logger.info(f"Arducam Camera {self.current_camera} FPS: {fps:.2f}")
                         frame_count = 0
                         last_log_time = current_time
-                
+
                 time.sleep(1.0 / self.fps)
                         
             except Exception as e:
                 logger.error(f"Error in capture loop: {e}")
+                self.error_count += 1
                 time.sleep(0.1)
 
     def get_generator(self, camera_num=None):
@@ -585,16 +665,45 @@ class MultiCamera:
                 frame = None
                 with self.camera_lock:
                     frame = self.frame
+                    # Check if frame is too old (more than 5 seconds)
+                    if frame and time.time() - self.last_frame_time > 5:
+                        logger.warning("Frame is too old, attempting recovery")
+                        self._attempt_camera_recovery()
+                        frame = None
                 
                 if frame:
                     yield b'--frame\r\n'
                     yield b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n'
                 else:
                     logger.warning(f"No frame available for camera {self.current_camera}")
+                    # If no frame available, send a blank frame or error image
+                    blank_frame = self._generate_blank_frame()
+                    yield b'--frame\r\n'
+                    yield b'Content-Type: image/jpeg\r\n\r\n' + blank_frame + b'\r\n'
                 time.sleep(1.0 / self.fps)
             except Exception as e:
                 logger.error(f"Error in frame generator: {e}")
                 break
+
+    def _generate_blank_frame(self):
+        """Generate a blank frame with error message"""
+        height, width = 480, 640
+        blank = np.zeros((height, width, 3), np.uint8)
+        blank.fill(200)  # Light gray background
+        
+        # Add error message
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        text = f"Camera {self.current_camera} Reconnecting..."
+        textsize = cv2.getTextSize(text, font, 1, 2)[0]
+        text_x = (width - textsize[0]) // 2
+        text_y = (height + textsize[1]) // 2
+        
+        cv2.putText(blank, text, (text_x, text_y), font, 1, (0, 0, 0), 2)
+        
+        ret, jpg = cv2.imencode('.jpg', blank)
+        if ret:
+            return jpg.tobytes()
+        return b''
 
     def stop(self):
         """Stop the camera system"""

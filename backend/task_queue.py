@@ -271,6 +271,31 @@ class WorkerThread(threading.Thread):
                         update_inventory_on_done(task)
                         # Then mark task as done
                         set_task_status(task_id, 'done')
+                        
+                        # Get task details for history
+                        task_details = get_task_by_id(task_id)
+                        if task_details:
+                            # Record in camera batch history
+                            history_data = {
+                                'batch_id': task_details.get('batch_id'),
+                                'rack': task_details['rack'],
+                                'slot': task_details['slot'],
+                                'movement': task_details['movement'],
+                                'start_time': operation_start_time.isoformat() if isinstance(operation_start_time, datetime.datetime) else operation_start_time,
+                                'end_time': operation_end_time.isoformat() if isinstance(operation_end_time, datetime.datetime) else operation_end_time,
+                                'product_code': task_details['product_code'],
+                                'product_name': task_details['product_name'],
+                                'quantity': task_details['quantity'],
+                                'cargo_owner': task_details['cargo_owner'],
+                                'created_by': task_details['created_by'],
+                                'created_by_username': task_details.get('created_by_username', 'Unknown'),
+                                'status': 'done',
+                                'created_at': task_details['created_at'],
+                                'updated_at': task_details['updated_at']
+                            }
+                            store_camera_batch(history_data)
+                            logger.info(f"[Worker] Task {task_id} recorded in camera batch history.")
+                        
                         logger.info(f"[Worker] Task {task_id} completed successfully.")
                     else:
                         # Mark task as failed with specific error
