@@ -106,43 +106,28 @@ def init_picamera():
         # Initialize the camera
         picam = Picamera2(csi_index)
         
-        # Get the default configuration first
-        preview_config = picam.create_preview_configuration(
+        # Create a simpler configuration that matches the IMX219 capabilities
+        camera_config = picam.create_still_configuration(
             main={
                 "size": (1920, 1080),
                 "format": "RGB888"
             },
+            raw={
+                "size": picam.sensor_resolution
+            },
             buffer_count=4,
-            queue=True
+            queue=True,
+            controls={
+                "ExposureTime": 20000,
+                "AnalogueGain": 1.0
+            }
         )
+
+        # Apply the configuration
+        picam.configure(camera_config)
         
-        # Configure the camera with proper controls
-        picam.configure(preview_config)
-        
-        # Set camera controls - using the correct control names for IMX219
-        try:
-            picam.set_controls({
-                "ExposureTime": 20000,  # 20ms exposure time
-                "AnalogueGain": 1.0,    # Initial gain
-                "Brightness": 0.0,      # Default brightness
-                "Contrast": 1.0,        # Default contrast
-                "Saturation": 1.0,      # Default saturation
-                "ExposureValue": 0.0,   # Default EV compensation
-                "AeEnable": 1,          # Enable auto exposure (1 = True)
-                "AwbEnable": 1,         # Enable auto white balance (1 = True)
-                "AeMeteringMode": 0,    # Auto exposure metering mode (0 = Centre Weighted)
-                "NoiseReductionMode": 1  # Noise reduction (1 = Fast)
-            })
-        except Exception as ctrl_error:
-            logger.warning(f"Some camera controls not supported: {ctrl_error}")
-            # Try minimal controls if full set fails
-            try:
-                picam.set_controls({
-                    "ExposureTime": 20000,
-                    "AnalogueGain": 1.0
-                })
-            except Exception as min_ctrl_error:
-                logger.error(f"Failed to set even minimal camera controls: {min_ctrl_error}")
+        # Let the camera settle
+        time.sleep(0.5)
         
         return picam
         
