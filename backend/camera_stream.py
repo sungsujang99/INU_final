@@ -51,72 +51,125 @@ class USBCamera:
         self.last_frame_time = 0
         self.lock = threading.Lock()
         self.running = True
+        self.frame_cache = None
+        self.last_capture_time = 0
+        self.CACHE_DURATION = 0.2  # Cache frames for 200ms
+        self.MIN_FRAME_INTERVAL = 0.2  # Minimum time between frame captures
         
     def start(self):
         """Start the camera"""
         logger.info(f"Starting {self.name} at {self.device_path}")
         self.running = True
-        self._init_camera()
+        return self._init_camera()
         
     def _init_camera(self) -> bool:
         """Initialize the camera"""
         try:
             if self.cap:
                 self.cap.release()
+                self.cap = None
+                time.sleep(0.5)  # Wait for camera to fully release
                 
+            # Try to open the camera
             self.cap = cv2.VideoCapture(self.device_path)
             if not self.cap.isOpened():
                 logger.error(f"Failed to open {self.name} at {self.device_path}")
                 return False
                 
             # Set camera properties
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Match ArduCam resolution
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             self.cap.set(cv2.CAP_PROP_FPS, 30)
             
             # Test capture
             ret, frame = self.cap.read()
             if not ret or frame is None:
                 logger.error(f"Failed to capture test frame from {self.name}")
+                self.cap.release()
+                self.cap = None
                 return False
                 
+            # Convert frame to RGB format to match ArduCam
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
             with self.lock:
                 self.frame = frame
+                self.frame_cache = frame.copy()
                 self.last_frame_time = time.time()
+                self.last_capture_time = time.time()
                 
             logger.info(f"Successfully initialized {self.name}")
             return True
             
         except Exception as e:
             logger.error(f"Error initializing {self.name}: {e}")
+            if self.cap:
+                try:
+                    self.cap.release()
+                except:
+                    pass
+                self.cap = None
             return False
             
     def get_frame(self) -> Optional[np.ndarray]:
         """Get the latest frame"""
-        if not self.cap or not self.cap.isOpened():
-            if not self._init_camera():
-                return None
-                
+        current_time = time.time()
+        
+        # Return cached frame if it's still fresh
+        if (self.frame_cache is not None and 
+            current_time - self.last_capture_time < self.CACHE_DURATION):
+            return self.frame_cache.copy()
+            
+        # Rate limit frame captures
+        if current_time - self.last_capture_time < self.MIN_FRAME_INTERVAL:
+            if self.frame_cache is not None:
+                return self.frame_cache.copy()
+            return self._generate_blank_frame("Initializing camera...")
+            
         try:
+            if not self.cap or not self.cap.isOpened():
+                if not self._init_camera():
+                    return self._generate_blank_frame(f"Reconnecting to {self.name}...")
+                    
             ret, frame = self.cap.read()
             if ret and frame is not None:
+                # Convert to RGB to match ArduCam format
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 with self.lock:
                     self.frame = frame
-                    self.last_frame_time = time.time()
+                    self.frame_cache = frame.copy()
+                    self.last_frame_time = current_time
+                    self.last_capture_time = current_time
                 return frame
             else:
                 self._init_camera()
-                return None
+                return self._generate_blank_frame(f"No frame from {self.name}")
         except Exception as e:
             logger.error(f"Error capturing frame from {self.name}: {e}")
             self._init_camera()
-            return None
+            return self._generate_blank_frame(f"Error: {str(e)}")
+            
+    def _generate_blank_frame(self, message: str) -> np.ndarray:
+        """Generate a blank frame with error message"""
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)  # Match ArduCam resolution
+        frame.fill(32)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.7
+        thickness = 2
+        text_size = cv2.getTextSize(message, font, font_scale, thickness)[0]
+        text_x = (frame.shape[1] - text_size[0]) // 2
+        text_y = (frame.shape[0] + text_size[1]) // 2
+        cv2.putText(frame, message, (text_x, text_y), font, font_scale, (255, 255, 255), thickness)
+        return frame
             
     def stop(self):
         """Stop the camera"""
         self.running = False
         if self.cap:
-            self.cap.release()
+            try:
+                self.cap.release()
+            except:
+                pass
             self.cap = None
 
 class ArducamMultiCamera:
