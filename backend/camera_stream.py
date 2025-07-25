@@ -116,17 +116,33 @@ def init_picamera():
             queue=True
         )
         
-        # Configure the camera
+        # Configure the camera with proper controls
         picam.configure(preview_config)
         
-        # Set camera controls
-        picam.set_controls({
-            "FrameDurationLimits": (1000, 100000),  # Set frame rate limits (in μs)
-            "AnalogueGain": 1.0,                    # Initial gain
-            "ExposureTime": 20000,                  # Initial exposure (in μs)
-            "AwbEnable": True,                      # Enable auto white balance
-            "AeEnable": True                        # Enable auto exposure
-        })
+        # Set camera controls - using the correct control names for IMX219
+        try:
+            picam.set_controls({
+                "ExposureTime": 20000,  # 20ms exposure time
+                "AnalogueGain": 1.0,    # Initial gain
+                "Brightness": 0.0,      # Default brightness
+                "Contrast": 1.0,        # Default contrast
+                "Saturation": 1.0,      # Default saturation
+                "ExposureValue": 0.0,   # Default EV compensation
+                "AeEnable": 1,          # Enable auto exposure (1 = True)
+                "AwbEnable": 1,         # Enable auto white balance (1 = True)
+                "AeMeteringMode": 0,    # Auto exposure metering mode (0 = Centre Weighted)
+                "NoiseReductionMode": 1  # Noise reduction (1 = Fast)
+            })
+        except Exception as ctrl_error:
+            logger.warning(f"Some camera controls not supported: {ctrl_error}")
+            # Try minimal controls if full set fails
+            try:
+                picam.set_controls({
+                    "ExposureTime": 20000,
+                    "AnalogueGain": 1.0
+                })
+            except Exception as min_ctrl_error:
+                logger.error(f"Failed to set even minimal camera controls: {min_ctrl_error}")
         
         return picam
         
