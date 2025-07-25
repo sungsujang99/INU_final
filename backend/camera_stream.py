@@ -133,7 +133,8 @@ class ArducamMultiCamera:
         self.running = True
         self.frame_cache = None
         self.last_capture_time = 0
-        self.CACHE_DURATION = 0.5  # Cache frames for 500ms
+        self.CACHE_DURATION = 2.0  # Cache frames for 2 seconds
+        self.MIN_FRAME_INTERVAL = 1.0  # Minimum time between frame captures
         
         # Initialize GPIO exactly like test code
         if not self.__class__.gpio_chip:
@@ -203,6 +204,12 @@ class ArducamMultiCamera:
         if (self.frame_cache is not None and 
             current_time - self.last_capture_time < self.CACHE_DURATION):
             return self.frame_cache.copy()
+            
+        # Rate limit frame captures
+        if current_time - self.last_capture_time < self.MIN_FRAME_INTERVAL:
+            if self.frame_cache is not None:
+                return self.frame_cache.copy()
+            return self._generate_blank_frame("Initializing camera...")
             
         try:
             with self.lock:  # Use lock to prevent concurrent camera access
@@ -285,15 +292,21 @@ class CameraManager:
         
     def get_generator(self, rack_id: str):
         """Generate MJPEG stream for a specific camera"""
+        frame_interval = 1.0  # 1 second between frames
+        last_frame_time = 0
+        
         while True:
             try:
-                frame = self.get_frame(rack_id)
-                if frame is not None:
-                    ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                    if ret:
-                        yield (b'--frame\r\n'
-                               b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
-                time.sleep(0.1)  # Reduced frame rate to 10fps to prevent overloading
+                current_time = time.time()
+                if current_time - last_frame_time >= frame_interval:
+                    frame = self.get_frame(rack_id)
+                    if frame is not None:
+                        ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        if ret:
+                            yield (b'--frame\r\n'
+                                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+                            last_frame_time = current_time
+                time.sleep(0.1)  # Sleep to prevent busy waiting
             except Exception as e:
                 logger.error(f"Error in frame generator for {rack_id}: {e}")
                 time.sleep(0.5)
