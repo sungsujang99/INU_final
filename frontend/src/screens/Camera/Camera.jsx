@@ -385,7 +385,7 @@ export const Camera = () => {
             {/* Display Camera Batch History */}
             <div className="camera-history-list">
               <h4>최근 작업 배치 (카메라)</h4>
-              {cameraHistory.length > 0 ? (
+              {cameraHistory.length > 0 && (
                 <ul>
                   {cameraHistory.map(item => (
                     <li key={item.id}>
@@ -395,14 +395,10 @@ export const Camera = () => {
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p>카메라 작업 기록이 없습니다.</p>
               )}
             </div>
 
-            {Object.keys(groupedActivityLogs).length === 0 ? (
-              <p>표시할 로그가 없습니다.</p>
-            ) : (
+            {Object.keys(groupedActivityLogs).length > 0 && (
               Object.entries(groupedActivityLogs).map(([date, batches], dateIndex) => (
                 <React.Fragment key={date}>
                   {/* Date divider */}
