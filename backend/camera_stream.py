@@ -180,31 +180,39 @@ class ArducamMultiCamera:
             # Wait for camera to settle
             time.sleep(2)
             
-            if not self.__class__.picam2:
-                # Try to capture with Picamera2 exactly like test
-                self.__class__.picam2 = Picamera2()
-                config = self.__class__.picam2.create_preview_configuration(
-                    main={"size": (640, 480), "format": "RGB888"}
-                )
-                self.__class__.picam2.configure(config)
-                self.__class__.picam2.start()
-                time.sleep(2)
+            # Try to capture with Picamera2 exactly like test
+            picam = Picamera2()
+            config = picam.create_preview_configuration(
+                main={"size": (640, 480), "format": "RGB888"}
+            )
+            picam.configure(config)
+            picam.start()
+            time.sleep(2)
             
             # Try to capture a frame
-            test_frame = self.__class__.picam2.capture_array()
-            if test_frame is None:
-                logger.error(f"Failed to capture test frame from {self.name}")
+            array = picam.capture_array()
+            if array is not None:
+                logger.info(f"✓ Successfully captured frame: {array.shape}")
+                with self.lock:
+                    self.frame = array
+                    self.last_frame_time = time.time()
+                    self.__class__.picam2 = picam
+                logger.info(f"Successfully initialized {self.name}")
+                return True
+            else:
+                logger.error("Failed to capture frame")
+                picam.stop()
+                picam.close()
                 return False
                 
-            with self.lock:
-                self.frame = test_frame
-                self.last_frame_time = time.time()
-                
-            logger.info(f"Successfully initialized {self.name}")
-            return True
-            
         except Exception as e:
             logger.error(f"Error initializing {self.name}: {e}")
+            try:
+                if 'picam' in locals():
+                    picam.stop()
+                    picam.close()
+            except:
+                pass
             return False
             
     def get_frame(self):
@@ -215,6 +223,10 @@ class ArducamMultiCamera:
             # Wait for camera to settle
             time.sleep(2)
             
+            if not self.__class__.picam2:
+                if not self._init_camera():
+                    return None
+            
             # Try to capture a frame
             array = self.__class__.picam2.capture_array()
             if array is not None:
@@ -222,13 +234,38 @@ class ArducamMultiCamera:
                     self.frame = array
                     self.last_frame_time = time.time()
                 return array
+            
+            # If capture failed, try to reinitialize
+            logger.error("Frame capture failed, reinitializing camera")
+            if self.__class__.picam2:
+                try:
+                    self.__class__.picam2.stop()
+                    self.__class__.picam2.close()
+                except:
+                    pass
+                self.__class__.picam2 = None
             return None
+            
         except Exception as e:
             logger.error(f"Error capturing frame from {self.name}: {e}")
+            if self.__class__.picam2:
+                try:
+                    self.__class__.picam2.stop()
+                    self.__class__.picam2.close()
+                except:
+                    pass
+                self.__class__.picam2 = None
             return None
             
     def stop(self):
         self.running = False
+        if self.__class__.picam2:
+            try:
+                self.__class__.picam2.stop()
+                self.__class__.picam2.close()
+            except:
+                pass
+            self.__class__.picam2 = None
 
 class CameraManager:
     def __init__(self):
