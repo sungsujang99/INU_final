@@ -161,38 +161,23 @@ export const Camera = () => {
       );
     }
 
-    // Show a preview image for unselected cameras
-    const previewUrl = `${getBackendUrl()}/api/camera/${cameraId}/mjpeg_feed`;
+    // Show a placeholder for unselected cameras
     return (
-      <div className="small-camera-preview" style={{ position: 'relative', width: '100%', height: '100%' }}>
-        <img 
-          src={previewUrl}
-          alt={`${getCameraName(cameraId)} 미리보기`}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          onError={(e) => {
-            e.target.style.display = 'none';
-            e.target.nextSibling.style.display = 'flex';
-          }}
-        />
-        <div 
-          className="small-camera-error" 
-          style={{ 
-            display: 'none',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: '#f5f5f5',
-            color: '#666',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            fontSize: '0.8em'
-          }}
-        >
-          사용불가
-        </div>
+      <div 
+        className="small-camera-preview" 
+        style={{ 
+          position: 'relative', 
+          width: '100%', 
+          height: '100%',
+          backgroundColor: '#f5f5f5',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          color: '#666',
+          fontSize: '0.9em'
+        }}
+      >
+        <div>{getCameraName(cameraId)} 선택</div>
       </div>
     );
   };
