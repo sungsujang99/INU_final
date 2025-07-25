@@ -131,6 +131,9 @@ class ArducamMultiCamera:
         self.last_frame_time = 0
         self.lock = threading.Lock()
         self.running = True
+        self.frame_cache = None
+        self.last_capture_time = 0
+        self.CACHE_DURATION = 0.5  # Cache frames for 500ms
         
         # Initialize GPIO exactly like test code
         if not self.__class__.gpio_chip:
@@ -194,6 +197,13 @@ class ArducamMultiCamera:
         self.running = True
         
     def get_frame(self):
+        current_time = time.time()
+        
+        # Return cached frame if it's still fresh
+        if (self.frame_cache is not None and 
+            current_time - self.last_capture_time < self.CACHE_DURATION):
+            return self.frame_cache.copy()
+            
         try:
             with self.lock:  # Use lock to prevent concurrent camera access
                 # Set GPIO pins for this camera
@@ -203,14 +213,17 @@ class ArducamMultiCamera:
                 self.init_i2c()
                 
                 # Brief wait for camera to settle
-                time.sleep(0.1)
+                time.sleep(0.2)  # Increased settle time
                 
                 # Try to capture a frame
                 if self.__class__.picam2:
                     array = self.__class__.picam2.capture_array()
                     if array is not None:
                         self.frame = array
-                        self.last_frame_time = time.time()
+                        self.last_frame_time = current_time
+                        # Update cache
+                        self.frame_cache = array.copy()
+                        self.last_capture_time = current_time
                         return array
                     
                 return self._generate_blank_frame(f"No frame from {self.name}")
@@ -280,7 +293,7 @@ class CameraManager:
                     if ret:
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
-                time.sleep(0.033)  # ~30fps
+                time.sleep(0.1)  # Reduced frame rate to 10fps to prevent overloading
             except Exception as e:
                 logger.error(f"Error in frame generator for {rack_id}: {e}")
                 time.sleep(0.5)
