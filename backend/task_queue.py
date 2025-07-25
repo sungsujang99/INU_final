@@ -134,14 +134,16 @@ def claim_next_task():
             task_row = cur.fetchone()
 
             if task_row:
+                # Get column names BEFORE the UPDATE query resets the cursor's description
+                columns = [desc[0] for desc in cur.description]
                 task_id = task_row[0]
+                
                 # Immediately claim it by setting status to in_progress
                 cur.execute("UPDATE work_tasks SET status=?, updated_at=? WHERE id=?",
                             ('in_progress', datetime.datetime.now(datetime.timezone.utc), task_id))
                 conn.commit()
                 
                 # Create a full task dictionary from the row
-                columns = [desc[0] for desc in cur.description]
                 task = dict(zip(columns, task_row))
                 return task
             else:
