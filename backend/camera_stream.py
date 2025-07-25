@@ -1,7 +1,7 @@
 import io, threading, time, logging, sys, os
 import lgpio
 from picamera2 import Picamera2
-from libcamera import controls
+import libcamera
 from flask import Response, current_app
 import cv2
 
@@ -280,13 +280,45 @@ class MultiCamera:
             # Initialize Picamera2 for Arducam cameras
             logger.info("Setting up Arducam cameras...")
             switch_camera(1)  # Start with first Arducam camera
-            self.picam = Picamera2(0)
-            config = self.picam.create_preview_configuration(
-                main={"size": (width, height), "format": "RGB888"}
-            )
-            self.picam.configure(config)
-            self.picam.start()
-            time.sleep(1)  # Reduced from 2s to 1s
+            try:
+                self.picam = Picamera2(0)
+                # Configure for 1920x1080 at ~47fps which is a good balance of resolution and speed
+                preview_config = self.picam.create_preview_configuration(
+                    main={
+                        "size": (1920, 1080),
+                        "format": "RGB888"
+                    },
+                    buffer_count=4,  # Use more buffers for smoother streaming
+                    queue=True       # Enable frame queueing
+                )
+                preview_config["transform"] = libcamera.Transform(hflip=0, vflip=0)  # Adjust flip if needed
+                self.picam.configure(preview_config)
+                
+                # Set controls for better image quality
+                self.picam.set_controls({
+                    "FrameDurationLimits": (1000, 100000),  # Set frame rate limits (in μs)
+                    "AnalogueGain": 1.0,                    # Initial gain
+                    "ExposureTime": 20000                   # Initial exposure (in μs)
+                })
+                
+                self.picam.start()
+                time.sleep(1)  # Wait for camera to stabilize
+                
+                # Test capture to verify camera is working
+                test_frame = self.picam.capture_array()
+                if test_frame is None or test_frame.size == 0:
+                    raise RuntimeError("Test capture returned empty frame")
+                    
+                logger.info("Picamera2 initialized successfully")
+                
+            except Exception as e:
+                logger.error(f"Error initializing Picamera2: {e}")
+                if hasattr(self, 'picam'):
+                    try:
+                        self.picam.close()
+                    except:
+                        pass
+                raise
             
             logger.info("Multi-camera system initialized successfully")
             
