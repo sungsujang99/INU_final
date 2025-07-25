@@ -4,7 +4,7 @@ import logging
 import time
 import threading
 from picamera2 import Picamera2
-from gpiozero import DigitalOutputDevice
+import RPi.GPIO as gp
 import os
 from typing import Optional, Dict, Union
 from flask import Response
@@ -15,7 +15,7 @@ logging.getLogger('picamera2').setLevel(logging.WARNING)
 # Get a logger instance
 logger = logging.getLogger(__name__)
 
-# Camera configurations for Arducam Multi-Camera Adapter v2.2
+# Camera configurations
 CAMERA_CONFIG = {
     'M': {
         'type': 'usb',
@@ -26,7 +26,7 @@ CAMERA_CONFIG = {
         'type': 'arducam',
         'name': 'Rack A Camera',
         'i2c_cmd': 'i2cset -y 10 0x70 0x00 0x04',
-        'gpio_sta': [0, 0, 1]  # GPIO 7, 11, 12 states
+        'gpio_sta': [0, 0, 1]
     },
     'B': {
         'type': 'arducam',
@@ -51,9 +51,6 @@ class USBCamera:
         self.last_frame_time = 0
         self.lock = threading.Lock()
         self.running = True
-        self.recovery_in_progress = False
-        self.last_recovery_attempt = 0
-        self.RECOVERY_COOLDOWN = 2.0
         
     def start(self):
         """Start the camera"""
@@ -123,80 +120,43 @@ class USBCamera:
             self.cap = None
 
 class ArducamMultiCamera:
-    picam2 = None  # Shared Picamera2 instance
-    gpio_pins = None  # Shared GPIO pins
+    picam2 = None
     
-    @classmethod
-    def init_gpio(cls):
-        """Initialize GPIO pins once for all instances"""
-        if cls.gpio_pins is None:
-            try:
-                # Using BCM pin numbers (4=GPIO7, 17=GPIO11, 18=GPIO12)
-                cls.gpio_pins = {
-                    'gpio7': DigitalOutputDevice(4),
-                    'gpio11': DigitalOutputDevice(17),
-                    'gpio12': DigitalOutputDevice(18)
-                }
-                # Set initial state
-                cls.gpio_pins['gpio7'].off()
-                cls.gpio_pins['gpio11'].off()
-                cls.gpio_pins['gpio12'].on()
-                time.sleep(0.1)
-                logger.info("GPIO pins initialized successfully")
-            except Exception as e:
-                logger.error(f"GPIO initialization failed: {e}")
-                cls.gpio_pins = None
-    
-    def __init__(self, name: str, i2c_cmd: str, gpio_states: list):
+    def __init__(self, name: str, i2c_cmd: str, gpio_sta: list):
         self.name = name
         self.i2c_cmd = i2c_cmd
-        self.gpio_states = gpio_states
+        self.gpio_sta = gpio_sta
         self.frame = None
         self.last_frame_time = 0
         self.lock = threading.Lock()
         self.running = True
         
-        # Initialize GPIO first
-        self.__class__.init_gpio()
+        # Initialize GPIO exactly as in demo
+        gp.setwarnings(False)
+        gp.setmode(gp.BOARD)
+        gp.setup(7, gp.OUT)
+        gp.setup(11, gp.OUT)
+        gp.setup(12, gp.OUT)
+        
+    def select_channel(self):
+        gp.output(7, self.gpio_sta[0])
+        gp.output(11, self.gpio_sta[1])
+        gp.output(12, self.gpio_sta[2])
+        
+    def init_i2c(self):
+        os.system(self.i2c_cmd)
         
     def start(self):
-        """Start the camera"""
         logger.info(f"Starting {self.name}")
         self.running = True
         self._init_camera()
         
-    def _switch_camera(self) -> bool:
-        """Switch to this camera using I2C and GPIO"""
+    def _init_camera(self):
         try:
-            if not self.__class__.gpio_pins:
-                logger.error(f"{self.name}: GPIO not initialized")
-                return False
-                
-            # Set GPIO pins first
-            self.__class__.gpio_pins['gpio7'].value = self.gpio_states[0]
-            self.__class__.gpio_pins['gpio11'].value = self.gpio_states[1]
-            self.__class__.gpio_pins['gpio12'].value = self.gpio_states[2]
-            time.sleep(0.1)  # Wait for GPIO to stabilize
+            self.select_channel()
+            self.init_i2c()
+            time.sleep(0.5)
             
-            # Then execute I2C command
-            logger.info(f"Switching to {self.name} using I2C command: {self.i2c_cmd}")
-            os.system(self.i2c_cmd)
-            time.sleep(0.5)  # Wait for I2C and camera to stabilize
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error switching to {self.name}: {e}")
-            return False
-            
-    def _init_camera(self) -> bool:
-        """Initialize the camera"""
-        try:
-            # Switch to this camera first
-            if not self._switch_camera():
-                return False
-                
-            # Initialize shared Picamera2 instance if needed
             if not self.__class__.picam2:
                 self.__class__.picam2 = Picamera2()
                 self.__class__.picam2.configure(
@@ -206,9 +166,8 @@ class ArducamMultiCamera:
                     )
                 )
                 self.__class__.picam2.start()
-                time.sleep(2)  # Wait for camera to initialize
+                time.sleep(2)
                 
-            # Test capture
             test_frame = self.__class__.picam2.capture_array()
             if test_frame is None:
                 logger.error(f"Failed to capture test frame from {self.name}")
@@ -225,14 +184,12 @@ class ArducamMultiCamera:
             logger.error(f"Error initializing {self.name}: {e}")
             return False
             
-    def get_frame(self) -> Optional[np.ndarray]:
-        """Get the latest frame"""
+    def get_frame(self):
         try:
-            # Switch to this camera first
-            if not self._switch_camera():
-                return None
-                
-            # Capture twice as in demo code (first frame might be from previous camera)
+            self.select_channel()
+            time.sleep(0.02)
+            
+            # Capture twice as in demo code
             self.__class__.picam2.capture_array()
             frame = self.__class__.picam2.capture_array()
             
@@ -241,16 +198,12 @@ class ArducamMultiCamera:
                     self.frame = frame
                     self.last_frame_time = time.time()
                 return frame
-            else:
-                self._init_camera()
-                return None
+            return None
         except Exception as e:
             logger.error(f"Error capturing frame from {self.name}: {e}")
-            self._init_camera()
             return None
             
     def stop(self):
-        """Stop the camera"""
         self.running = False
 
 class CameraManager:
@@ -284,15 +237,14 @@ class CameraManager:
         
     def _generate_blank_frame(self, message: str) -> np.ndarray:
         """Generate a blank frame with error message"""
-        frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
-        frame.fill(32)  # Dark gray background
+        frame = np.zeros((240, 320, 3), dtype=np.uint8)  # Use demo resolution
+        frame.fill(32)
         font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 1.5
+        font_scale = 0.7
         thickness = 2
         text_size = cv2.getTextSize(message, font, font_scale, thickness)[0]
         text_x = (frame.shape[1] - text_size[0]) // 2
         text_y = (frame.shape[0] + text_size[1]) // 2
-        cv2.putText(frame, message, (text_x, text_y), font, font_scale, (0, 0, 0), thickness + 2)
         cv2.putText(frame, message, (text_x, text_y), font, font_scale, (255, 255, 255), thickness)
         return frame
         
