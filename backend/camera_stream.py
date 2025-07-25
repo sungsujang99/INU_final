@@ -122,6 +122,7 @@ class USBCamera:
 class ArducamMultiCamera:
     picam2 = None
     gpio_chip = None
+    current_camera = None  # Track which camera is currently selected
     
     def __init__(self, name: str, i2c_cmd: str, gpio_sta: list):
         self.name = name
@@ -169,18 +170,29 @@ class ArducamMultiCamera:
     def select_channel(self):
         """Set GPIO pins exactly like test code"""
         try:
-            # Reset all pins first
-            lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
-            lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
-            lgpio.gpio_write(self.__class__.gpio_chip, 18, 0)  # Pin 12
-            time.sleep(0.1)  # Brief wait for pins to settle
-            
-            # Set new pin states
-            lgpio.gpio_write(self.__class__.gpio_chip, 4, 1 if self.gpio_sta[0] else 0)    # Pin 7
-            lgpio.gpio_write(self.__class__.gpio_chip, 17, 1 if self.gpio_sta[1] else 0)  # Pin 11
-            lgpio.gpio_write(self.__class__.gpio_chip, 18, 1 if self.gpio_sta[2] else 0)  # Pin 12
-            time.sleep(0.1)  # Brief wait for pins to settle
-            logger.info(f"GPIO set: Pin 7={self.gpio_sta[0]}, Pin 11={self.gpio_sta[1]}, Pin 12={self.gpio_sta[2]}")
+            # Only change GPIO if we're switching to a different camera
+            if self.__class__.current_camera != self:
+                # Reset all pins first
+                lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
+                lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
+                lgpio.gpio_write(self.__class__.gpio_chip, 18, 0)  # Pin 12
+                time.sleep(0.1)  # Brief wait for pins to settle
+                
+                # Set new pin states
+                lgpio.gpio_write(self.__class__.gpio_chip, 4, 1 if self.gpio_sta[0] else 0)    # Pin 7
+                lgpio.gpio_write(self.__class__.gpio_chip, 17, 1 if self.gpio_sta[1] else 0)  # Pin 11
+                lgpio.gpio_write(self.__class__.gpio_chip, 18, 1 if self.gpio_sta[2] else 0)  # Pin 12
+                time.sleep(0.1)  # Brief wait for pins to settle
+                logger.info(f"GPIO set: Pin 7={self.gpio_sta[0]}, Pin 11={self.gpio_sta[1]}, Pin 12={self.gpio_sta[2]}")
+                
+                # Update current camera
+                self.__class__.current_camera = self
+                
+                # Execute I2C command after GPIO change
+                self.init_i2c()
+                
+                # Wait for camera to settle after switching
+                time.sleep(0.2)
         except Exception as e:
             logger.error(f"Error setting GPIO: {e}")
             raise
@@ -191,7 +203,6 @@ class ArducamMultiCamera:
         if result != 0:
             logger.error(f"I2C command failed with code {result}")
             raise RuntimeError(f"I2C command failed: {self.i2c_cmd}")
-        time.sleep(0.1)  # Brief wait for I2C to settle
         
     def start(self):
         logger.info(f"Starting {self.name}")
@@ -215,12 +226,6 @@ class ArducamMultiCamera:
             with self.lock:  # Use lock to prevent concurrent camera access
                 # Set GPIO pins for this camera
                 self.select_channel()
-                
-                # Execute I2C command
-                self.init_i2c()
-                
-                # Brief wait for camera to settle
-                time.sleep(0.2)  # Increased settle time
                 
                 # Try to capture a frame
                 if self.__class__.picam2:
@@ -254,15 +259,16 @@ class ArducamMultiCamera:
             
     def stop(self):
         self.running = False
-        # Don't stop the camera here, as it's shared
-        # Just reset GPIO pins to default state
-        if self.__class__.gpio_chip:
-            try:
-                lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
-                lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
-                lgpio.gpio_write(self.__class__.gpio_chip, 18, 1)  # Pin 12
-            except:
-                pass
+        # Reset GPIO pins to default state only if this camera was the current one
+        if self.__class__.current_camera == self:
+            if self.__class__.gpio_chip:
+                try:
+                    lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
+                    lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
+                    lgpio.gpio_write(self.__class__.gpio_chip, 18, 1)  # Pin 12
+                    self.__class__.current_camera = None
+                except:
+                    pass
 
 class CameraManager:
     def __init__(self):
