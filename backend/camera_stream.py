@@ -4,7 +4,7 @@ import logging
 import time
 import threading
 from picamera2 import Picamera2
-import RPi.GPIO as gp
+from gpiozero import DigitalOutputDevice
 import os
 from typing import Optional, Dict, Union
 from flask import Response
@@ -124,23 +124,23 @@ class USBCamera:
 
 class ArducamMultiCamera:
     picam2 = None  # Shared Picamera2 instance
-    gpio_initialized = False
+    gpio_pins = None  # Shared GPIO pins
     
     @classmethod
     def init_gpio(cls):
         """Initialize GPIO pins once for all instances"""
-        if not cls.gpio_initialized:
+        if cls.gpio_pins is None:
             try:
-                gp.setwarnings(False)
-                gp.setmode(gp.BOARD)
-                gp.setup(7, gp.OUT)
-                gp.setup(11, gp.OUT)
-                gp.setup(12, gp.OUT)
-                cls.gpio_initialized = True
+                # Using BCM pin numbers (4=GPIO7, 17=GPIO11, 18=GPIO12)
+                cls.gpio_pins = {
+                    'gpio7': DigitalOutputDevice(4),
+                    'gpio11': DigitalOutputDevice(17),
+                    'gpio12': DigitalOutputDevice(18)
+                }
                 logger.info("GPIO pins initialized successfully")
             except Exception as e:
                 logger.error(f"GPIO initialization failed: {e}")
-                cls.gpio_initialized = False
+                cls.gpio_pins = None
     
     def __init__(self, name: str, i2c_cmd: str, gpio_states: list):
         self.name = name
@@ -154,16 +154,10 @@ class ArducamMultiCamera:
         # Initialize shared GPIO
         self.__class__.init_gpio()
         
-    def start(self):
-        """Start the camera"""
-        logger.info(f"Starting {self.name}")
-        self.running = True
-        self._init_camera()
-        
     def _switch_camera(self) -> bool:
         """Switch to this camera using I2C and GPIO"""
         try:
-            if not self.__class__.gpio_initialized:
+            if not self.__class__.gpio_pins:
                 logger.error(f"{self.name}: GPIO not initialized")
                 return False
                 
@@ -172,9 +166,9 @@ class ArducamMultiCamera:
             os.system(self.i2c_cmd)
             
             # Set GPIO pins
-            gp.output(7, self.gpio_states[0])
-            gp.output(11, self.gpio_states[1])
-            gp.output(12, self.gpio_states[2])
+            self.__class__.gpio_pins['gpio7'].value = self.gpio_states[0]
+            self.__class__.gpio_pins['gpio11'].value = self.gpio_states[1]
+            self.__class__.gpio_pins['gpio12'].value = self.gpio_states[2]
             
             # Wait for camera to stabilize
             time.sleep(0.02)  # 20ms delay from demo code
