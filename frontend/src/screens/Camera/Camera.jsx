@@ -384,20 +384,57 @@ export const Camera = () => {
           <div className="frame-17">
             {/* Display Camera Batch History */}
             <div className="camera-history-list">
-              <h4>최근 작업 배치 (카메라)</h4>
-              {cameraHistory.length > 0 && (
-                <ul>
+              <h4>작업현황</h4>
+              {cameraHistory.length > 0 ? (
+                <div className="batch-history-container">
                   {cameraHistory.map(item => (
-                    <li key={item.id}>
-                      Batch: {item.batch_id ? item.batch_id.substring(0, 8) : 'N/A'}... | 
-                      Status: {item.status} | 
-                      Time: {formatLogTime(item.start_time)} - {formatLogTime(item.end_time)}
-                    </li>
+                    <div key={item.id} className="group-10">
+                      <div className="overlap-6">
+                        <div className="group-11">
+                          <div className="overlap-group-6">
+                            <div className="log-title">
+                              {item.rack}랙 {item.slot}칸 {item.movement_type === 'IN' ? '입고' : '출고'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="log-times-container">
+                          <div className="log-time-entry">
+                            <span className="log-time-label">시작시간</span>
+                            <span className="log-time-value">{formatLogTime(item.start_time)}</span>
+                          </div>
+                          <div className="log-time-entry">
+                            <span className="log-time-label">종료시간</span>
+                            <span className="log-time-value">{formatLogTime(item.end_time)}</span>
+                          </div>
+                          <div className="log-details">
+                            <div className="log-detail-item">
+                              <span>상품명:</span>
+                              <span>{item.product_name}</span>
+                            </div>
+                            <div className="log-detail-item">
+                              <span>수량:</span>
+                              <span>{item.quantity}개</span>
+                            </div>
+                            <div className="log-detail-item">
+                              <span>화주:</span>
+                              <span>{item.cargo_owner}</span>
+                            </div>
+                            <div className="log-detail-item">
+                              <span>작업자:</span>
+                              <span>{item.created_by_username}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </ul>
+                </div>
+              ) : (
+                <div className="no-history-message">카메라 작업 기록이 없습니다.</div>
               )}
             </div>
 
+            {/* Existing activity logs section */}
             {Object.keys(groupedActivityLogs).length > 0 && (
               Object.entries(groupedActivityLogs).map(([date, batches], dateIndex) => (
                 <React.Fragment key={date}>
