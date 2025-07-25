@@ -125,6 +125,7 @@ class USBCamera:
 class ArducamMultiCamera:
     picam2 = None  # Shared Picamera2 instance
     gpio_pins = None  # Shared GPIO pins
+    i2c_initialized = False
     
     @classmethod
     def init_gpio(cls):
@@ -141,6 +142,20 @@ class ArducamMultiCamera:
             except Exception as e:
                 logger.error(f"GPIO initialization failed: {e}")
                 cls.gpio_pins = None
+
+    @classmethod
+    def init_i2c(cls):
+        """Initialize I2C for Arducam adapter"""
+        if not cls.i2c_initialized:
+            try:
+                # Enable I2C multiplexer
+                os.system('i2cset -y 10 0x70 0x00 0x01')
+                time.sleep(0.1)  # Wait for I2C to stabilize
+                cls.i2c_initialized = True
+                logger.info("I2C initialized successfully")
+            except Exception as e:
+                logger.error(f"I2C initialization failed: {e}")
+                cls.i2c_initialized = False
     
     def __init__(self, name: str, i2c_cmd: str, gpio_states: list):
         self.name = name
@@ -151,14 +166,19 @@ class ArducamMultiCamera:
         self.lock = threading.Lock()
         self.running = True
         
-        # Initialize shared GPIO
+        # Initialize shared resources
         self.__class__.init_gpio()
+        self.__class__.init_i2c()
         
     def _switch_camera(self) -> bool:
         """Switch to this camera using I2C and GPIO"""
         try:
             if not self.__class__.gpio_pins:
                 logger.error(f"{self.name}: GPIO not initialized")
+                return False
+                
+            if not self.__class__.i2c_initialized:
+                logger.error(f"{self.name}: I2C not initialized")
                 return False
                 
             # Execute I2C command
@@ -192,7 +212,7 @@ class ArducamMultiCamera:
                 self.__class__.picam2 = Picamera2()
                 self.__class__.picam2.configure(
                     self.__class__.picam2.create_still_configuration(
-                        main={"size": (1920, 1080), "format": "BGR888"},
+                        main={"size": (320, 240), "format": "BGR888"},  # Use demo resolution
                         buffer_count=2
                     )
                 )
