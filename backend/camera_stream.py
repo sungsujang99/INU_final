@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 CAMERA_CONFIG = {
     'M': {
         'type': 'usb',
-        'device': '/dev/video8',
+        'device': '/dev/video0',  # Updated from /dev/video8 to /dev/video0
         'name': 'Main Camera'
     },
     'A': {
