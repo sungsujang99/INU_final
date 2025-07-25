@@ -121,23 +121,28 @@ def claim_next_task():
                 return None  # A task is already running
 
             # If no tasks are in progress, get the next pending one
+            # MUST fetch all columns needed by update_inventory_on_done
             cur.execute("""
-                SELECT id, rack, slot, movement, product_code
+                SELECT 
+                    id, rack, slot, movement, product_code, 
+                    product_name, quantity, cargo_owner
                 FROM work_tasks
                 WHERE status = 'pending'
                 ORDER BY created_at ASC
                 LIMIT 1
             """)
-            task_data = cur.fetchone()
+            task_row = cur.fetchone()
 
-            if task_data:
-                task_id = task_data[0]
+            if task_row:
+                task_id = task_row[0]
                 # Immediately claim it by setting status to in_progress
                 cur.execute("UPDATE work_tasks SET status=?, updated_at=? WHERE id=?",
                             ('in_progress', datetime.datetime.now(datetime.timezone.utc), task_id))
                 conn.commit()
                 
-                task = {'id': task_data[0], 'rack': task_data[1], 'slot': task_data[2], 'movement': task_data[3], 'product_code': task_data[4]}
+                # Create a full task dictionary from the row
+                columns = [desc[0] for desc in cur.description]
+                task = dict(zip(columns, task_row))
                 return task
             else:
                 return None # No pending tasks
