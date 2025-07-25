@@ -178,6 +178,12 @@ class ArducamMultiCamera:
             logger.error(f"Error switching to {self.name}: {e}")
             return False
             
+    def start(self):
+        """Start the camera"""
+        logger.info(f"Starting {self.name}")
+        self.running = True
+        self._init_camera()
+        
     def _init_camera(self) -> bool:
         """Initialize the camera"""
         try:
