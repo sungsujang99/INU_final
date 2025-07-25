@@ -217,44 +217,51 @@ class ArducamMultiCamera:
             
     def get_frame(self):
         try:
-            # Set GPIO pins
+            # Set GPIO pins exactly like test
             self.select_channel()
+            
+            # Execute I2C command
+            self.init_i2c()
             
             # Wait for camera to settle
             time.sleep(2)
             
-            if not self.__class__.picam2:
-                if not self._init_camera():
-                    return None
+            # Try to capture with Picamera2 exactly like test
+            picam = Picamera2()
+            config = picam.create_preview_configuration(
+                main={"size": (640, 480), "format": "RGB888"}
+            )
+            picam.configure(config)
+            picam.start()
+            time.sleep(2)
             
             # Try to capture a frame
-            array = self.__class__.picam2.capture_array()
+            array = picam.capture_array()
             if array is not None:
+                logger.info(f"✓ Successfully captured frame: {array.shape}")
                 with self.lock:
                     self.frame = array
                     self.last_frame_time = time.time()
-                return array
             
-            # If capture failed, try to reinitialize
-            logger.error("Frame capture failed, reinitializing camera")
-            if self.__class__.picam2:
-                try:
-                    self.__class__.picam2.stop()
-                    self.__class__.picam2.close()
-                except:
-                    pass
-                self.__class__.picam2 = None
-            return None
+            # Cleanup
+            picam.stop()
+            picam.close()
+            
+            # Reset GPIO to default state
+            lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
+            lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
+            lgpio.gpio_write(self.__class__.gpio_chip, 18, 1)  # Pin 12
+            
+            return array
             
         except Exception as e:
             logger.error(f"Error capturing frame from {self.name}: {e}")
-            if self.__class__.picam2:
+            if 'picam' in locals():
                 try:
-                    self.__class__.picam2.stop()
-                    self.__class__.picam2.close()
+                    picam.stop()
+                    picam.close()
                 except:
                     pass
-                self.__class__.picam2 = None
             return None
             
     def stop(self):
