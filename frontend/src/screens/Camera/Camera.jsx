@@ -32,10 +32,10 @@ const formatLogTime = (timestamp) => {
 // Get camera display name
 const getCameraName = (cameraNum) => {
   const names = {
-    0: "메인화면",
-    1: "A", 
-    2: "B",
-    3: "C"
+    'M': "메인화면",
+    'A': "A 랙", 
+    'B': "B 랙",
+    'C': "C 랙"
   };
   return names[cameraNum] || `카메라 ${cameraNum}`;
 };
@@ -48,8 +48,8 @@ export const Camera = () => {
   console.log(`[Camera] Current URL: ${window.location.pathname}`);
   
   const navigate = useNavigate();
-  const [selectedCamera, setSelectedCamera] = useState(0); // Start with camera 0 selected
-  const [availableCameras, setAvailableCameras] = useState([0, 1, 2, 3]); // All 4 cameras available
+  const [selectedCamera, setSelectedCamera] = useState('M'); // Start with main camera selected
+  const [availableCameras, setAvailableCameras] = useState(['M', 'A', 'B', 'C']); // All cameras available
   const [groupedActivityLogs, setGroupedActivityLogs] = useState({}); // State for grouped logs
   const [cameraHistory, setCameraHistory] = useState([]); // State for camera batch history
   const [userDisplayName, setUserDisplayName] = useState('');
@@ -106,26 +106,43 @@ export const Camera = () => {
   // Render the selected camera's live stream
   const renderCameraStream = () => {
     // Use dynamic backend URL instead of hardcoded one
-    const mjpegStreamUrl = `${getBackendUrl()}/api/camera/${selectedCamera}/live_feed`;
+    const mjpegStreamUrl = `${getBackendUrl()}/api/camera/${selectedCamera}/mjpeg_feed`;
 
     if (availableCameras.includes(selectedCamera)) {
       return (
-        <img 
-          src={mjpegStreamUrl} 
-          alt={`${getCameraName(selectedCamera)} 라이브 스트림`} 
-          className="camera-mjpeg-stream" // Add a class for styling if needed
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-          // Basic error visual cue (you might want a more robust error handling)
-          onError={(e) => {
-            e.target.alt = `${getCameraName(selectedCamera)} 스트림을 불러올 수 없습니다.`; 
-            // Optionally, replace with a placeholder image or hide:
-            // e.target.src = "/img/camera_error_placeholder.png"; 
-            // e.target.style.display = 'none'; 
-          }}
-        />
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          <img 
+            src={mjpegStreamUrl} 
+            alt={`${getCameraName(selectedCamera)} 라이브 스트림`} 
+            className="camera-mjpeg-stream"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+          <div 
+            className="camera-error-message" 
+            style={{ 
+              display: 'none',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: '#f5f5f5',
+              color: '#666',
+              justifyContent: 'center',
+              alignItems: 'center',
+              textAlign: 'center',
+              padding: '20px'
+            }}
+          >
+            메인화면 은(는) 현재 사용할 수 없습니다.
+          </div>
+        </div>
       );
     } else {
-      // For unavailable cameras, show a placeholder or message
       return (
         <div className="camera-stream-placeholder">
           {getCameraName(selectedCamera)} 은(는) 현재 사용할 수 없습니다.
@@ -135,8 +152,8 @@ export const Camera = () => {
   };
 
   // Render small camera preview - no streaming for unselected cameras
-  const renderSmallCameraStream = (cameraNum) => {
-    if (!availableCameras.includes(cameraNum)) {
+  const renderSmallCameraStream = (cameraId) => {
+    if (!availableCameras.includes(cameraId)) {
       return (
         <div className="small-camera-unavailable">
           사용불가
@@ -144,9 +161,38 @@ export const Camera = () => {
       );
     }
 
-    // No streaming for unselected cameras - just show empty placeholder
+    // Show a preview image for unselected cameras
+    const previewUrl = `${getBackendUrl()}/api/camera/${cameraId}/mjpeg_feed`;
     return (
-      <div className="small-camera-placeholder">
+      <div className="small-camera-preview" style={{ position: 'relative', width: '100%', height: '100%' }}>
+        <img 
+          src={previewUrl}
+          alt={`${getCameraName(cameraId)} 미리보기`}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={(e) => {
+            e.target.style.display = 'none';
+            e.target.nextSibling.style.display = 'flex';
+          }}
+        />
+        <div 
+          className="small-camera-error" 
+          style={{ 
+            display: 'none',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: '#f5f5f5',
+            color: '#666',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            fontSize: '0.8em'
+          }}
+        >
+          사용불가
+        </div>
       </div>
     );
   };
@@ -167,20 +213,21 @@ export const Camera = () => {
 
   // Render the camera buttons - show all cameras as selectable
   const renderCameraButtons = () => {
-    const allCameras = [0, 1, 2, 3]; // 4 cameras (0-indexed)
+    const allCameras = ['M', 'A', 'B', 'C']; // All available cameras
     return allCameras
-      .filter(camNum => camNum !== selectedCamera) // Don't show the currently selected camera
-      .map(camNum => (
+      .filter(camId => camId !== selectedCamera) // Don't show the currently selected camera
+      .map(camId => (
         <div 
-          key={camNum}
+          key={camId}
           className="small-camera-wrapper"
-          onClick={() => handleCameraSelect(camNum)}
+          onClick={() => handleCameraSelect(camId)}
+          style={{ cursor: 'pointer' }}
         >
           <div className="small-camera-button">
-            <div className="small-camera-text">{getCameraName(camNum)}</div>
+            <div className="small-camera-text">{getCameraName(camId)}</div>
           </div>
           <div className="small-camera-display">
-            {renderSmallCameraStream(camNum)}
+            {renderSmallCameraStream(camId)}
           </div>
         </div>
       ));
