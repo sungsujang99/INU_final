@@ -251,18 +251,21 @@ export const Camera = () => {
           const key = it.batch_id ? `batch-${it.batch_id}` : `single-${it.id}`;
           const existing = batchesMap.get(key) || {
             batch_id: it.batch_id || null,
-            rack: it.rack,
-            movement_type: it.movement_type,
-            slots: new Set(),
+            tasks: [],
             start_time: it.start_time,
             end_time: it.end_time,
             created_at: it.created_at,
             updated_at: it.updated_at
           };
-          existing.rack = existing.rack || it.rack;
-          existing.movement_type = existing.movement_type || it.movement_type;
-          if (it.slot) existing.slots.add(it.slot);
-          // aggregate times
+          // push this task
+          existing.tasks.push({
+            rack: it.rack,
+            slot: it.slot,
+            movement_type: it.movement_type,
+            start_time: it.start_time,
+            end_time: it.end_time
+          });
+          // aggregate start/end
           const s1 = existing.start_time && new Date(existing.start_time).getTime();
           const s2 = it.start_time && new Date(it.start_time).getTime();
           if (!s1 || (s2 && s2 < s1)) existing.start_time = it.start_time;
@@ -271,10 +274,11 @@ export const Camera = () => {
           if (!e1 || (e2 && e2 > e1)) existing.end_time = it.end_time;
           batchesMap.set(key, existing);
         }
+        // finalize arrays and sort
         const batches = Array.from(batchesMap.values()).map(b => ({
           ...b,
-          slots: Array.from(b.slots)
-        }));
+          tasks: b.tasks.sort((a,b) => new Date(a.start_time || 0) - new Date(b.start_time || 0))
+        })).sort((a,b) => new Date(b.end_time || b.updated_at || 0) - new Date(a.end_time || a.updated_at || 0));
         setCameraBatches(batches);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -330,32 +334,40 @@ export const Camera = () => {
           <div className="frame-17">
             <div className="camera-history-list">
               <div className="batch-history-container">
-                {cameraBatches.map(item => (
-                  <div key={item.id} className="group-10">
+                {cameraBatches.map((batch, idx) => (
+                  <div key={batch.batch_id ? batch.batch_id : `single-${idx}`} className="group-10">
                     <div className="overlap-6">
-                      <div className="group-11">
-                        <div className="overlap-group-6">
-                          <div className="log-title">
-                            {item.rack}랙 {item.slots && item.slots.length === 1 ? `${item.slots[0]}칸 ` : ''}{item.movement_type === 'IN' ? '입고' : '출고'}{item.slots && item.slots.length > 1 ? ' (일괄)' : ''}
+                      {/* Batch meta: date and count */}
+                      <div className="log-date">{formatDate(batch.end_time || batch.start_time || batch.updated_at || batch.created_at)} · 총 {batch.tasks.length}건</div>
+
+                      {/* Tasks inside this batch */}
+                      <div className="batch-internal-jobs-list">
+                        {batch.tasks.map((t, i) => (
+                          <div className="individual-job-item" key={`t-${i}`}>
+                            <div className="group-11">
+                              <div className="overlap-group-6">
+                                <div className="log-title">{t.rack}랙 {t.slot}칸 {t.movement_type === 'IN' ? '입고' : '출고'}</div>
+                              </div>
+                            </div>
+                            <div className="log-times-container individual-job-times">
+                              <div className="log-time-entry">
+                                <span className="log-time-label">시작시간</span>
+                                <span className="log-time-value">{formatHms(t.start_time)}</span>
+                              </div>
+                              <div className="log-time-entry">
+                                <span className="log-time-label">종료시간</span>
+                                <span className="log-time-value">{formatHms(t.end_time)}</span>
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        ))}
                       </div>
-                      <div className="log-date">{formatDate(item.end_time || item.start_time || item.updated_at || item.created_at)}</div>
-                      <div className="log-times-container">
-                        <div className="log-time-entry">
-                          <span className="log-time-label">시작시간</span>
-                          <span className="log-time-value">{formatHms(item.start_time)}</span>
-                        </div>
-                        <div className="log-time-entry">
-                          <span className="log-time-label">종료시간</span>
-                          <span className="log-time-value">{formatHms(item.end_time)}</span>
-                        </div>
-                      </div>
+
                       <div className="log-download-button-container">
                         <button
                           className="log-download-button"
-                          onClick={() => handleDownloadBatch(item.batch_id)}
-                          disabled={!item.batch_id}
+                          onClick={() => handleDownloadBatch(batch.batch_id)}
+                          disabled={!batch.batch_id}
                         >
                           <img src="/img/download_icon.svg" alt="" className="download-icon" />
                           다운로드
