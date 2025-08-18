@@ -241,11 +241,17 @@ class ArducamMultiCamera:
 class CameraManager:
     def __init__(self):
         self.cameras: Dict[str, Union[USBCamera, ArducamMultiCamera]] = {}
-        self._init_cameras()
         
-    def _init_cameras(self):
-        """Initialize all cameras"""
-        for rack_id, config in CAMERA_CONFIG.items():
+    def _init_camera(self, rack_id: str) -> bool:
+        """Initialize a specific camera"""
+        if rack_id in self.cameras:
+            return True
+            
+        config = CAMERA_CONFIG.get(rack_id)
+        if not config:
+            return False
+            
+        try:
             if config['type'] == 'usb':
                 camera = USBCamera(config['device'], config['name'])
             else:  # arducam
@@ -254,13 +260,25 @@ class CameraManager:
                     config['i2c_cmd'],
                     config['gpio_sta']
                 )
-            camera.start()
-            self.cameras[rack_id] = camera
-            # Add small delay between camera initializations to prevent resource conflicts
-            time.sleep(0.5)
+            
+            if camera.start():
+                self.cameras[rack_id] = camera
+                logger.info(f"Successfully initialized camera {rack_id}")
+                return True
+            else:
+                logger.error(f"Failed to start camera {rack_id}")
+                return False
+        except Exception as e:
+            logger.error(f"Error initializing camera {rack_id}: {e}")
+            return False
             
     def get_frame(self, rack_id: str) -> Optional[np.ndarray]:
         """Get frame from specific camera"""
+        # Initialize camera on first access
+        if rack_id not in self.cameras:
+            if not self._init_camera(rack_id):
+                return None
+                
         camera = self.cameras.get(rack_id)
         if camera:
             return camera.get_frame()
