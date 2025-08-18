@@ -971,9 +971,8 @@
 
 .camera .time-row {
   display: flex;
-  gap: 8px;
-  font-size: 14px;
-  line-height: 1.5;
+  justify-content: space-between;
+  margin-bottom: 4px;
 }
 
 .camera .time-label {

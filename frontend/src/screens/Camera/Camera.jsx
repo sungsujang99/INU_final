@@ -374,10 +374,14 @@ export const Camera = () => {
               {cameraHistory.map(item => (
                 <div key={item.id} className="group-10">
                   <div className="title">{item.rack}랙 {item.slot}칸 입고</div>
-                  <div>시작시간</div>
-                  <div>00:00:00</div>
-                  <div>종료시간</div>
-                  <div>00:00:00</div>
+                  <div className="time-row">
+                    <span>시작시간</span>
+                    <span>00:00:00</span>
+                  </div>
+                  <div className="time-row">
+                    <span>종료시간</span>
+                    <span>00:00:00</span>
+                  </div>
                 </div>
               ))}
             </div>
