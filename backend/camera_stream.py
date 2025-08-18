@@ -67,10 +67,12 @@ class USBCamera:
                     if not self.cap.isOpened():
                         continue
                         
-                    # Set basic properties
-                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                    # Set camera properties - lower resolution but keep high FPS
+                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
                     self.cap.set(cv2.CAP_PROP_FPS, 30)
+                    # Set buffer size to minimum to reduce memory usage
+                    self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                     
                     # Wait a moment for camera to stabilize
                     time.sleep(0.5)
@@ -301,9 +303,14 @@ class CameraManager:
             except Exception as e:
                 logger.error(f"Error initializing camera {rack_id}: {e}")
         
-        # Wait longer between batches to ensure first batch is fully established
-        logger.info("Step 1 complete. Waiting before Step 2...")
-        time.sleep(3.0)
+        # Between batches: release and re-acquire USB resources
+        logger.info("Step 1 complete. Releasing USB resources before Step 2...")
+        # Reset USB devices to clear any stale states
+        os.system('echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null 2>&1')
+        time.sleep(1.0)
+        os.system('echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null 2>&1')
+        time.sleep(2.0)
+        logger.info("USB resources reset. Starting Step 2...")
         
         # Step 2: Initialize second batch (B, C)
         logger.info("Step 2: Initializing cameras B and C...")
