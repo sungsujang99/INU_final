@@ -100,7 +100,11 @@ export const Camera = () => {
 
   // Camera selection handler - only start streaming when selected
   const handleCameraSelect = (cameraNumber) => {
+    console.log(`[Camera] Selecting camera: ${cameraNumber}`);
+    console.log(`[Camera] Previous camera: ${selectedCamera}`);
     setSelectedCamera(cameraNumber);
+    const newUrl = `${getBackendUrl()}/api/camera/${cameraNumber}/mjpeg_feed`;
+    console.log(`[Camera] New MJPEG URL: ${newUrl}`);
   };
 
   // Render the selected camera's live stream
@@ -112,11 +116,13 @@ export const Camera = () => {
       return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <img 
+            key={selectedCamera}
             src={mjpegStreamUrl} 
             alt={`${getCameraName(selectedCamera)} 라이브 스트림`} 
             className="camera-mjpeg-stream"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
             onError={(e) => {
+              console.error(`Failed to load camera ${selectedCamera} stream:`, mjpegStreamUrl);
               e.target.style.display = 'none';
               e.target.nextSibling.style.display = 'flex';
             }}
