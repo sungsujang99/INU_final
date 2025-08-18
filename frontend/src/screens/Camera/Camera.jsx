@@ -35,6 +35,7 @@ export const Camera = () => {
   const [groupedActivityLogs, setGroupedActivityLogs] = useState({});
   const [cameraHistory, setCameraHistory] = useState([]);
   const [userDisplayName, setUserDisplayName] = useState('');
+  const [latestBatchId, setLatestBatchId] = useState(null);
 
   const handleDashboard = () => navigate('/dashboard');
   const handleWorkStatus = () => navigate('/work-status');
@@ -174,7 +175,10 @@ export const Camera = () => {
   };
 
   const handleDownloadBatch = async (batchId) => {
-    if (!batchId) return;
+    if (!batchId) {
+      alert('내려받을 배치가 없습니다.');
+      return;
+    }
     const token = localStorage.getItem('inu_token');
     const apiBaseUrl = getBackendUrl();
     const downloadUrl = `${apiBaseUrl}/api/download-batch-task/${batchId}`;
@@ -183,7 +187,12 @@ export const Camera = () => {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        const msg = `다운로드 실패 (HTTP ${response.status}). 배치 데이터가 없을 수 있습니다.`;
+        console.error(msg);
+        alert(msg);
+        return;
+      }
       const blob = await response.blob();
       const suggestedFilename = response.headers.get('content-disposition')?.split('filename=')[1]?.replace(/"/g, '') || `batch_task_${batchId}.csv`;
       const link = document.createElement('a');
@@ -195,6 +204,7 @@ export const Camera = () => {
       window.URL.revokeObjectURL(link.href);
     } catch (e) {
       console.error('Download error:', e);
+      alert('다운로드 중 오류가 발생했습니다.');
     }
   };
 
@@ -212,6 +222,10 @@ export const Camera = () => {
           acc[dateKey].push(log);
           return acc;
         }, {});
+
+        // Determine latest batch_id from most recent logs that include batch_id
+        const latestWithBatch = Array.isArray(rawLogs) ? rawLogs.find(l => l && l.batch_id) : null;
+        setLatestBatchId(latestWithBatch ? latestWithBatch.batch_id : null);
 
         setGroupedActivityLogs(logsByDate);
         setCameraHistory(historyData);
@@ -253,8 +267,7 @@ export const Camera = () => {
     fetchAvailableCameras();
   }, []);
 
-  // Find latest batchId for global download button
-  const latestBatchId = cameraHistory.find(h => h.batch_id)?.batch_id;
+  // latestBatchId is tracked from activity logs in state above
 
   return (
     <div className="camera">
@@ -288,15 +301,19 @@ export const Camera = () => {
                           <span className="log-time-value">{formatHms(item.end_time)}</span>
                         </div>
                       </div>
+                      <div className="log-download-button-container">
+                        <button
+                          className="log-download-button"
+                          onClick={() => handleDownloadBatch(item.batch_id)}
+                          disabled={!item.batch_id}
+                        >
+                          <img src="/img/download_icon.svg" alt="" className="download-icon" />
+                          다운로드
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
-                <div className="log-download-button-container">
-                  <button className="log-download-button" onClick={() => handleDownloadBatch(latestBatchId)} disabled={!latestBatchId}>
-                    <img src="/img/download_icon.svg" alt="" className="download-icon" />
-                    다운로드
-                  </button>
-                </div>
               </div>
             </div>
           </div>
