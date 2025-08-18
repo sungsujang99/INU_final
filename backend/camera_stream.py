@@ -256,6 +256,8 @@ class CameraManager:
                 )
             camera.start()
             self.cameras[rack_id] = camera
+            # Add small delay between camera initializations to prevent resource conflicts
+            time.sleep(0.5)
             
     def get_frame(self, rack_id: str) -> Optional[np.ndarray]:
         """Get frame from specific camera"""
