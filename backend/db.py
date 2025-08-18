@@ -1,7 +1,9 @@
 # db.py
 import sqlite3
+import os
 
-DB_NAME = "database.db"
+# Use absolute path to ensure consistent database location
+DB_NAME = os.path.join(os.path.dirname(os.path.dirname(__file__)), "database.db")
 
 
 def init_db():

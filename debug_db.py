@@ -1,77 +1,47 @@
 #!/usr/bin/env python3
 import sqlite3
-import json
+import os
 
-# Connect to the database (using correct path)
-db_path = "database.db"  # Root level database
-conn = sqlite3.connect(db_path)
-conn.row_factory = sqlite3.Row
-cur = conn.cursor()
+DB_NAME = "database.db"  # Use the database in root directory
 
-print("=== INVESTIGATING DUPLICATE ENTRIES ===\n")
+def check_tables():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
 
-# Check all product_logs entries for coffee pot
-print("1. All product_logs entries for coffee pot (5465433):")
-cur.execute("""
-    SELECT id, product_code, product_name, rack, slot, movement_type, 
-           quantity, cargo_owner, timestamp, batch_id 
-    FROM product_logs 
-    WHERE product_code = '5465433' 
-    ORDER BY timestamp DESC
-""")
-product_logs = cur.fetchall()
+    # List all tables
+    print("📚 Tables in database:")
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = cur.fetchall()
+    for table in tables:
+        table_name = table['name']
+        print(f"\n📋 Table: {table_name}")
+        
+        # Get table schema
+        cur.execute(f"PRAGMA table_info({table_name});")
+        columns = cur.fetchall()
+        print("  Columns:")
+        for col in columns:
+            print(f"    {col['name']} ({col['type']})")
+        
+        # Get row count
+        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+        count = cur.fetchone()[0]
+        print(f"  Row count: {count}")
 
-for i, row in enumerate(product_logs):
-    print(f"   {i+1}. ID: {row['id']}, {row['rack']}{row['slot']} {row['movement_type']}, "
-          f"Batch: {row['batch_id'][:8]}..., Timestamp: {row['timestamp']}")
+        # Show sample data if exists
+        if count > 0:
+            cur.execute(f"SELECT * FROM {table_name} LIMIT 1")
+            row = dict(cur.fetchone())
+            print("  Sample row:")
+            for key, value in row.items():
+                print(f"    {key}: {value}")
 
-print(f"\nTotal product_logs entries: {len(product_logs)}")
+    conn.close()
 
-# Check unique batch_ids
-unique_batches = set(row['batch_id'] for row in product_logs if row['batch_id'])
-print(f"Unique batch IDs: {len(unique_batches)}")
-for batch in unique_batches:
-    print(f"   - {batch[:8]}...")
-
-# Check work_tasks entries
-print("\n2. All work_tasks entries for coffee pot (5465433):")
-cur.execute("""
-    SELECT id, rack, slot, product_code, movement, status, 
-           start_time, end_time, created_at
-    FROM work_tasks 
-    WHERE product_code = '5465433' 
-    ORDER BY created_at DESC
-""")
-work_tasks = cur.fetchall()
-
-for i, row in enumerate(work_tasks):
-    print(f"   {i+1}. ID: {row['id']}, {row['rack']}{row['slot']} {row['movement']}, "
-          f"Status: {row['status']}, Created: {row['created_at']}")
-
-print(f"\nTotal work_tasks entries: {len(work_tasks)}")
-
-# The real issue: we need to filter by the LATEST batch or use DISTINCT properly
-print("\n3. SOLUTION - Get latest entry per rack/slot combination:")
-cur.execute("""
-    SELECT DISTINCT
-        pl.rack, pl.slot, pl.movement_type,
-        MAX(pl.timestamp) as latest_timestamp,
-        pl.product_code, pl.product_name
-    FROM product_logs pl
-    WHERE pl.product_code = '5465433'
-    GROUP BY pl.rack, pl.slot, pl.movement_type, pl.product_code
-    ORDER BY latest_timestamp DESC
-""")
-distinct_results = cur.fetchall()
-
-print(f"Distinct rack/slot combinations: {len(distinct_results)}")
-for i, row in enumerate(distinct_results):
-    print(f"   {i+1}. {row['rack']}{row['slot']} {row['movement_type']} - Latest: {row['latest_timestamp']}")
-
-conn.close()
-
-print("\n=== CONCLUSION ===")
-print("The issue is duplicate product_logs entries from multiple CSV uploads.")
-print("We need to either:")
-print("1. Clean up duplicate entries in the database, OR")
-print("2. Modify the activity logs API to show only the latest entry per rack/slot") 
+if __name__ == "__main__":
+    if not os.path.exists(DB_NAME):
+        print(f"❌ Database file not found: {DB_NAME}")
+    else:
+        print(f"✅ Found database: {DB_NAME}")
+        check_tables() 
