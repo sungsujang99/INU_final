@@ -272,7 +272,12 @@ class CameraManager:
         
     def _init_cameras(self):
         """Initialize all cameras"""
-        for rack_id, config in CAMERA_CONFIG.items():
+        # Initialize cameras in specific order: C, B, A, M
+        init_order = ['C', 'B', 'A', 'M']
+        for rack_id in init_order:
+            config = CAMERA_CONFIG.get(rack_id)
+            if not config:
+                continue
             try:
                 if config['type'] == 'usb':
                     camera = USBCamera(config['device'], config['name'])
