@@ -91,7 +91,30 @@ def init_db():
         );
     """)
 
-    # ⑤ Batch Task Links (User actions are tracked here)
+    # ⑤ Camera Batch History
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS camera_batch_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id TEXT,
+            rack TEXT NOT NULL,
+            slot INTEGER NOT NULL,
+            movement_type TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            product_code TEXT NOT NULL,
+            product_name TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            cargo_owner TEXT,
+            created_by INTEGER,
+            created_by_username TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (created_by) REFERENCES users (id)
+        );
+    """)
+
+    # ⑥ Batch Task Links (User actions are tracked here)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS batch_task_links (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
