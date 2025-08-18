@@ -280,71 +280,20 @@ export const Camera = () => {
         const rawLogs = await getActivityLogs({ limit: 50, order: 'desc' });
         const historyData = await getCameraHistory({ limit: 50 });
 
-        // First group by date
-        const logsByDate = rawLogs.reduce((acc, log) => {
-          const date = new Date(log.timestamp);
-          const dateKey = date.toLocaleDateString('ko-KR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          });
-          
-          if (!acc[dateKey]) {
-            acc[dateKey] = [];
+        // Simple grouping by rack and slot
+        const groupedLogs = rawLogs.reduce((acc, log) => {
+          const key = `${log.rack}랙 ${log.slot}칸 입고`;
+          if (!acc[key]) {
+            acc[key] = {
+              title: key,
+              start_time: log.timestamp,
+              end_time: log.timestamp
+            };
           }
-          acc[dateKey].push(log);
           return acc;
         }, {});
 
-        // Then group each date's logs by batch
-        const groupedByDateAndBatch = Object.entries(logsByDate).reduce((acc, [date, logs]) => {
-          // Group logs by batch_id
-          const batchGroups = logs.reduce((batchAcc, log) => {
-            const key = log.batch_id || `ungrouped-${log.id}`;
-            if (!batchAcc[key]) {
-              batchAcc[key] = {
-                batch_id: log.batch_id,
-                timestamps: [],
-                logs: [],
-                representativeTitleInfo: {
-                  rack: log.rack,
-                  slot: log.slot,
-                  movement_type: log.movement_type
-                }
-              };
-            }
-            batchAcc[key].logs.push(log);
-            batchAcc[key].timestamps.push(log.timestamp);
-            return batchAcc;
-          }, {});
-
-          // Convert batch groups object to array and process each batch
-          const batchesArray = Object.values(batchGroups).map(batch => {
-            batch.timestamps.sort((a,b) => new Date(a) - new Date(b));
-            batch.batchStartTime = batch.timestamps[0];
-            batch.batchEndTime = batch.timestamps[batch.timestamps.length - 1];
-            
-            if (batch.batch_id) {
-              const firstLog = batch.logs[0];
-              const allSameRackAndMovement = batch.logs.every(l => 
-                l.rack === firstLog.rack && l.movement_type === firstLog.movement_type
-              );
-              if (allSameRackAndMovement) {
-                batch.batchCardTitle = `${firstLog.rack}랙 일괄 ${firstLog.movement_type === 'IN' ? '입고' : '출고'} 작업`;
-              } else {
-                batch.batchCardTitle = `일괄 작업 ID: ${batch.batch_id.substring(0,8)}...`;
-              }
-            } else {
-              batch.batchCardTitle = "개별 작업";
-            }
-            return batch;
-          });
-
-          acc[date] = batchesArray;
-          return acc;
-        }, {});
-
-        setGroupedActivityLogs(groupedByDateAndBatch);
+        setGroupedActivityLogs(Object.values(groupedLogs));
         setCameraHistory(historyData);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -421,110 +370,30 @@ export const Camera = () => {
           </div>
 
           <div className="frame-17">
-            {/* Display Camera Batch History */}
             <div className="camera-history-list">
               <h4>작업현황</h4>
-              {cameraHistory.length > 0 ? (
-                <div className="batch-history-container">
-                  {cameraHistory.map(item => (
-                    <div key={item.id} className="group-10">
-                      <div className="overlap-6">
-                        <div className="group-11">
-                          <div className="overlap-group-6">
-                            <div className="log-title">
-                              {item.rack}랙 {item.slot}칸 {item.movement_type === 'IN' ? '입고' : '출고'}
-                            </div>
-                          </div>
+              <div className="batch-history-container">
+                {cameraHistory.map(item => (
+                  <div key={item.id} className="group-10">
+                    <div className="overlap-6">
+                      <div className="text-wrapper-31">
+                        {item.rack}랙 {item.slot}칸 입고
+                      </div>
+                      <div className="time-entries">
+                        <div className="time-row">
+                          <div className="time-label">시작시간</div>
+                          <div className="time-value">00:00:00</div>
                         </div>
-                        <div className="log-times-container">
-                          <div className="log-time-entry">
-                            <span className="log-time-label">시작시간</span>
-                            <span className="log-time-value">{formatLogTime(item.start_time)}</span>
-                          </div>
-                          <div className="log-time-entry">
-                            <span className="log-time-label">종료시간</span>
-                            <span className="log-time-value">{formatLogTime(item.end_time)}</span>
-                          </div>
-                          <div className="log-details">
-                            <div className="log-detail-item">
-                              <span>상품명:</span>
-                              <span>{item.product_name}</span>
-                            </div>
-                            <div className="log-detail-item">
-                              <span>수량:</span>
-                              <span>{item.quantity}개</span>
-                            </div>
-                            <div className="log-detail-item">
-                              <span>화주:</span>
-                              <span>{item.cargo_owner}</span>
-                            </div>
-                            <div className="log-detail-item">
-                              <span>작업자:</span>
-                              <span>{item.created_by_username}</span>
-                            </div>
-                          </div>
+                        <div className="time-row">
+                          <div className="time-label">종료시간</div>
+                          <div className="time-value">00:00:00</div>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="batch-history-container"></div>
-              )}
+                  </div>
+                ))}
+              </div>
             </div>
-
-            {/* Existing activity logs section */}
-            {Object.keys(groupedActivityLogs).length > 0 && (
-              Object.entries(groupedActivityLogs).map(([date, batches], dateIndex) => (
-                <React.Fragment key={date}>
-                  {/* Date divider */}
-                  {dateIndex > 0 && <div className="date-divider" />}
-                  <div className="date-header">{date}</div>
-                  
-                  {/* Batches for this date */}
-                  {Array.isArray(batches) && batches.map((batch, batchIndex) => (
-                    <div className="group-10" key={batch.batch_id || `batch-outer-${batchIndex}`}> 
-                      <div className="overlap-6"> 
-                        <div className="batch-internal-jobs-list"> 
-                          {batch.logs.map((logEntry) => (
-                            <div className="individual-job-item" key={logEntry.id}>
-                              <div className="group-11">
-                                <div className="overlap-group-6">
-                                  <div className="log-title">
-                                    {logEntry.rack}랙 {logEntry.slot}칸 {logEntry.movement_type === 'IN' ? '입고' : '출고'}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="log-times-container individual-job-times">
-                                <div className="log-time-entry">
-                                  <span className="log-time-label">시작시간</span>
-                                  <span className="log-time-value">{formatLogTime(logEntry.start_time)}</span>
-                                </div>
-                                <div className="log-time-entry">
-                                  <span className="log-time-label">종료시간</span>
-                                  <span className="log-time-value">{formatLogTime(logEntry.end_time)}</span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        
-                        <div className="log-download-button-container">
-                          <button 
-                            className="log-download-button" 
-                            onClick={() => handleDownloadBatch(batch.batch_id)} 
-                            disabled={!batch.batch_id}
-                          >
-                            <img src="/img/download_icon.svg" alt="" className="download-icon" />
-                            다운로드
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </React.Fragment>
-              ))
-            )}
           </div>
         </div>
 

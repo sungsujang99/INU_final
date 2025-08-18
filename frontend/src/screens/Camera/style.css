@@ -945,11 +945,59 @@
   margin-bottom: 10px;
 }
 
-.camera .batch-history-container {
+.camera .group-10 {
+  background-color: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.camera .text-wrapper-31 {
+  color: #333;
+  font-family: "Pretendard-SemiBold", Helvetica;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.camera .time-entries {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 5px;
+}
+
+.camera .time-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.camera .time-label {
+  color: #666;
+  font-family: "Pretendard-Regular", Helvetica;
+  font-size: 16px;
+}
+
+.camera .time-value {
+  color: #333;
+  font-family: "Pretendard-Medium", Helvetica;
+  font-size: 16px;
+}
+
+.camera .camera-history-list h4 {
+  color: #333;
+  font-family: "Pretendard-Bold", Helvetica;
+  font-size: 20px;
+  margin-bottom: 24px;
+}
+
+.camera .batch-history-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px;
 }
 
 .camera .log-details {
