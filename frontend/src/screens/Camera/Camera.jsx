@@ -273,106 +273,31 @@ export const Camera = () => {
     }
   };
 
+  // Add periodic refresh for activity logs and camera history
   useEffect(() => {
-    const fetchAndGroupLogs = async () => {
+    const fetchData = async () => {
       try {
-        const rawLogs = await getActivityLogs({ limit: 50, order: 'desc' });
-
-        // First group by date
-        const logsByDate = rawLogs.reduce((acc, log) => {
-          const date = new Date(log.timestamp);
-          const dateKey = date.toLocaleDateString('ko-KR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          });
-          
-          if (!acc[dateKey]) {
-            acc[dateKey] = [];
-          }
-          acc[dateKey].push(log);
-          return acc;
-        }, {});
-
-        // Then group each date's logs by batch
-        const groupedByDateAndBatch = Object.entries(logsByDate).reduce((acc, [date, logs]) => {
-          // Group logs by batch_id
-          const batchGroups = logs.reduce((batchAcc, log) => {
-            const key = log.batch_id || `ungrouped-${log.id}`;
-            if (!batchAcc[key]) {
-              batchAcc[key] = {
-                batch_id: log.batch_id,
-                timestamps: [],
-                logs: [],
-                representativeTitleInfo: {
-                  rack: log.rack,
-                  slot: log.slot,
-                  movement_type: log.movement_type
-                }
-              };
-            }
-            batchAcc[key].logs.push(log);
-            batchAcc[key].timestamps.push(log.timestamp);
-            return batchAcc;
-          }, {});
-
-          // Convert batch groups object to array and process each batch
-          const batchesArray = Object.values(batchGroups).map(batch => {
-            batch.timestamps.sort((a,b) => new Date(a) - new Date(b));
-            batch.batchStartTime = batch.timestamps[0];
-            batch.batchEndTime = batch.timestamps[batch.timestamps.length - 1];
-            
-            if (batch.batch_id) {
-              const firstLog = batch.logs[0];
-              const allSameRackAndMovement = batch.logs.every(l => 
-                l.rack === firstLog.rack && l.movement_type === firstLog.movement_type
-              );
-              if (allSameRackAndMovement) {
-                batch.batchCardTitle = `${firstLog.rack}랙 일괄 ${firstLog.movement_type === 'IN' ? '입고' : '출고'} 작업`;
-              } else {
-                batch.batchCardTitle = `일괄 작업 ID: ${batch.batch_id.substring(0,8)}...`;
-              }
-            } else {
-              batch.batchCardTitle = "개별 작업";
-            }
-            return batch;
-          });
-
-          acc[date] = batchesArray;
-          return acc;
-        }, {});
-
-        setGroupedActivityLogs(groupedByDateAndBatch);
-      } catch (error) {
-        console.error("Failed to fetch or group activity logs:", error);
-        setGroupedActivityLogs({});
-      }
-    };
-
-    const fetchHistory = async () => {
-      try {
-        console.log("Fetching camera history...");
-        const historyData = await getCameraHistory({ limit: 50 });
-        console.log("Received camera history:", historyData);
+        const [logsData, historyData] = await Promise.all([
+          getActivityLogs({ limit: 50, order: 'desc' }),
+          getCameraHistory({ limit: 50 })
+        ]);
+        setGroupedActivityLogs(logsData);
         setCameraHistory(historyData);
       } catch (error) {
-        console.error("Failed to fetch camera history:", error);
+        console.error('Error fetching data:', error);
+        if (handleApiError(error, navigate)) return;
       }
     };
 
     // Initial fetch
-    fetchAndGroupLogs();
-    fetchHistory();
+    fetchData();
 
     // Set up periodic refresh every 2 seconds
-    const intervalId = setInterval(() => {
-      fetchAndGroupLogs();
-      fetchHistory();
-    }, 2000);
+    const intervalId = setInterval(fetchData, 2000);
 
-    // Cleanup interval on component unmount
+    // Cleanup on unmount
     return () => clearInterval(intervalId);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const token = localStorage.getItem('inu_token');
