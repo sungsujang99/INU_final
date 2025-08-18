@@ -19,22 +19,22 @@ logger = logging.getLogger(__name__)
 CAMERA_CONFIG = {
     'M': {
         'type': 'usb',
-        'device': '/dev/video0',
+        'device': '/dev/ttyUSB0',  # M → /dev/ttyUSB0
         'name': 'Main Camera'
     },
     'A': {
         'type': 'usb',
-        'device': '/dev/video2',
+        'device': '/dev/ttyUSB2',  # A → /dev/ttyUSB2
         'name': 'Rack A Camera'
     },
     'B': {
         'type': 'usb',
-        'device': '/dev/video4',
+        'device': '/dev/ttyUSB1',  # B → /dev/ttyUSB1
         'name': 'Rack B Camera'
     },
     'C': {
         'type': 'usb',
-        'device': '/dev/video6',
+        'device': '/dev/ttyUSB3',  # C → /dev/ttyUSB3
         'name': 'Rack C Camera'
     }
 }
