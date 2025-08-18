@@ -43,14 +43,24 @@ def store_camera_batch(history_data):
         if conn:
             conn.close()
 
+
 def get_camera_history(limit=50):
-    """Retrieve camera batch history logs from the database."""
+    """Retrieve camera batch history logs from the database, newest first."""
     conn = None
     try:
         conn = sqlite3.connect(DB_NAME)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        cur.execute("SELECT * FROM camera_batch_history ORDER BY end_time DESC LIMIT ?", (limit,))
+        # Order by the most reliable available timestamp
+        cur.execute(
+            """
+            SELECT *
+            FROM camera_batch_history
+            ORDER BY datetime(COALESCE(end_time, updated_at, created_at)) DESC, id DESC
+            LIMIT ?
+            """,
+            (limit,)
+        )
         rows = cur.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:

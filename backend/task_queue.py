@@ -171,6 +171,27 @@ def get_task_by_id(task_id: int) -> Optional[dict]:
         return dict(zip(columns, row))
     return None
 
+def get_task_with_meta(task_id: int) -> Optional[dict]:
+    """Fetch a task with joined batch_id and created_by_username."""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT wt.*, btl.batch_id, u.username as created_by_username
+        FROM work_tasks wt
+        LEFT JOIN batch_task_links btl ON wt.id = btl.task_id
+        LEFT JOIN users u ON wt.created_by = u.id
+        WHERE wt.id = ?
+        """,
+        (task_id,)
+    )
+    row = cur.fetchone()
+    columns = [desc[0] for desc in cur.description]
+    conn.close()
+    if row:
+        return dict(zip(columns, row))
+    return None
+
 # --- Worker Thread ---
 class WorkerThread(threading.Thread):
     def __init__(self, app_context):
@@ -273,7 +294,7 @@ class WorkerThread(threading.Thread):
                         set_task_status(task_id, 'done')
                         
                         # Get task details for history
-                        task_details = get_task_by_id(task_id)
+                        task_details = get_task_with_meta(task_id)
                         if task_details:
                             # Record in camera batch history
                             history_data = {
@@ -288,7 +309,7 @@ class WorkerThread(threading.Thread):
                                 'quantity': task_details['quantity'],
                                 'cargo_owner': task_details['cargo_owner'],
                                 'created_by': task_details['created_by'],
-                                'created_by_username': task_details.get('created_by_username', 'Unknown'),
+                                'created_by_username': task_details.get('created_by_username') or 'Unknown',
                                 'status': 'done',
                                 'created_at': task_details['created_at'],
                                 'updated_at': task_details['updated_at']
