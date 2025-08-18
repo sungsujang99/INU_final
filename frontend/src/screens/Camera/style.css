@@ -947,19 +947,15 @@
 
 .camera .group-10 {
   background-color: #ffffff;
-  border-radius: 20px;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  margin-bottom: 16px;
-  width: 100%;
+  border-radius: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  padding: 16px;
+  margin-bottom: 12px;
 }
 
 .camera .text-wrapper-31 {
-  color: #333;
-  font-family: "Pretendard-SemiBold", Helvetica;
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 16px;
+  font-size: 16px;
+  margin-bottom: 8px;
 }
 
 .camera .time-entries {
@@ -970,20 +966,17 @@
 
 .camera .time-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .camera .time-label {
-  color: #666;
-  font-family: "Pretendard-Regular", Helvetica;
-  font-size: 16px;
+  color: #000000;
 }
 
 .camera .time-value {
-  color: #333;
-  font-family: "Pretendard-Medium", Helvetica;
-  font-size: 16px;
+  color: #000000;
 }
 
 .camera .camera-history-list h4 {
@@ -994,10 +987,7 @@
 }
 
 .camera .batch-history-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 4px;
+  padding: 16px;
 }
 
 .camera .log-details {

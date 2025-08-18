@@ -370,29 +370,20 @@ export const Camera = () => {
           </div>
 
           <div className="frame-17">
-            <div className="camera-history-list">
-              <h4>작업현황</h4>
-              <div className="batch-history-container">
-                {cameraHistory.map(item => (
-                  <div key={item.id} className="group-10">
-                    <div className="overlap-6">
-                      <div className="text-wrapper-31">
-                        {item.rack}랙 {item.slot}칸 입고
-                      </div>
-                      <div className="time-entries">
-                        <div className="time-row">
-                          <div className="time-label">시작시간</div>
-                          <div className="time-value">00:00:00</div>
-                        </div>
-                        <div className="time-row">
-                          <div className="time-label">종료시간</div>
-                          <div className="time-value">00:00:00</div>
-                        </div>
-                      </div>
-                    </div>
+            <div className="batch-history-container">
+              {cameraHistory.map(item => (
+                <div key={item.id} className="group-10">
+                  <div>{item.rack}랙 {item.slot}칸 입고</div>
+                  <div className="time-row">
+                    <div className="time-label">시작시간</div>
+                    <div className="time-value">00:00:00</div>
                   </div>
-                ))}
-              </div>
+                  <div className="time-row">
+                    <div className="time-label">종료시간</div>
+                    <div className="time-value">00:00:00</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
