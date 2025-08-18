@@ -58,23 +58,50 @@ class USBCamera:
     def _init_camera(self) -> bool:
         """Initialize the camera"""
         try:
-            self.cap = cv2.VideoCapture(self.device_path)
-            if not self.cap.isOpened():
-                logger.error(f"Failed to open {self.name} at {self.device_path}")
-                return False
-                
-            # Test capture
-            ret, frame = self.cap.read()
-            if not ret or frame is None:
-                logger.error(f"Failed to capture test frame from {self.name}")
-                return False
-                
-            with self.lock:
-                self.frame = frame
-                self.last_frame_time = time.time()
-                
-            logger.info(f"Successfully initialized {self.name}")
-            return True
+            # Try different backends for better compatibility
+            backends = [cv2.CAP_V4L2, cv2.CAP_ANY]
+            
+            for backend in backends:
+                try:
+                    self.cap = cv2.VideoCapture(self.device_path, backend)
+                    if not self.cap.isOpened():
+                        continue
+                        
+                    # Set basic properties
+                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                    self.cap.set(cv2.CAP_PROP_FPS, 30)
+                    
+                    # Wait a moment for camera to stabilize
+                    time.sleep(0.5)
+                    
+                    # Test capture multiple times
+                    for attempt in range(3):
+                        ret, frame = self.cap.read()
+                        if ret and frame is not None:
+                            with self.lock:
+                                self.frame = frame
+                                self.last_frame_time = time.time()
+                            logger.info(f"Successfully initialized {self.name} with backend {backend}")
+                            return True
+                        time.sleep(0.2)
+                    
+                    # If we get here, capture failed
+                    self.cap.release()
+                    self.cap = None
+                    
+                except Exception as e:
+                    logger.debug(f"Backend {backend} failed for {self.name}: {e}")
+                    if self.cap:
+                        try:
+                            self.cap.release()
+                        except:
+                            pass
+                        self.cap = None
+                    continue
+            
+            logger.error(f"Failed to initialize {self.name} at {self.device_path} with any backend")
+            return False
             
         except Exception as e:
             logger.error(f"Error initializing {self.name}: {e}")
