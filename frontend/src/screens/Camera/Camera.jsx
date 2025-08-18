@@ -334,48 +334,61 @@ export const Camera = () => {
           <div className="frame-17">
             <div className="camera-history-list">
               <div className="batch-history-container">
-                {cameraBatches.map((batch, idx) => (
-                  <div key={batch.batch_id ? batch.batch_id : `single-${idx}`} className="group-10">
-                    <div className="overlap-6">
-                      {/* Batch meta: date and count */}
-                      <div className="log-date">{formatDate(batch.end_time || batch.start_time || batch.updated_at || batch.created_at)} · 총 {batch.tasks.length}건</div>
+                {cameraBatches.flatMap((batch, idx) => {
+                  const curDate = formatDate(batch.end_time || batch.start_time || batch.updated_at || batch.created_at);
+                  const prevDate = idx > 0
+                    ? formatDate(cameraBatches[idx - 1].end_time || cameraBatches[idx - 1].start_time || cameraBatches[idx - 1].updated_at || cameraBatches[idx - 1].created_at)
+                    : curDate;
 
-                      {/* Tasks inside this batch */}
-                      <div className="batch-internal-jobs-list">
-                        {batch.tasks.map((t, i) => (
-                          <div className="individual-job-item" key={`t-${i}`}>
-                            <div className="group-11">
-                              <div className="overlap-group-6">
-                                <div className="log-title">{t.rack}랙 {t.slot}칸 {t.movement_type === 'IN' ? '입고' : '출고'}</div>
+                  const cardKey = batch.batch_id ? batch.batch_id : `single-${idx}`;
+                  const card = (
+                    <div key={cardKey} className="group-10">
+                      <div className="overlap-6">
+                        {/* Batch meta: date and count */}
+                        <div className="log-date">{curDate} · 총 {batch.tasks.length}건</div>
+
+                        {/* Tasks inside this batch */}
+                        <div className="batch-internal-jobs-list">
+                          {batch.tasks.map((t, i) => (
+                            <div className="individual-job-item" key={`t-${i}`}>
+                              <div className="group-11">
+                                <div className="overlap-group-6">
+                                  <div className="log-title">{t.rack}랙 {t.slot}칸 {t.movement_type === 'IN' ? '입고' : '출고'}</div>
+                                </div>
+                              </div>
+                              <div className="log-times-container individual-job-times">
+                                <div className="log-time-entry">
+                                  <span className="log-time-label">시작시간</span>
+                                  <span className="log-time-value">{formatHms(t.start_time)}</span>
+                                </div>
+                                <div className="log-time-entry">
+                                  <span className="log-time-label">종료시간</span>
+                                  <span className="log-time-value">{formatHms(t.end_time)}</span>
+                                </div>
                               </div>
                             </div>
-                            <div className="log-times-container individual-job-times">
-                              <div className="log-time-entry">
-                                <span className="log-time-label">시작시간</span>
-                                <span className="log-time-value">{formatHms(t.start_time)}</span>
-                              </div>
-                              <div className="log-time-entry">
-                                <span className="log-time-label">종료시간</span>
-                                <span className="log-time-value">{formatHms(t.end_time)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
 
-                      <div className="log-download-button-container">
-                        <button
-                          className="log-download-button"
-                          onClick={() => handleDownloadBatch(batch.batch_id)}
-                          disabled={!batch.batch_id}
-                        >
-                          <img src="/img/download_icon.svg" alt="" className="download-icon" />
-                          다운로드
-                        </button>
+                        <div className="log-download-button-container">
+                          <button
+                            className="log-download-button"
+                            onClick={() => handleDownloadBatch(batch.batch_id)}
+                            disabled={!batch.batch_id}
+                          >
+                            <img src="/img/download_icon.svg" alt="" className="download-icon" />
+                            다운로드
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+
+                  if (idx > 0 && curDate !== prevDate) {
+                    return [<div key={`divider-${idx}`} className="date-divider" />, card];
+                  }
+                  return [card];
+                })}
               </div>
             </div>
           </div>
