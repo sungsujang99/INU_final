@@ -19,26 +19,23 @@ logger = logging.getLogger(__name__)
 CAMERA_CONFIG = {
     'M': {
         'type': 'usb',
-        'device': '/dev/video0',  # Updated from /dev/video8 to /dev/video0
+        'device': '/dev/video1',
         'name': 'Main Camera'
     },
     'A': {
-        'type': 'arducam',
-        'name': 'Rack A Camera',
-        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x04',
-        'gpio_sta': [False, False, True]  # Original working config
+        'type': 'usb',
+        'device': '/dev/video3',
+        'name': 'Rack A Camera'
     },
     'B': {
-        'type': 'arducam',
-        'name': 'Rack B Camera',
-        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x05',
-        'gpio_sta': [True, False, True]  # Original working config
+        'type': 'usb',
+        'device': '/dev/video5',
+        'name': 'Rack B Camera'
     },
     'C': {
-        'type': 'arducam',
-        'name': 'Rack C Camera',
-        'i2c_cmd': 'i2cset -y 1 0x70 0x00 0x06',  # Original working config
-        'gpio_sta': [False, True, False]  # Original working config: Pin 7=False, Pin 11=True, Pin 12=False
+        'type': 'usb',
+        'device': '/dev/video7',
+        'name': 'Rack C Camera'
     }
 }
 
@@ -185,10 +182,6 @@ class ArducamMultiCamera:
         self.last_frame_time = 0
         self.lock = threading.Lock()
         self.running = True
-        self.frame_cache = None
-        self.last_capture_time = 0
-        self.CACHE_DURATION = 0.2  # Cache frames for 200ms
-        self.MIN_FRAME_INTERVAL = 0.2  # Minimum time between frame captures (5 FPS)
         
         # Initialize GPIO exactly like test code
         if not self.__class__.gpio_chip:
@@ -203,65 +196,22 @@ class ArducamMultiCamera:
                 logger.error(f"GPIO initialization failed: {e}")
                 self.__class__.gpio_chip = None
                 raise
-
-    @classmethod
-    def _reinit_camera(cls):
-        """Reinitialize the camera with fresh state"""
-        try:
-            # Cleanup existing camera
-            if cls.picam2:
-                try:
-                    cls.picam2.stop_preview()  # Stop preview first
-                    cls.picam2.stop()
-                    cls.picam2.close()
-                except:
-                    pass
-                cls.picam2 = None
-                time.sleep(1.0)  # Wait longer for camera to fully close
-            
-            # Initialize new camera instance
-            cls.picam2 = Picamera2(0)
-            
-            # Create and apply configuration before starting
-            config = cls.picam2.create_preview_configuration(
-                main={"size": (640, 480), "format": "RGB888"},
-                buffer_count=4  # Use more buffers for stability
-            )
-            cls.picam2.configure(config)
-            
-            # Wait for configuration to settle
-            time.sleep(0.5)
-            
+                
+        # Initialize camera if not already initialized
+        if not self.__class__.picam2:
             try:
-                cls.picam2.start()
-                # Wait for camera to fully start
-                time.sleep(1.0)
-                
-                # Test capture to verify camera is working
-                test_frame = cls.picam2.capture_array()
-                if test_frame is None:
-                    raise RuntimeError("Test capture failed")
-                    
-                logger.info("Camera system reinitialized successfully")
-                return True
+                self.__class__.picam2 = Picamera2(0)
+                config = self.__class__.picam2.create_preview_configuration(
+                    main={"size": (640, 480), "format": "RGB888"}
+                )
+                self.__class__.picam2.configure(config)
+                self.__class__.picam2.start()
+                time.sleep(2)  # Wait for camera to initialize
+                logger.info("Camera system initialized")
             except Exception as e:
-                logger.error(f"Camera start failed: {e}")
-                try:
-                    cls.picam2.close()
-                except:
-                    pass
-                cls.picam2 = None
-                return False
-                
-        except Exception as e:
-            logger.error(f"Camera reinitialization failed: {e}")
-            if cls.picam2:
-                try:
-                    cls.picam2.close()
-                except:
-                    pass
-                cls.picam2 = None
-            return False
+                logger.error(f"Camera initialization failed: {e}")
+                self.__class__.picam2 = None
+                raise
 
     def select_channel(self):
         """Set GPIO pins exactly like test code"""
@@ -274,37 +224,23 @@ class ArducamMultiCamera:
                 lgpio.gpio_write(self.__class__.gpio_chip, 4, 0)    # Pin 7
                 lgpio.gpio_write(self.__class__.gpio_chip, 17, 0)  # Pin 11
                 lgpio.gpio_write(self.__class__.gpio_chip, 18, 0)  # Pin 12
-                time.sleep(0.5)  # Longer wait for pins to settle
+                time.sleep(0.1)  # Brief wait for pins to settle
                 
                 # Set new pin states
                 lgpio.gpio_write(self.__class__.gpio_chip, 4, 1 if self.gpio_sta[0] else 0)    # Pin 7
                 lgpio.gpio_write(self.__class__.gpio_chip, 17, 1 if self.gpio_sta[1] else 0)  # Pin 11
                 lgpio.gpio_write(self.__class__.gpio_chip, 18, 1 if self.gpio_sta[2] else 0)  # Pin 12
-                time.sleep(0.5)  # Longer wait for pins to settle
+                time.sleep(0.1)  # Brief wait for pins to settle
                 logger.info(f"GPIO set: Pin 7={self.gpio_sta[0]}, Pin 11={self.gpio_sta[1]}, Pin 12={self.gpio_sta[2]}")
                 
                 # Execute I2C command after GPIO change
                 self.init_i2c()
-                time.sleep(0.5)  # Wait for I2C to settle
-                
-                # Reinitialize camera when switching
-                retry_count = 3
-                while retry_count > 0:
-                    if self._reinit_camera():
-                        break
-                    retry_count -= 1
-                    time.sleep(1.0)  # Wait between retries
-                    
-                if retry_count == 0:
-                    raise RuntimeError("Failed to reinitialize camera after retries")
                 
                 # Update current camera
                 self.__class__.current_camera = self
                 
-                # Clear frame cache after switch
-                self.frame_cache = None
-                self.last_capture_time = 0
-                
+                # Wait for camera to settle after switching
+                time.sleep(0.2)
         except Exception as e:
             logger.error(f"Error setting GPIO: {e}")
             raise
@@ -321,19 +257,6 @@ class ArducamMultiCamera:
         self.running = True
         
     def get_frame(self):
-        current_time = time.time()
-        
-        # Return cached frame if it's still fresh
-        if (self.frame_cache is not None and 
-            current_time - self.last_capture_time < self.CACHE_DURATION):
-            return self.frame_cache.copy()
-            
-        # Rate limit frame captures
-        if current_time - self.last_capture_time < self.MIN_FRAME_INTERVAL:
-            if self.frame_cache is not None:
-                return self.frame_cache.copy()
-            return self._generate_blank_frame("Initializing camera...")
-            
         try:
             with self.lock:  # Use lock to prevent concurrent camera access
                 # Set GPIO pins for this camera
@@ -344,10 +267,7 @@ class ArducamMultiCamera:
                     array = self.__class__.picam2.capture_array()
                     if array is not None:
                         self.frame = array
-                        self.last_frame_time = current_time
-                        # Update cache
-                        self.frame_cache = array.copy()
-                        self.last_capture_time = current_time
+                        self.last_frame_time = time.time()
                         return array
                     
                 return self._generate_blank_frame(f"No frame from {self.name}")
