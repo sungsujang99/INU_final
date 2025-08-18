@@ -50,6 +50,7 @@ export const Camera = () => {
   const [cameraHistory, setCameraHistory] = useState([]);
   const [userDisplayName, setUserDisplayName] = useState('');
   const [latestBatchId, setLatestBatchId] = useState(null);
+  const [cameraBatches, setCameraBatches] = useState([]); // grouped by batch_id
 
   const handleDashboard = () => navigate('/dashboard');
   const handleWorkStatus = () => navigate('/work-status');
@@ -243,6 +244,38 @@ export const Camera = () => {
 
         setGroupedActivityLogs(logsByDate);
         setCameraHistory(historyData);
+
+        // Group camera history by batch_id so one card per batch
+        const batchesMap = new Map();
+        for (const it of Array.isArray(historyData) ? historyData : []) {
+          const key = it.batch_id ? `batch-${it.batch_id}` : `single-${it.id}`;
+          const existing = batchesMap.get(key) || {
+            batch_id: it.batch_id || null,
+            rack: it.rack,
+            movement_type: it.movement_type,
+            slots: new Set(),
+            start_time: it.start_time,
+            end_time: it.end_time,
+            created_at: it.created_at,
+            updated_at: it.updated_at
+          };
+          existing.rack = existing.rack || it.rack;
+          existing.movement_type = existing.movement_type || it.movement_type;
+          if (it.slot) existing.slots.add(it.slot);
+          // aggregate times
+          const s1 = existing.start_time && new Date(existing.start_time).getTime();
+          const s2 = it.start_time && new Date(it.start_time).getTime();
+          if (!s1 || (s2 && s2 < s1)) existing.start_time = it.start_time;
+          const e1 = existing.end_time && new Date(existing.end_time).getTime();
+          const e2 = it.end_time && new Date(it.end_time).getTime();
+          if (!e1 || (e2 && e2 > e1)) existing.end_time = it.end_time;
+          batchesMap.set(key, existing);
+        }
+        const batches = Array.from(batchesMap.values()).map(b => ({
+          ...b,
+          slots: Array.from(b.slots)
+        }));
+        setCameraBatches(batches);
       } catch (error) {
         console.error('Error fetching data:', error);
         if (handleApiError(error, navigate)) return;
@@ -297,12 +330,14 @@ export const Camera = () => {
           <div className="frame-17">
             <div className="camera-history-list">
               <div className="batch-history-container">
-                {cameraHistory.map(item => (
+                {cameraBatches.map(item => (
                   <div key={item.id} className="group-10">
                     <div className="overlap-6">
                       <div className="group-11">
                         <div className="overlap-group-6">
-                          <div className="log-title">{item.rack}랙 {item.slot}칸 {item.movement_type === 'IN' ? '입고' : '출고'}</div>
+                          <div className="log-title">
+                            {item.rack}랙 {item.slots && item.slots.length === 1 ? `${item.slots[0]}칸 ` : ''}{item.movement_type === 'IN' ? '입고' : '출고'}{item.slots && item.slots.length > 1 ? ' (일괄)' : ''}
+                          </div>
                         </div>
                       </div>
                       <div className="log-date">{formatDate(item.end_time || item.start_time || item.updated_at || item.created_at)}</div>
