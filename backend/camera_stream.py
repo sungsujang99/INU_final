@@ -221,6 +221,14 @@ class CameraManager:
 # Global camera manager instance
 camera_manager = CameraManager()
 
+def get_available_cameras():
+    """Get list of available cameras"""
+    try:
+        return camera_manager.get_available_cameras()
+    except Exception as e:
+        logger.error(f"Error getting available cameras: {e}")
+        return []
+
 def mjpeg_feed(rack_id: str = 'M'):
     """Get MJPEG feed for specified rack"""
     logger.info(f"MJPEG feed requested for rack {rack_id}")
