@@ -28,6 +28,20 @@ const formatHms = (timestamp) => {
   }
 };
 
+// Helper to format date (YYYY-MM-DD)
+const formatDate = (timestamp) => {
+  if (!timestamp) return "";
+  try {
+    const d = new Date(timestamp);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  } catch (_) {
+    return "";
+  }
+};
+
 export const Camera = () => {
   const navigate = useNavigate();
   const [selectedCamera, setSelectedCamera] = useState('M');
@@ -291,6 +305,7 @@ export const Camera = () => {
                           <div className="log-title">{item.rack}랙 {item.slot}칸 {item.movement_type === 'IN' ? '입고' : '출고'}</div>
                         </div>
                       </div>
+                      <div className="log-date">{formatDate(item.end_time || item.start_time || item.updated_at || item.created_at)}</div>
                       <div className="log-times-container">
                         <div className="log-time-entry">
                           <span className="log-time-label">시작시간</span>
