@@ -63,6 +63,116 @@ export const Camera = () => {
     }).catch(() => {});
   };
 
+  // Camera helpers and UI (restored)
+  const getCameraName = (cameraNum) => {
+    const names = { M: '메인화면', A: 'A 랙', B: 'B 랙', C: 'C 랙' };
+    return names[cameraNum] || `카메라 ${cameraNum}`;
+  };
+
+  const handleCameraSelect = (cameraNumber) => {
+    setSelectedCamera(cameraNumber);
+  };
+
+  const renderCameraStream = () => {
+    const mjpegStreamUrl = `${getBackendUrl()}/api/camera/${selectedCamera}/mjpeg_feed`;
+
+    if (availableCameras.includes(selectedCamera)) {
+      return (
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          <img
+            key={selectedCamera}
+            src={mjpegStreamUrl}
+            alt={`${getCameraName(selectedCamera)} 라이브 스트림`}
+            className="camera-mjpeg-stream"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={(e) => {
+              e.target.style.display = 'none';
+              if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+          <div
+            className="camera-error-message"
+            style={{
+              display: 'none',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: '#f5f5f5',
+              color: '#666',
+              justifyContent: 'center',
+              alignItems: 'center',
+              textAlign: 'center',
+              padding: '20px'
+            }}
+          >
+            {getCameraName(selectedCamera)} 은(는) 현재 사용할 수 없습니다.
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="camera-stream-placeholder">
+        {getCameraName(selectedCamera)} 은(는) 현재 사용할 수 없습니다.
+      </div>
+    );
+  };
+
+  const renderSmallCameraStream = (cameraId) => {
+    if (!availableCameras.includes(cameraId)) {
+      return <div className="small-camera-unavailable">사용불가</div>;
+    }
+
+    return (
+      <div
+        className="small-camera-preview"
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: '100%',
+          backgroundColor: '#f5f5f5',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          color: '#666',
+          fontSize: '0.9em'
+        }}
+      >
+        <div>{getCameraName(cameraId)} 선택</div>
+      </div>
+    );
+  };
+
+  const renderMainCamera = () => (
+    <div className="frame-wrapper">
+      <div className="frame-16 camera-button camera-selected">
+        <div className="text-wrapper-31">{getCameraName(selectedCamera)}</div>
+      </div>
+      <div className="camera-display">{renderCameraStream()}</div>
+    </div>
+  );
+
+  const renderCameraButtons = () => {
+    const allCameras = ['M', 'A', 'B', 'C'];
+    return allCameras
+      .filter((camId) => camId !== selectedCamera)
+      .map((camId) => (
+        <div
+          key={camId}
+          className="small-camera-wrapper"
+          onClick={() => handleCameraSelect(camId)}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="small-camera-button">
+            <div className="small-camera-text">{getCameraName(camId)}</div>
+          </div>
+          <div className="small-camera-display">{renderSmallCameraStream(camId)}</div>
+        </div>
+      ));
+  };
+
   const handleDownloadBatch = async (batchId) => {
     if (!batchId) return;
     const token = localStorage.getItem('inu_token');
@@ -153,7 +263,8 @@ export const Camera = () => {
           <div className="text-wrapper-30">Camera</div>
 
           <div className="frame-15">
-            {/* Main camera display and small buttons retained (code omitted for brevity) */}
+            {renderMainCamera()}
+            {renderCameraButtons()}
           </div>
 
           <div className="frame-17">
