@@ -34,7 +34,8 @@ def create_test_task():
             1, 'Test Owner', 'done', now, now,
             now, now, user_id
         ))
-        task_id = cur.fetchone()[0]
+        task_id = cur.lastrowid  # Fix: Use lastrowid instead of fetchone()
+        print(f"Created task with ID: {task_id}")
         
         # Insert batch link
         batch_id = f"TEST_BATCH_{now}"
