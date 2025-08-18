@@ -94,10 +94,16 @@
 .camera .frame-17 {
   align-items: flex-start;
   display: flex;
-  flex-direction: column; /* Changed to column for date grouping */
-  gap: 12px; /* Reduced gap for tighter grouping */
-  height: 660px;  /* Match the new height */
+  flex-direction: column;
+  gap: 12px;
+  height: 660px;
   left: 848px;
+  position: absolute;  /* Make it absolutely positioned */
+  top: 98px;  /* Match frame-15's top */
+  width: 550px;  /* Fixed width */
+  background: white;  /* Ensure background is white */
+  z-index: 10;  /* Keep it above other elements */
+  overflow-y: auto;  /* Allow scrolling if content is too long */
   overflow-y: scroll;
   position: absolute;
   top: 98px;

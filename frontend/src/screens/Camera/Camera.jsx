@@ -348,17 +348,30 @@ export const Camera = () => {
         setGroupedActivityLogs({});
       }
     };
-    fetchAndGroupLogs();
 
     const fetchHistory = async () => {
       try {
+        console.log("Fetching camera history...");
         const historyData = await getCameraHistory({ limit: 50 });
+        console.log("Received camera history:", historyData);
         setCameraHistory(historyData);
       } catch (error) {
         console.error("Failed to fetch camera history:", error);
       }
     };
+
+    // Initial fetch
+    fetchAndGroupLogs();
     fetchHistory();
+
+    // Set up periodic refresh every 2 seconds
+    const intervalId = setInterval(() => {
+      fetchAndGroupLogs();
+      fetchHistory();
+    }, 2000);
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
