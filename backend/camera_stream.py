@@ -271,10 +271,11 @@ class CameraManager:
         self._init_cameras()
         
     def _init_cameras(self):
-        """Initialize all cameras"""
-        # Initialize cameras in original order: M, A, B, C
-        init_order = ['M', 'A', 'B', 'C']
-        for rack_id in init_order:
+        """Initialize all cameras in 2 steps to prevent USB resource conflicts"""
+        # Step 1: Initialize first batch (M, A)
+        logger.info("Step 1: Initializing cameras M and A...")
+        first_batch = ['M', 'A']
+        for rack_id in first_batch:
             config = CAMERA_CONFIG.get(rack_id)
             if not config:
                 continue
@@ -294,11 +295,46 @@ class CameraManager:
                 else:
                     logger.error(f"Failed to start camera {rack_id}")
                     
-                # Add longer delay between camera initializations to prevent USB resource conflicts
-                time.sleep(2.0)
+                # Delay between cameras in same batch
+                time.sleep(1.0)
                 
             except Exception as e:
                 logger.error(f"Error initializing camera {rack_id}: {e}")
+        
+        # Wait longer between batches to ensure first batch is fully established
+        logger.info("Step 1 complete. Waiting before Step 2...")
+        time.sleep(3.0)
+        
+        # Step 2: Initialize second batch (B, C)
+        logger.info("Step 2: Initializing cameras B and C...")
+        second_batch = ['B', 'C']
+        for rack_id in second_batch:
+            config = CAMERA_CONFIG.get(rack_id)
+            if not config:
+                continue
+            try:
+                if config['type'] == 'usb':
+                    camera = USBCamera(config['device'], config['name'])
+                else:  # arducam
+                    camera = ArducamMultiCamera(
+                        config['name'],
+                        config['i2c_cmd'],
+                        config['gpio_sta']
+                    )
+                
+                if camera.start():
+                    self.cameras[rack_id] = camera
+                    logger.info(f"Successfully initialized camera {rack_id}")
+                else:
+                    logger.error(f"Failed to start camera {rack_id}")
+                    
+                # Delay between cameras in same batch
+                time.sleep(1.0)
+                
+            except Exception as e:
+                logger.error(f"Error initializing camera {rack_id}: {e}")
+        
+        logger.info("Camera initialization complete.")
             
     def get_frame(self, rack_id: str) -> Optional[np.ndarray]:
         """Get frame from specific camera"""
