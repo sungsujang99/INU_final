@@ -272,8 +272,8 @@ class CameraManager:
         
     def _init_cameras(self):
         """Initialize all cameras"""
-        # Initialize cameras in specific order: C, B, A, M
-        init_order = ['C', 'B', 'A', 'M']
+        # Initialize cameras in original order: M, A, B, C
+        init_order = ['M', 'A', 'B', 'C']
         for rack_id in init_order:
             config = CAMERA_CONFIG.get(rack_id)
             if not config:
@@ -294,8 +294,8 @@ class CameraManager:
                 else:
                     logger.error(f"Failed to start camera {rack_id}")
                     
-                # Add delay between camera initializations to prevent conflicts
-                time.sleep(0.5)
+                # Add longer delay between camera initializations to prevent USB resource conflicts
+                time.sleep(2.0)
                 
             except Exception as e:
                 logger.error(f"Error initializing camera {rack_id}: {e}")
