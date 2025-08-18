@@ -373,15 +373,11 @@ export const Camera = () => {
             <div className="batch-history-container">
               {cameraHistory.map(item => (
                 <div key={item.id} className="group-10">
-                  <div>{item.rack}랙 {item.slot}칸 입고</div>
-                  <div className="time-row">
-                    <div className="time-label">시작시간</div>
-                    <div className="time-value">00:00:00</div>
-                  </div>
-                  <div className="time-row">
-                    <div className="time-label">종료시간</div>
-                    <div className="time-value">00:00:00</div>
-                  </div>
+                  <div className="title">{item.rack}랙 {item.slot}칸 입고</div>
+                  <div>시작시간</div>
+                  <div>00:00:00</div>
+                  <div>종료시간</div>
+                  <div>00:00:00</div>
                 </div>
               ))}
             </div>
