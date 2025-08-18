@@ -277,11 +277,74 @@ export const Camera = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [logsData, historyData] = await Promise.all([
-          getActivityLogs({ limit: 50, order: 'desc' }),
-          getCameraHistory({ limit: 50 })
-        ]);
-        setGroupedActivityLogs(logsData);
+        const rawLogs = await getActivityLogs({ limit: 50, order: 'desc' });
+        const historyData = await getCameraHistory({ limit: 50 });
+
+        // First group by date
+        const logsByDate = rawLogs.reduce((acc, log) => {
+          const date = new Date(log.timestamp);
+          const dateKey = date.toLocaleDateString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          });
+          
+          if (!acc[dateKey]) {
+            acc[dateKey] = [];
+          }
+          acc[dateKey].push(log);
+          return acc;
+        }, {});
+
+        // Then group each date's logs by batch
+        const groupedByDateAndBatch = Object.entries(logsByDate).reduce((acc, [date, logs]) => {
+          // Group logs by batch_id
+          const batchGroups = logs.reduce((batchAcc, log) => {
+            const key = log.batch_id || `ungrouped-${log.id}`;
+            if (!batchAcc[key]) {
+              batchAcc[key] = {
+                batch_id: log.batch_id,
+                timestamps: [],
+                logs: [],
+                representativeTitleInfo: {
+                  rack: log.rack,
+                  slot: log.slot,
+                  movement_type: log.movement_type
+                }
+              };
+            }
+            batchAcc[key].logs.push(log);
+            batchAcc[key].timestamps.push(log.timestamp);
+            return batchAcc;
+          }, {});
+
+          // Convert batch groups object to array and process each batch
+          const batchesArray = Object.values(batchGroups).map(batch => {
+            batch.timestamps.sort((a,b) => new Date(a) - new Date(b));
+            batch.batchStartTime = batch.timestamps[0];
+            batch.batchEndTime = batch.timestamps[batch.timestamps.length - 1];
+            
+            if (batch.batch_id) {
+              const firstLog = batch.logs[0];
+              const allSameRackAndMovement = batch.logs.every(l => 
+                l.rack === firstLog.rack && l.movement_type === firstLog.movement_type
+              );
+              if (allSameRackAndMovement) {
+                batch.batchCardTitle = `${firstLog.rack}랙 일괄 ${firstLog.movement_type === 'IN' ? '입고' : '출고'} 작업`;
+              } else {
+                batch.batchCardTitle = `일괄 작업 ID: ${batch.batch_id.substring(0,8)}...`;
+              }
+            } else {
+              batch.batchCardTitle = "개별 작업";
+            }
+            return batch;
+          });
+
+          acc[date] = batchesArray;
+          return acc;
+        }, {});
+
+        setGroupedActivityLogs(groupedByDateAndBatch);
         setCameraHistory(historyData);
       } catch (error) {
         console.error('Error fetching data:', error);
