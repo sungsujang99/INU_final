@@ -9,6 +9,7 @@ import io # Standard io module for StringIO
 import csv # Standard csv module
 import threading
 import time
+import datetime # Added for datetime operations
 
 from .auth import authenticate, token_required, logout_current_session, get_current_session_info
 from .db import DB_NAME, init_db
@@ -340,10 +341,44 @@ def camera_history():
             "message": str(e)
         }), 500
 
+def _system_busy(min_idle_seconds: int = 1) -> bool:
+    """Return True if there are pending/in_progress tasks, or if last done < cooldown."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cur = conn.cursor()
+        # Any outstanding work?
+        cur.execute("SELECT COUNT(*) FROM work_tasks WHERE status IN ('pending','in_progress')")
+        outstanding = cur.fetchone()[0]
+        if outstanding and outstanding > 0:
+            return True
+        # Cooldown after last done
+        cur.execute("SELECT updated_at FROM work_tasks WHERE status='done' ORDER BY updated_at DESC LIMIT 1")
+        row = cur.fetchone()
+        if row and row[0]:
+            try:
+                last_done = datetime.datetime.fromisoformat(row[0])
+            except Exception:
+                # Fallback: strip microseconds if any
+                ts = str(row[0]).split(".")[0]
+                last_done = datetime.datetime.fromisoformat(ts)
+            if (datetime.datetime.now() - last_done).total_seconds() < min_idle_seconds:
+                return True
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 # ---- record JSON ----
 @app.route("/api/record", methods=["POST"])
 @token_required
 def record_inventory_and_queue_tasks():
+    # Gate: deny new batch while system is busy
+    if _system_busy(min_idle_seconds=1):
+        return jsonify({
+            "message": "아직 작동중입니다.",
+            "status": "busy"
+        }), 429
     data = request.get_json()
     if not isinstance(data, list):
         return jsonify({
@@ -409,6 +444,12 @@ def get_pending_task_counts_route():
 @app.route("/api/upload-tasks", methods=["POST"])
 @token_required
 def upload_tasks_route():
+    # Gate: deny new batch while system is busy
+    if _system_busy(min_idle_seconds=1):
+        return jsonify({
+            "message": "아직 작동중입니다.",
+            "status": "busy"
+        }), 429
     if not request.is_json:
         return jsonify({
             "error": get_error_message("json_body_required")
