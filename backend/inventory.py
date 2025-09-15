@@ -64,9 +64,18 @@ def add_records(records: list[dict], batch_id: str = None, user_info: dict = Non
 
         # Validate all records first
         for record in records:
-            rack = record['rack'].upper()
-            slot = int(record['slot'])
-            movement = record['movement'].upper()
+            rack = str(record['rack']).upper()
+            try:
+                slot = int(record['slot'])
+            except Exception:
+                return False, get_error_message("invalid_slot_range")
+            movement = str(record['movement']).upper()
+
+            # Hard constraints: valid rack and slot range
+            if rack not in { 'A', 'B', 'C' }:
+                return False, get_error_message("invalid_rack")
+            if slot < 1 or slot > 80:
+                return False, get_error_message("invalid_slot_range")
 
             if movement == 'IN':
                 if (rack, slot) in current_inventory:
@@ -99,9 +108,9 @@ def add_records(records: list[dict], batch_id: str = None, user_info: dict = Non
             """, (
                 record['product_code'],
                 record['product_name'],
-                record['rack'].upper(),
+                str(record['rack']).upper(),
                 int(record['slot']),
-                record['movement'].upper(),
+                str(record['movement']).upper(),
                 int(record['quantity']),
                 record.get('cargo_owner', ''),
                 now,
@@ -118,26 +127,27 @@ def add_records(records: list[dict], batch_id: str = None, user_info: dict = Non
 
             # If this is part of a batch, link the task
             if batch_id and task_id:
-                cur.execute(
-                    "INSERT INTO batch_task_links (batch_id, task_id, created_by) VALUES (?, ?, ?)",
-                    (batch_id, task_id, user_info['id'])
-                )
+                cur.execute("""
+                    INSERT INTO batch_task_links (batch_id, task_id, created_by)
+                    VALUES (?, ?, ?)
+                """, (batch_id, task_id, user_info['id']))
 
-        logger.debug("add_records: All records processed. Attempting to commit.")
         conn.commit()
-        logger.debug("add_records: Commit successful.")
-        return True, ""
-    except Exception as e:
-        logger.error("add_records: Exception occurred: %s", str(e), exc_info=True)
+        logger.info("add_records: Successfully processed %s records.", len(records))
+        return True, None
+
+    except sqlite3.Error as e:
+        logger.exception("add_records: DB error: %s", e)
         if conn:
-            logger.debug("add_records: Rolling back transaction.")
             conn.rollback()
-            logger.debug("add_records: Rollback complete.")
-        return False, get_error_message("unexpected_error")
+        return False, get_error_message("database_error")
+
+    except Exception as e:
+        logger.exception("add_records: Unexpected error: %s", e)
+        if conn:
+            conn.rollback()
+        return False, str(e)
+
     finally:
         if conn:
-            logger.debug("add_records: Closing DB connection.")
             conn.close()
-            logger.debug("add_records: DB connection closed.")
-        else:
-            logger.debug("add_records: No DB connection to close (was None).")

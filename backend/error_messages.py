@@ -21,7 +21,6 @@ ERROR_MESSAGES = {
     "failed_m_echo": "메인 장비 통신 오류",
     "failed_rack_echo": "랙 통신 오류",
     "failed_m_timeout": "메인 장비 응답 시간 초과",
-    "failed_rack_timeout": "랙 응답 시간 초과",
     "failed_invalid_rack_for_m": "잘못된 랙 ID",
     "failed_unknown_movement": "알 수 없는 이동 유형",
     "failed_inventory_update": "재고 업데이트 실패",
@@ -33,6 +32,8 @@ ERROR_MESSAGES = {
     "no_inventory": "슬롯 {rack}-{slot}에 재고가 없습니다",
     "multiple_out_operations": "슬롯 {rack}-{slot}에 대한 중복 출고 작업이 있습니다",
     "invalid_movement": "잘못된 이동 유형: {movement}",
+    "invalid_rack": "잘못된 랙 값입니다. 허용 값: A, B, C",
+    "invalid_slot_range": "잘못된 칸 값입니다. 1부터 80 사이여야 합니다",
 
     # Database errors
     "database_error": "데이터베이스 오류",
