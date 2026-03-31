@@ -4,4 +4,9 @@ bcrypt==4.1.2
 PyJWT==2.8.0
 passlib==1.7.4
 python-dotenv==1.0.0
-flask-cors==4.0.0 
+flask-cors==4.0.0
+
+# Camera / vision (needed for camera_stream.py, check_setup.py, test_cameras.py)
+opencv-python>=4.8.0
+picamera2; platform_machine == 'aarch64' or platform_machine == 'armv7l'
+RPi.GPIO; platform_machine == 'aarch64' or platform_machine == 'armv7l'

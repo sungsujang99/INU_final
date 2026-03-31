@@ -1,0 +1,2 @@
+# Deprecated: camera deps are now in requirements.txt (with ARM markers for Pi-only wheels).
+# On the Pi:  pip install -r requirements.txt

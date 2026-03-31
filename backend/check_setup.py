@@ -96,8 +96,23 @@ def main():
         issues.append("Check camera adapter connections and enable I2C: sudo raspi-config")
     
     print("\n5. Checking camera interface...")
-    if not check_command("vcgencmd get_camera", "Camera interface"):
-        issues.append("Enable camera interface: sudo raspi-config -> Interface Options -> Camera")
+    # Pi OS Bookworm / Pi 5: vcgencmd get_camera often exits 255; libcamera is authoritative.
+    libcam_list = subprocess.run(
+        "libcamera-hello --list-cameras",
+        shell=True,
+        capture_output=True,
+        text=True,
+    )
+    if libcam_list.returncode == 0:
+        print("✓ Camera interface: libcamera (list-cameras OK)")
+    else:
+        if check_command("vcgencmd get_camera", "Camera interface (legacy vcgencmd)"):
+            pass
+        else:
+            issues.append(
+                "Camera stack: ensure libcamera works (sudo apt install libcamera-apps) "
+                "or legacy camera in raspi-config on older OS"
+            )
     
     print("\n" + "="*50)
     
