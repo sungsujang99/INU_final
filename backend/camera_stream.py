@@ -12,7 +12,7 @@ import time
 import logging
 import threading
 import numpy as np
-from typing import Optional, Dict
+from typing import Any, Optional, Dict
 from flask import Response
 
 try:
@@ -159,10 +159,11 @@ class USBCamera:
 class CameraManager:
     def __init__(self):
         self.cameras: Dict[str, USBCamera] = {}
+        self._diagnostics: Dict[str, Dict[str, Any]] = {}
         self._init_cameras()
 
     def _init_cameras(self):
-        """Initialize cameras in specific order with delays"""
+        """Initialize cameras in specific order with delays (spacing helps multi-cam USB hubs)."""
         for cam_id in ['C', 'B', 'A', 'M']:  # Initialize in this order
             if cam_id in self.cameras:
                 continue
@@ -170,16 +171,34 @@ class CameraManager:
             if not cfg:
                 continue
             dev = cfg['device']
+            rec: Dict[str, Any] = {"path": dev, "rack": cam_id, "name": cfg.get("name", cam_id)}
             if not os.path.exists(dev):
+                rec["ok"] = False
+                rec["error"] = "path missing (check camera_config.py vs ls /dev/v4l/by-path/)"
+                self._diagnostics[cam_id] = rec
                 logger.error(f"[{cam_id}] Device path not found: {dev}")
                 continue
+            rec["exists"] = True
+            rec["rw"] = os.access(dev, os.R_OK | os.W_OK)
+            if not rec["rw"]:
+                rec["hint"] = "add user to group 'video' and use SupplementaryGroups=video in systemd"
             cam = USBCamera(dev, cfg['name'])
             if cam.start():
                 self.cameras[cam_id] = cam
+                rec["ok"] = True
                 logger.info(f"[{cam_id}] Ready: {dev}")
             else:
+                rec["ok"] = False
+                rec["error"] = cam.last_fail_reason or "start() failed"
                 logger.error(f"[{cam_id}] Failed to initialize: {dev}")
-            time.sleep(0.6)  # Delay between initializations
+            self._diagnostics[cam_id] = rec
+            time.sleep(1.2)
+
+    def get_diagnostics(self) -> Dict[str, Any]:
+        return {
+            "racks": {k: dict(v) for k, v in self._diagnostics.items()},
+            "opened": sorted(self.cameras.keys()),
+        }
 
     def ensure_cameras(self) -> None:
         """If import-time init saw no USB (common under systemd), try again on first HTTP hit."""
@@ -236,6 +255,13 @@ def get_available_cameras():
     except Exception as e:
         logger.error(f"Error getting available cameras: {e}")
         return []
+
+
+def get_camera_diagnostics() -> Dict[str, Any]:
+    """Per-rack open/capture status for troubleshooting empty /api/cameras/available."""
+    camera_manager.ensure_cameras()
+    return camera_manager.get_diagnostics()
+
 
 def mjpeg_feed(rack_id: str = 'M'):
     """Get MJPEG feed for specified rack"""

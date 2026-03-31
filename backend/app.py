@@ -18,7 +18,7 @@ from .stats import fetch_logs, logs_to_csv
 from .serial_io import serial_mgr
 from . import task_queue
 from .error_messages import get_error_message
-from .camera_stream import mjpeg_feed, get_available_cameras  # Import the mjpeg_feed function and camera list
+from .camera_stream import mjpeg_feed, get_available_cameras, get_camera_diagnostics
 from .camera_history import get_camera_history
 
 # Define SECRET_KEY for the application
@@ -679,6 +679,17 @@ def get_available_cameras_endpoint():
             "error": "카메라 정보를 가져오는 중 오류가 발생했습니다.",
             "message": str(e)
         }), 500
+
+
+@app.route("/api/cameras/diagnostics")
+def camera_diagnostics_endpoint():
+    """Why racks failed to open (paths, permissions, OpenCV); use when cameras list is empty."""
+    try:
+        diag = get_camera_diagnostics()
+        return jsonify({"success": True, **diag}), 200
+    except Exception as e:
+        current_app.logger.error(f"Camera diagnostics error: {e}", exc_info=True)
+        return jsonify({"success": False, "message": str(e)}), 500
 
 # Debug endpoint to help troubleshoot session issues
 @app.route("/api/debug/session-info")
