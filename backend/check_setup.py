@@ -123,10 +123,10 @@ def check_webcam_setup(issues):
 
     if missing:
         issues.append(
-            "One or more USB camera paths missing — plug in cameras, then match names under "
-            "/dev/v4l/by-path/ and update camera_config.py if USB topology changed."
+            "USB paths missing — on the Pi run: python list_usb_v4l_paths.py "
+            "then set camera_config.CAMERA_CONFIG to each *-video-index0 symlink."
         )
-        print("\n  Hint: stable paths often look like: ...usb-0:1.4.4.N:1.0-video-index0")
+        print("\n  Hint: topology differs per hub/port; run python list_usb_v4l_paths.py on the Pi.")
         _print_by_path_listing()
 
     print("\n4. Video device access...")
@@ -210,7 +210,8 @@ def main():
     if not issues:
         print("✓ ALL CHECKS PASSED!")
         print("\nNext steps:")
-        print("  python test_usb_cameras.py   # deep USB / OpenCV test")
+        print("  python list_usb_v4l_paths.py  # map USB ports -> /dev/v4l/by-path/")
+        print("  python test_usb_cameras.py    # OpenCV capture test")
         print("  python app.py")
         return True
 
