@@ -79,19 +79,9 @@ def main():
         
     print("\nRecommended configuration:")
     if working_devices:
-        # Prefer device path over index
         device = next((d for d in working_devices if d.startswith("/dev")), working_devices[0])
-        if device.startswith("/dev"):
-            device_num = int(device.replace("/dev/video", ""))
-        else:
-            device_num = int(device.replace("index:", ""))
-            
-        print(f"""
-In camera_stream.py, use:
-CAMERA_CONFIGS = {{
-    0: {{"type": "usb", "device": {device_num}, "name": "USB Camera"}},
-    ...
-}}""")
+        print(f"sync by-path symlinks from `ls -la /dev/v4l/by-path/` into camera_config.py;")
+        print(f"example working node from this scan: {device!r}")
     
 if __name__ == "__main__":
     main() 

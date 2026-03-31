@@ -78,7 +78,7 @@ echo
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "🧪 Testing cameras..."
-    python test_cameras.py
+    python test_usb_cameras.py
     camera_result=$?
     
     if [ $camera_result -ne 0 ]; then

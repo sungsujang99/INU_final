@@ -6,7 +6,8 @@ passlib==1.7.4
 python-dotenv==1.0.0
 flask-cors==4.0.0
 
-# Camera / vision (needed for camera_stream.py, check_setup.py, test_cameras.py)
+# USB webcams: camera_stream.py, check_setup.py, test_usb_cameras.py
 opencv-python>=4.8.0
+# Legacy I2C/CSI multi-camera (test_cameras.py): pip install picamera2 RPi.GPIO
 picamera2; platform_machine == 'aarch64' or platform_machine == 'armv7l'
 RPi.GPIO; platform_machine == 'aarch64' or platform_machine == 'armv7l'

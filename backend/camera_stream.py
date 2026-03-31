@@ -15,29 +15,14 @@ import numpy as np
 from typing import Optional, Dict
 from flask import Response
 
+try:
+    from .camera_config import CAMERA_CONFIG
+except ImportError:
+    from camera_config import CAMERA_CONFIG
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Camera configurations with stable device paths
-CAMERA_CONFIG = {
-    'M': {
-        'device': '/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:1.4.4.1:1.0-video-index0',
-        'name': 'Main Camera'
-    },
-    'A': {
-        'device': '/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:1.4.4.2:1.0-video-index0',
-        'name': 'Rack A Camera'
-    },
-    'B': {
-        'device': '/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:1.4.4.3:1.0-video-index0',
-        'name': 'Rack B Camera'
-    },
-    'C': {
-        'device': '/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:1.4.4.4:1.0-video-index0',
-        'name': 'Rack C Camera'
-    }
-}
 
 DEFAULT_WIDTH = 640   # Camera resolution width
 DEFAULT_HEIGHT = 480  # Camera resolution height
