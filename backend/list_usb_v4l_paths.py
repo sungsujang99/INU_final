@@ -282,8 +282,8 @@ def print_summary(
         for n in usb_symlinks:
             print(f"  /dev/v4l/by-path/{n}")
         print(
-            "\n**Rack mapping** in repo `camera_config.py`: M → `…1.4.4.1…`, A → `.2`, B → `.3`, C → `.4` "
-            "(matches this hub layout).\n"
+            "\nAuto-discovery maps sorted by-path symlinks **A→B→C→M** (**M** last). "
+            "Use `link_cameras.py` for a custom mapping.\n"
             "If several cameras share the same **ID_SERIAL** in udev, only **by-path** tells them apart.\n"
         )
         print(

@@ -6,8 +6,8 @@ Paths use the kernel xhci USB topology (e.g. …usb-0:1.4.4.N…). Identical web
 share the same USB serial in udev; **by-path** is the stable differentiator. Re-run
 `python list_usb_v4l_paths.py` if you move cables or hubs.
 
-If **every** configured path is missing but **1–4** UVC symlinks exist, racks **M, A, B, C**
-are filled in **sorted** by-path order for as many devices as you have (**auto_partial** when under four).
+If **every** configured path is missing but **1–4** UVC symlinks exist, racks are filled in **sorted**
+by-path order to **A → B → C → M** ( **M is last** ; with 3 cameras you get A, B, C and M stays free until the 4th).
 Use **`link_cameras.py`** to remap a rack to a specific physical camera.
 
 **Per-camera mapping (recommended):** plug cameras, run **`python link_cameras.py --list`**, then
@@ -43,7 +43,8 @@ CAMERA_CONFIG: Dict[str, Dict[str, str]] = {
     },
 }
 
-RACK_ORDER_MABC = ("M", "A", "B", "C")
+# Order for listing “missing” racks and for **auto-assigning** symlinks: main **M** last.
+RACK_ORDER_AUTO = ("A", "B", "C", "M")
 _BY_PATH = "/dev/v4l/by-path"
 
 
@@ -77,7 +78,7 @@ def resolve_rack_to_device() -> Tuple[Dict[str, str], Dict[str, Any]]:
 
     if len(explicit) > 0:
         meta["mode"] = "partial"
-        meta["missing_racks"] = [k for k in RACK_ORDER_MABC if k not in explicit]
+        meta["missing_racks"] = [k for k in RACK_ORDER_AUTO if k not in explicit]
         return explicit, meta
 
     if not os.path.isdir(_BY_PATH):
@@ -98,16 +99,17 @@ def resolve_rack_to_device() -> Tuple[Dict[str, str], Dict[str, Any]]:
         return {}, meta
 
     n = len(names)
-    racks_used = RACK_ORDER_MABC[:n]
-    meta["mode"] = "auto" if n == len(RACK_ORDER_MABC) else "auto_partial"
+    racks_used = RACK_ORDER_AUTO[:n]
+    meta["mode"] = "auto" if n == len(RACK_ORDER_AUTO) else "auto_partial"
     meta["symlinks"] = names
     meta["racks_mapped"] = list(racks_used)
-    if n < len(RACK_ORDER_MABC):
-        meta["missing_racks"] = list(RACK_ORDER_MABC[n:])
+    if n < len(RACK_ORDER_AUTO):
+        meta["missing_racks"] = list(RACK_ORDER_AUTO[n:])
         meta["hint"] = (
-            f"Auto-mapped {n} UVC device(s) to racks {','.join(racks_used)} (sorted by-path order). "
-            "Use `python link_cameras.py` if a rack is the wrong physical camera; "
-            "pin paths in CAMERA_CONFIG. Add more cameras for remaining racks."
+            f"Auto-mapped {n} UVC device(s) to racks {','.join(racks_used)} "
+            "(A→B→C→M order; **M** only when the 4th camera is present). "
+            "Use `python link_cameras.py` to change which symlink goes to which rack. "
+            "Pin paths in CAMERA_CONFIG for stable boots."
         )
         logger.warning(
             "CAMERA_CONFIG paths missing; auto-mapped %d UVC symlink(s) → %s",
@@ -116,11 +118,11 @@ def resolve_rack_to_device() -> Tuple[Dict[str, str], Dict[str, Any]]:
         )
     else:
         meta["hint"] = (
-            "Auto-mapped 4 UVC devices M,A,B,C ← sorted by-path. "
+            "Auto-mapped 4 UVC devices A,B,C,M ← sorted by-path (**M** = last symlink). "
             "Confirm with list_usb_v4l_paths.py / link_cameras.py and paste into CAMERA_CONFIG."
         )
         logger.warning(
-            "CAMERA_CONFIG paths all missing; auto-mapped 4 UVC devices to M,A,B,C by sorted symlink name"
+            "CAMERA_CONFIG paths all missing; auto-mapped 4 UVC devices A,B,C,M by sorted symlink name (M last)"
         )
 
     out = {rack: os.path.join(_BY_PATH, sym) for rack, sym in zip(racks_used, names)}

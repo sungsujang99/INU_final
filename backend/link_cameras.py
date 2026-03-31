@@ -22,7 +22,8 @@ import os
 import sys
 
 _BY = "/dev/v4l/by-path"
-_RACKS = ("M", "A", "B", "C")
+# Prompt / assign order: main **M** last (same as auto-discovery).
+_RACKS = ("A", "B", "C", "M")
 _NAMES = {
     "M": "Main Camera",
     "A": "Rack A Camera",

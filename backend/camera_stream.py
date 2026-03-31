@@ -166,7 +166,7 @@ class CameraManager:
     def _init_cameras(self):
         """Initialize cameras in specific order with delays (spacing helps multi-cam USB hubs)."""
         resolved, self._resolution_meta = resolve_rack_to_device()
-        for cam_id in ['C', 'B', 'A', 'M']:  # Initialize in this order
+        for cam_id in ['A', 'B', 'C', 'M']:  # M last (matches auto-map A→B→C→M)
             if cam_id in self.cameras:
                 continue
             cfg = CAMERA_CONFIG.get(cam_id)
