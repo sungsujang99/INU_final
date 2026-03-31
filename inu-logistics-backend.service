@@ -6,23 +6,23 @@ After=network-online.target
 
 [Service]
 Type=simple
+User=inu
+Group=inu
 WorkingDirectory=/home/inu/INU_final
-Environment=PATH=/home/inu/INU_final/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ExecStart=/home/inu/INU_final/venv/bin/python -m backend.app
+Environment=PATH=/home/inu/INU_final/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/inu/INU_final/backend/venv/bin/python -m backend.app
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
-# Give the service time to start up
 TimeoutStartSec=60
 
-# Add video group access
+# Open /dev/video* (UVC) as user `inu`
 SupplementaryGroups=video
 
-# Environment variables
 Environment=PYTHONPATH=/home/inu/INU_final
 Environment=FLASK_ENV=production
 
 [Install]
-WantedBy=multi-user.target 
+WantedBy=multi-user.target

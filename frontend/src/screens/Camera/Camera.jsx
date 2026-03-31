@@ -311,11 +311,19 @@ export const Camera = () => {
         const response = await fetch(camerasUrl, { headers: { 'Authorization': `Bearer ${localStorage.getItem('inu_token')}` } });
         if (response.ok) {
           const data = await response.json();
-          if (data.success && data.cameras.length > 0) setAvailableCameras(data.cameras);
+          if (data.success) {
+            if (data.cameras && data.cameras.length > 0) {
+              setAvailableCameras(data.cameras);
+            } else {
+              setAvailableCameras([]);
+            }
+          }
         }
       } catch (_) {}
     };
     fetchAvailableCameras();
+    const camPoll = setInterval(fetchAvailableCameras, 5000);
+    return () => clearInterval(camPoll);
   }, []);
 
   // latestBatchId is tracked from activity logs in state above

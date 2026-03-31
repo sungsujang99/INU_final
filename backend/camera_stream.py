@@ -49,54 +49,55 @@ class USBCamera:
         self.running = True
         return self._init_camera()
 
+    def _warmup_capture(self, cap: cv2.VideoCapture) -> tuple:
+        """Try to read one good frame after properties are set."""
+        time.sleep(0.25)
+        for _ in range(10):
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                return True, frame
+            time.sleep(0.1)
+        return False, None
+
     def _init_camera(self) -> bool:
+        cap = None
         try:
-            # Prefer V4L2 backend
-            cap = cv2.VideoCapture(self.device_path, cv2.CAP_V4L2)
-            if not cap.isOpened():
-                cap = cv2.VideoCapture(self.device_path)
-            if not cap.isOpened():
-                logger.error(f"[{self.name}] Failed to open {self.device_path}")
-                return False
+            for prefer_mjpeg in (True, False):
+                cap = cv2.VideoCapture(self.device_path, cv2.CAP_V4L2)
+                if not cap.isOpened():
+                    cap = cv2.VideoCapture(self.device_path)
+                if not cap.isOpened():
+                    logger.error(f"[{self.name}] Failed to open {self.device_path}")
+                    return False
 
-            # Force MJPEG first, then resolution/fps, then minimal buffering
-            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-            cap.set(cv2.CAP_PROP_FPS, self.fps)
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                if prefer_mjpeg:
+                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                cap.set(cv2.CAP_PROP_FPS, self.fps)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-            time.sleep(0.3)
+                ok, last = self._warmup_capture(cap)
+                if ok:
+                    self.cap = cap
+                    with self.lock:
+                        self.frame = last
+                        self.last_frame_time = time.time()
+                    mode = "MJPG" if prefer_mjpeg else "default/YUYV"
+                    logger.info(f"[{self.name}] Initialized ({self.width}x{self.height} @{self.fps} fps, {mode})")
+                    return True
 
-            # Multiple capture attempts
-            ok = False
-            last = None
-            for _ in range(8):
-                ret, frame = cap.read()
-                if ret and frame is not None:
-                    ok = True
-                    last = frame
-                    break
-                time.sleep(0.1)
-
-            if not ok:
-                logger.error(f"[{self.name}] Failed to capture test frame")
+                logger.warning(f"[{self.name}] No frame with {'MJPG' if prefer_mjpeg else 'default'} — retrying other mode")
                 cap.release()
-                return False
 
-            # Assign once proven working
-            self.cap = cap
-            with self.lock:
-                self.frame = last
-                self.last_frame_time = time.time()
-
-            logger.info(f"[{self.name}] Initialized ({self.width}x{self.height}@{self.fps} MJPEG)")
-            return True
+            logger.error(f"[{self.name}] Failed to capture test frame (tried MJPG and default)")
+            return False
 
         except Exception as e:
             logger.exception(f"[{self.name}] Error initializing: {e}")
             try:
-                cap.release()
+                if cap is not None:
+                    cap.release()
             except Exception:
                 pass
             return False
@@ -151,6 +152,8 @@ class CameraManager:
     def _init_cameras(self):
         """Initialize cameras in specific order with delays"""
         for cam_id in ['C', 'B', 'A', 'M']:  # Initialize in this order
+            if cam_id in self.cameras:
+                continue
             cfg = CAMERA_CONFIG.get(cam_id)
             if not cfg:
                 continue
@@ -165,6 +168,13 @@ class CameraManager:
             else:
                 logger.error(f"[{cam_id}] Failed to initialize: {dev}")
             time.sleep(0.6)  # Delay between initializations
+
+    def ensure_cameras(self) -> None:
+        """If import-time init saw no USB (common under systemd), try again on first HTTP hit."""
+        if self.cameras:
+            return
+        logger.warning("CameraManager has 0 devices — retrying open (USB may have been late at boot)")
+        self._init_cameras()
 
     def get_frame(self, rack_id: str) -> Optional[np.ndarray]:
         """Get frame from specific camera"""
@@ -209,6 +219,7 @@ camera_manager = CameraManager()
 def get_available_cameras():
     """Get list of available cameras"""
     try:
+        camera_manager.ensure_cameras()
         return camera_manager.get_available_cameras()
     except Exception as e:
         logger.error(f"Error getting available cameras: {e}")
@@ -216,6 +227,7 @@ def get_available_cameras():
 
 def mjpeg_feed(rack_id: str = 'M'):
     """Get MJPEG feed for specified rack"""
+    camera_manager.ensure_cameras()
     logger.info(f"MJPEG feed requested for rack {rack_id}")
     return Response(
         camera_manager.get_generator(rack_id),

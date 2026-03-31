@@ -50,6 +50,9 @@ StandardError=journal
 # Give the service time to start up
 TimeoutStartSec=60
 
+# Read UVC devices as user (not only root)
+SupplementaryGroups=video
+
 # Environment variables
 Environment=FLASK_ENV=production
 
