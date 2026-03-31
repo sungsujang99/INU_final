@@ -16,9 +16,9 @@ from typing import Any, Optional, Dict
 from flask import Response
 
 try:
-    from .camera_config import CAMERA_CONFIG
+    from .camera_config import CAMERA_CONFIG, resolve_rack_to_device
 except ImportError:
-    from camera_config import CAMERA_CONFIG
+    from camera_config import CAMERA_CONFIG, resolve_rack_to_device
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -160,29 +160,44 @@ class CameraManager:
     def __init__(self):
         self.cameras: Dict[str, USBCamera] = {}
         self._diagnostics: Dict[str, Dict[str, Any]] = {}
+        self._resolution_meta: Dict[str, Any] = {}
         self._init_cameras()
 
     def _init_cameras(self):
         """Initialize cameras in specific order with delays (spacing helps multi-cam USB hubs)."""
+        resolved, self._resolution_meta = resolve_rack_to_device()
         for cam_id in ['C', 'B', 'A', 'M']:  # Initialize in this order
             if cam_id in self.cameras:
                 continue
             cfg = CAMERA_CONFIG.get(cam_id)
             if not cfg:
                 continue
-            dev = cfg['device']
-            rec: Dict[str, Any] = {"path": dev, "rack": cam_id, "name": cfg.get("name", cam_id)}
-            if not os.path.exists(dev):
+            configured = cfg["device"]
+            dev = resolved.get(cam_id)
+            rec: Dict[str, Any] = {
+                "rack": cam_id,
+                "name": cfg.get("name", cam_id),
+                "configured_path": configured,
+                "path": dev or configured,
+            }
+            if not dev or not os.path.exists(dev):
                 rec["ok"] = False
-                rec["error"] = "path missing (check camera_config.py vs ls /dev/v4l/by-path/)"
+                rec["error"] = (
+                    "no device path (see resolution.hint) — plug UVC cameras, check by-path, "
+                    "or fix CAMERA_CONFIG"
+                )
+                if self._resolution_meta.get("hint"):
+                    rec["resolution_hint"] = self._resolution_meta["hint"]
                 self._diagnostics[cam_id] = rec
-                logger.error(f"[{cam_id}] Device path not found: {dev}")
+                logger.error(f"[{cam_id}] No resolved path (configured was {configured})")
                 continue
+            if dev != configured:
+                rec["resolved_from"] = "auto-discovery" if self._resolution_meta.get("mode") == "auto" else "partial"
             rec["exists"] = True
             rec["rw"] = os.access(dev, os.R_OK | os.W_OK)
             if not rec["rw"]:
                 rec["hint"] = "add user to group 'video' and use SupplementaryGroups=video in systemd"
-            cam = USBCamera(dev, cfg['name'])
+            cam = USBCamera(dev, cfg["name"])
             if cam.start():
                 self.cameras[cam_id] = cam
                 rec["ok"] = True
@@ -198,6 +213,7 @@ class CameraManager:
         return {
             "racks": {k: dict(v) for k, v in self._diagnostics.items()},
             "opened": sorted(self.cameras.keys()),
+            "resolution": dict(self._resolution_meta),
         }
 
     def ensure_cameras(self) -> None:
