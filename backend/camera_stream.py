@@ -43,6 +43,7 @@ class USBCamera:
         self.last_frame_time = 0.0
         self.lock = threading.Lock()
         self.running = False
+        self.last_fail_reason = ""
 
     def start(self) -> bool:
         logger.info(f"Starting {self.name} at {self.device_path}")
@@ -62,19 +63,23 @@ class USBCamera:
     def _init_camera(self) -> bool:
         cap = None
         try:
-            for prefer_mjpeg in (True, False):
+            # (mjpeg?, fixed 640x480?) — cheap UVC cams often need "native" (no size/MJPG) to return frames.
+            attempts = ((True, True), (False, True), (False, False))
+            for prefer_mjpeg, set_resolution in attempts:
                 cap = cv2.VideoCapture(self.device_path, cv2.CAP_V4L2)
                 if not cap.isOpened():
                     cap = cv2.VideoCapture(self.device_path)
                 if not cap.isOpened():
+                    self.last_fail_reason = "VideoCapture could not open device"
                     logger.error(f"[{self.name}] Failed to open {self.device_path}")
                     return False
 
                 if prefer_mjpeg:
                     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-                cap.set(cv2.CAP_PROP_FPS, self.fps)
+                if set_resolution:
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                    cap.set(cv2.CAP_PROP_FPS, self.fps)
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
                 ok, last = self._warmup_capture(cap)
@@ -83,17 +88,24 @@ class USBCamera:
                     with self.lock:
                         self.frame = last
                         self.last_frame_time = time.time()
-                    mode = "MJPG" if prefer_mjpeg else "default/YUYV"
-                    logger.info(f"[{self.name}] Initialized ({self.width}x{self.height} @{self.fps} fps, {mode})")
+                    fmt = "MJPG" if prefer_mjpeg else "YUYV/default"
+                    res = f"{self.width}x{self.height}" if set_resolution else "native"
+                    logger.info(f"[{self.name}] Initialized ({fmt}, {res} @ ~{self.fps} fps requested)")
+                    self.last_fail_reason = ""
                     return True
 
-                logger.warning(f"[{self.name}] No frame with {'MJPG' if prefer_mjpeg else 'default'} — retrying other mode")
+                logger.warning(
+                    f"[{self.name}] No frame (mjpeg={prefer_mjpeg}, fixed_res={set_resolution}); trying next mode"
+                )
                 cap.release()
+                cap = None
 
-            logger.error(f"[{self.name}] Failed to capture test frame (tried MJPG and default)")
+            self.last_fail_reason = "opened OK but no frames (tried MJPG+640, YUYV+640, native)"
+            logger.error(f"[{self.name}] Failed to capture test frame after all modes")
             return False
 
         except Exception as e:
+            self.last_fail_reason = str(e)
             logger.exception(f"[{self.name}] Error initializing: {e}")
             try:
                 if cap is not None:
