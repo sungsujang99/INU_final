@@ -119,11 +119,12 @@ def recent_kernel_usb_lines() -> str:
     return ""
 
 
-def interpret_dmesg_hub_and_uvc_vs_serial(dmesg: str) -> None:
+def interpret_dmesg_hub_and_uvc_vs_serial(dmesg: str, *, xhci_webcam_path_count: int) -> None:
     """Explain common patterns: multi-cam hub power, CH341 vs uvcvideo."""
     if not (dmesg or "").strip():
         return
     low = dmesg.lower()
+    uvc_ok = xhci_webcam_path_count > 0 or "found uvc" in low or "uvcvideo" in low
     print(f"\n{'═' * 64}\nReading your log (hub + multiple USB devices)\n{'═' * 64}")
 
     if (
@@ -145,14 +146,21 @@ def interpret_dmesg_hub_and_uvc_vs_serial(dmesg: str) -> None:
 
     ch341 = dmesg.count("ch341-uart converter now attached")
     if ch341 >= 1:
-        print(
-            f"• The kernel bound **{ch341}× CH341 UART** (`ch341-uart` → ttyUSB*). That is the **serial**\n"
-            "  driver for **1a86:7523**, **not** a webcam driver. **`camera_stream` / OpenCV V4L**\n"
-            "  needs the **uvcvideo** driver and **USB Video class 0x0e** (see sysfs section above).\n\n"
-            "  If you truly have **four UVC webcams**, after fixing hub power you should see **different**\n"
-            "  USB product/vendor lines and **uvcvideo** in dmesg, and this script will show **Video 0x0e**.\n"
-            "  If every device still shows as **CH340/7523**, they are **not** standard UVC cameras to Linux.\n"
-        )
+        if uvc_ok:
+            print(
+                f"• **{ch341}× CH341 UART** on other hub ports (`ttyUSB*`, **1a86:7523**) — **serial only**,\n"
+                "  separate from your **UVC** webcams. **`camera_stream`** uses the **xhci… video-index0**\n"
+                "  paths from the Summary above; no change needed for CH340 unless you use those UARTs elsewhere.\n"
+            )
+        else:
+            print(
+                f"• The kernel bound **{ch341}× CH341 UART** (`ch341-uart` → ttyUSB*). That is the **serial**\n"
+                "  driver for **1a86:7523**, **not** a webcam driver. **`camera_stream` / OpenCV V4L**\n"
+                "  needs the **uvcvideo** driver and **USB Video class 0x0e** (see sysfs section above).\n\n"
+                "  If you truly have **four UVC webcams**, after fixing hub power you should see **different**\n"
+                "  USB product/vendor lines and **uvcvideo** in dmesg, and this script will show **Video 0x0e**.\n"
+                "  If every device still shows as **CH340/7523**, they are **not** standard UVC cameras to Linux.\n"
+            )
 
 
 def is_usb_uvc_by_path(name: str) -> bool:
@@ -274,8 +282,13 @@ def print_summary(
         for n in usb_symlinks:
             print(f"  /dev/v4l/by-path/{n}")
         print(
-            "\nUnplug one camera at a time and re-run this script to see which path "
-            "disappears, then assign M / A / B / C."
+            "\n**Rack mapping** in repo `camera_config.py`: M → `…1.4.4.1…`, A → `.2`, B → `.3`, C → `.4` "
+            "(matches this hub layout).\n"
+            "If several cameras share the same **ID_SERIAL** in udev, only **by-path** tells them apart.\n"
+        )
+        print(
+            "Unplug one camera at a time and re-run to confirm which symlink is which physical unit "
+            "if labels ever drift."
         )
         return
 
@@ -306,10 +319,11 @@ def main() -> None:
     sh("V4L devices (v4l2-ctl)", "v4l2-ctl --list-devices 2>/dev/null || true", ok_codes=(0, 127))
 
     by_path_names = list_by_path()
+    xhci_cam_paths = sum(1 for n in by_path_names if is_usb_uvc_by_path(n))
     udev_video_hints()
     usb_vid_count = scan_sysfs_usb_video_class()
     dmesg_blob = recent_kernel_usb_lines()
-    interpret_dmesg_hub_and_uvc_vs_serial(dmesg_blob)
+    interpret_dmesg_hub_and_uvc_vs_serial(dmesg_blob, xhci_webcam_path_count=xhci_cam_paths)
     print_summary(by_path_names, lsusb_text, usb_video_interface_count=usb_vid_count)
 
 
