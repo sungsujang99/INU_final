@@ -9,6 +9,10 @@ Run on the Pi:
 Use *USB* *-video-index0* lines under /dev/v4l/by-path/ (names containing xhci-hcd
 or pci-...-usb) in camera_config.py. Ignore platform-...pisp / codec — those are
 the Pi GPU/ISP, not your USB webcams.
+
+**Several UVC webcams (e.g. four) on one hub** need a **powered** USB hub; unpowered
+hubs often produce “unable to enumerate”, error -32/-71, and missing /dev/video*
+nodes. Splitting cameras across the Pi’s ports + hub helps.
 """
 
 from __future__ import annotations
@@ -101,17 +105,54 @@ def scan_sysfs_usb_video_class() -> int:
     return found
 
 
-def recent_kernel_usb_lines() -> None:
+def recent_kernel_usb_lines() -> str:
     print(f"\n{'═' * 64}\nLast kernel lines mentioning usb/new/full-speed/error (plug in/out, re-run)\n{'═' * 64}")
     for cmd in (
-        "dmesg -T 2>/dev/null | grep -iE 'usb|uvc|video' | tail -n 40",
-        "journalctl -k -n 40 --no-pager 2>/dev/null | grep -iE 'usb|uvc|video'",
+        "dmesg -T 2>/dev/null | grep -iE 'usb|uvc|video' | tail -n 50",
+        "journalctl -k -n 50 --no-pager 2>/dev/null | grep -iE 'usb|uvc|video'",
     ):
         r = subprocess.run(cmd, shell=True, text=True, capture_output=True, timeout=10)
-        if r.returncode == 0 and (r.stdout or "").strip():
+        if (r.stdout or "").strip():
             print(r.stdout.rstrip())
-            return
+            return r.stdout
     print("  (no dmesg/journalctl output — try:  sudo dmesg -T | tail -50 )")
+    return ""
+
+
+def interpret_dmesg_hub_and_uvc_vs_serial(dmesg: str) -> None:
+    """Explain common patterns: multi-cam hub power, CH341 vs uvcvideo."""
+    if not (dmesg or "").strip():
+        return
+    low = dmesg.lower()
+    print(f"\n{'═' * 64}\nReading your log (hub + multiple USB devices)\n{'═' * 64}")
+
+    if (
+        "unable to enumerate" in low
+        or "error -71" in dmesg
+        or "error -32" in dmesg
+        or "not accepting address" in low
+        or "device descriptor read" in low
+    ):
+        print(
+            "• **Enumeration errors** on a hub port (e.g. `unable to enumerate USB device`,\n"
+            "  `device descriptor read/64, error -32`, `error -71`, device not accepting address)\n"
+            "  almost always mean **power / signal**, not application software:\n"
+            "  – **Unpowered hub** or supply too weak for **four** cameras.\n"
+            "  – Use a **powered USB 3 hub** with an adequate adapter (many webcams need **0.5–0.9 A each**).\n"
+            "  – **Spread load**: e.g. two cameras on the **Pi’s USB ports**, two on a **powered** hub.\n"
+            "  – Try **shorter cables**, another port, or **one camera at a time** to find the bad link.\n"
+        )
+
+    ch341 = dmesg.count("ch341-uart converter now attached")
+    if ch341 >= 1:
+        print(
+            f"• The kernel bound **{ch341}× CH341 UART** (`ch341-uart` → ttyUSB*). That is the **serial**\n"
+            "  driver for **1a86:7523**, **not** a webcam driver. **`camera_stream` / OpenCV V4L**\n"
+            "  needs the **uvcvideo** driver and **USB Video class 0x0e** (see sysfs section above).\n\n"
+            "  If you truly have **four UVC webcams**, after fixing hub power you should see **different**\n"
+            "  USB product/vendor lines and **uvcvideo** in dmesg, and this script will show **Video 0x0e**.\n"
+            "  If every device still shows as **CH340/7523**, they are **not** standard UVC cameras to Linux.\n"
+        )
 
 
 def is_usb_uvc_by_path(name: str) -> bool:
@@ -247,7 +288,8 @@ def print_summary(
         "What to do:\n"
         "  1. Confirm hardware: real **UVC** webcams (most USB “plug and play” cameras), not CSI ribbons,\n"
         "     and not CH340/UART boards mistaken for cameras.\n"
-        "  2. Power: try a **powered USB hub**, shorter cables, one camera directly on the Pi.\n"
+        "  2. **Four (or more) webcams on one hub**: use a **powered** hub; fix enumeration errors first\n"
+        "     (see “Reading your log” above if dmesg shows -32 / -71 / unable to enumerate).\n"
         "  3. Hotplug test: `sudo dmesg -w` in one terminal, unplug/replug a camera; look for errors.\n"
         "  4. When the kernel sees UVC, this script will show sysfs Video interfaces and new\n"
         "     by-path names with **xhci-hcd** … **video-index0** — put those into camera_config.py.\n"
@@ -266,7 +308,8 @@ def main() -> None:
     by_path_names = list_by_path()
     udev_video_hints()
     usb_vid_count = scan_sysfs_usb_video_class()
-    recent_kernel_usb_lines()
+    dmesg_blob = recent_kernel_usb_lines()
+    interpret_dmesg_hub_and_uvc_vs_serial(dmesg_blob)
     print_summary(by_path_names, lsusb_text, usb_video_interface_count=usb_vid_count)
 
 
