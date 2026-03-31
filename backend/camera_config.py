@@ -6,9 +6,12 @@ Paths use the kernel xhci USB topology (e.g. …usb-0:1.4.4.N…). Identical web
 share the same USB serial in udev; **by-path** is the stable differentiator. Re-run
 `python list_usb_v4l_paths.py` if you move cables or hubs.
 
-If **every** configured path is missing (e.g. hub topology changed) but exactly **four**
-UVC symlinks exist under `/dev/v4l/by-path/`, racks **M, A, B, C** are assigned in **sorted**
-by-path name order — verify with `list_usb_v4l_paths.py` and then pin paths in CAMERA_CONFIG.
+If **every** configured path is missing but exactly **four** UVC symlinks exist, racks are
+filled in **sorted** by-path order — confirm with `list_usb_v4l_paths.py`.
+
+**Per-camera mapping (recommended):** plug cameras, run **`python link_cameras.py --list`**, then
+**`python link_cameras.py --assign M=0 A=1 B/C=…`** (or interactive **`python link_cameras.py`**),
+and paste the printed block into **`CAMERA_CONFIG`** below so each rack points at the right physical USB path.
 """
 
 from __future__ import annotations
